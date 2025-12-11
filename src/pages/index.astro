@@ -1,0 +1,11 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { LoginPage } from '@/components/auth/LoginPage';
+---
+
+<BaseLayout
+  title="Login"
+  description="Sign in to Spooled Cloud Dashboard. Manage your job queues, monitor workers, schedule tasks, and orchestrate workflows in real-time."
+>
+  <LoginPage client:load />
+</BaseLayout>

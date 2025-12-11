@@ -1,0 +1,15 @@
+# Spooled Cloud Dashboard
+# https://dashboard.spooled.cloud
+
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /jobs/
+Disallow: /queues/
+Disallow: /workers/
+Disallow: /schedules/
+Disallow: /workflows/
+Disallow: /settings/
+
+# Sitemap
+Sitemap: https://dashboard.spooled.cloud/sitemap.xml

@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { DeadLetterQueuePage } from '@/components/jobs/DeadLetterQueuePage';
+---
+
+<DashboardLayout title="Dead-Letter Queue | Spooled Cloud">
+  <DeadLetterQueuePage client:load />
+</DashboardLayout>

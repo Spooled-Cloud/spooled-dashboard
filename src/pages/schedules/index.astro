@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { SchedulesListPage } from '@/components/schedules/SchedulesListPage';
+---
+
+<DashboardLayout title="Schedules - Spooled Dashboard">
+  <SchedulesListPage client:load />
+</DashboardLayout>

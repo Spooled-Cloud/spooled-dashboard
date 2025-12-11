@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { OrganizationSettingsPage } from '@/components/settings/OrganizationSettings';
+---
+
+<DashboardLayout title="Organization Settings - Spooled Dashboard">
+  <OrganizationSettingsPage client:load />
+</DashboardLayout>

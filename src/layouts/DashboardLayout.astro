@@ -1,0 +1,32 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { Header } from '@/components/layout/Header';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<BaseLayout title={title} description={description} noindex={true}>
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <Sidebar client:load />
+
+    <!-- Main Content -->
+    <div class="flex flex-1 flex-col overflow-hidden">
+      <!-- Header -->
+      <Header client:load />
+
+      <!-- Page Content -->
+      <main class="flex-1 overflow-y-auto bg-muted/30 p-6">
+        <div class="mx-auto max-w-7xl">
+          <slot />
+        </div>
+      </main>
+    </div>
+  </div>
+</BaseLayout>

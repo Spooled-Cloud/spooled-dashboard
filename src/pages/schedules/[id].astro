@@ -1,0 +1,16 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { ScheduleDetailsPage } from '@/components/schedules/ScheduleDetailsPage';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect('/schedules');
+}
+---
+
+<DashboardLayout title={`Schedule ${id}`}>
+  <ScheduleDetailsPage scheduleId={id} client:load />
+</DashboardLayout>

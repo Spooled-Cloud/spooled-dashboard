@@ -1,0 +1,16 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { WorkflowDetailsPage } from '@/components/workflows/WorkflowDetailsPage';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect('/workflows');
+}
+---
+
+<DashboardLayout title={`Workflow ${id}`}>
+  <WorkflowDetailsPage workflowId={id} client:load />
+</DashboardLayout>

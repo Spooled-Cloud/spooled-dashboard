@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { JobsListPage } from '@/components/jobs/JobsListPage';
+---
+
+<DashboardLayout title="Jobs">
+  <JobsListPage client:load />
+</DashboardLayout>

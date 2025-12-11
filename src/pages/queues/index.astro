@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { QueuesListPage } from '@/components/queues/QueuesListPage';
+---
+
+<DashboardLayout title="Queues">
+  <QueuesListPage client:load />
+</DashboardLayout>

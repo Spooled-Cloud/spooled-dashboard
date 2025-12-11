@@ -1,0 +1,16 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { JobDetailsPage } from '@/components/jobs/JobDetailsPage';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect('/jobs');
+}
+---
+
+<DashboardLayout title={`Job ${id}`}>
+  <JobDetailsPage jobId={id} client:load />
+</DashboardLayout>

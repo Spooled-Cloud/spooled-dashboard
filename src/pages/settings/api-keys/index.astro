@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { ApiKeysListPage } from '@/components/settings/ApiKeysListPage';
+---
+
+<DashboardLayout title="API Keys - Spooled Dashboard">
+  <ApiKeysListPage client:load />
+</DashboardLayout>

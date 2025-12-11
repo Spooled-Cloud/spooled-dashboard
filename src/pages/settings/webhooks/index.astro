@@ -1,0 +1,8 @@
+---
+import DashboardLayout from '@/layouts/DashboardLayout.astro';
+import { WebhooksListPage } from '@/components/settings/WebhooksListPage';
+---
+
+<DashboardLayout title="Webhooks - Spooled Dashboard">
+  <WebhooksListPage client:load />
+</DashboardLayout>

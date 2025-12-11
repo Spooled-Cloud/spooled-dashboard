@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: spooled-dashboard-dev
+
+resources:
+  - ../../base
+
+nameSuffix: -dev
+
+labels:
+  - includeSelectors: true
+    pairs:
+      environment: development
+
+patches:
+  # Reduce replicas for development
+  - target:
+      kind: Deployment
+      name: spooled-dashboard
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  # Reduce resource limits
+  - target:
+      kind: Deployment
+      name: spooled-dashboard
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  # Disable HPA in development
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: spooled-dashboard
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+
+configMapGenerator:
+  - name: spooled-dashboard-config
+    behavior: merge
+    literals:
+      - PUBLIC_API_URL=http://spooled-backend-dev.spooled-backend-dev.svc.cluster.local:3000
+      - PUBLIC_WS_URL=ws://spooled-backend-dev.spooled-backend-dev.svc.cluster.local:3000
+      - PUBLIC_SENTRY_ENVIRONMENT=development
