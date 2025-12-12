@@ -1,11 +1,16 @@
 # Build stage
-FROM node:20-alpine AS builder
+# Use BUILDPLATFORM for the build to avoid running npm under QEMU when producing multi-arch images.
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 
 WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .
@@ -15,8 +20,11 @@ COPY . .
 # No build-time environment variables needed for API URLs
 RUN npm run build
 
+# Prune devDependencies for runtime (still safe for Astro server runtime)
+RUN npm prune --omit=dev --no-audit --no-fund
+
 # Production stage
-FROM node:20-alpine AS production
+FROM --platform=$TARGETPLATFORM node:20-alpine AS production
 
 WORKDIR /app
 
