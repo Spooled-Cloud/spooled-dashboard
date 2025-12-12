@@ -88,7 +88,7 @@ describe('AuthGuard', () => {
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
-  it('should render custom fallback when provided', () => {
+  it('should render custom fallback when provided', async () => {
     useAuthStore.setState({
       accessToken: null,
       refreshToken: 'test-refresh',
@@ -103,7 +103,10 @@ describe('AuthGuard', () => {
     );
 
     // Should show custom fallback
-    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    });
   });
 
   it('should redirect when no tokens', async () => {
