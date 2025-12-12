@@ -18,6 +18,8 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 - **🔑 API Keys** - Manage programmatic access
 - **🔔 Webhooks** - Configure real-time notifications
 - **🌐 WebSocket** - Live updates across the dashboard
+- **📈 Usage Tracking** - Monitor plan limits and resource usage
+- **👤 Admin Portal** - Platform-wide organization management (for admins)
 
 ## Tech Stack
 
@@ -160,9 +162,11 @@ docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 | Route | Description |
 |-------|-------------|
 | `/` | Login page |
+| `/onboarding` | New organization registration |
 | `/dashboard` | Main dashboard with KPIs |
 | `/jobs` | Jobs list and management |
 | `/jobs/[id]` | Job details |
+| `/jobs/dlq` | Dead-letter queue |
 | `/queues` | Queues list and management |
 | `/queues/[name]` | Queue details |
 | `/workers` | Workers list |
@@ -173,18 +177,36 @@ docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 | `/schedules/[id]` | Schedule details |
 | `/settings` | Settings navigation |
 | `/settings/profile` | User profile |
-| `/settings/organization` | Organization settings |
+| `/settings/organization` | Organization settings (with usage) |
 | `/settings/api-keys` | API keys management |
 | `/settings/webhooks` | Webhooks configuration |
 
+### Admin Routes (requires admin key)
+
+| Route | Description |
+|-------|-------------|
+| `/admin/login` | Admin key login |
+| `/admin` | Admin dashboard with platform stats |
+| `/admin/organizations` | List all organizations |
+| `/admin/organizations/[id]` | Organization details and management |
+
 ## Authentication
 
-The dashboard uses JWT-based authentication:
+The dashboard uses API key-based authentication:
 
-1. Login with email/password at `/`
-2. Access token stored in memory (Zustand)
-3. Refresh token handles token renewal
-4. Protected routes redirect to login if unauthenticated
+1. Create organization via onboarding at `/onboarding` (or with admin key)
+2. Login with API key at `/` to exchange for JWT tokens
+3. Access token stored in memory (Zustand)
+4. Refresh token handles automatic token renewal
+5. Protected routes redirect to login if unauthenticated
+
+### Admin Portal
+
+The admin portal requires an `ADMIN_API_KEY` environment variable on the backend:
+
+1. Navigate to `/admin/login`
+2. Enter the admin key configured on the backend
+3. Access platform-wide management features
 
 ## Real-time Updates
 
