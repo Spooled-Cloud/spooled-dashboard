@@ -138,6 +138,21 @@ export interface PlatformStats {
 // Admin Key Management
 // ============================================================================
 
+/**
+ * SECURITY CONSIDERATIONS:
+ *
+ * The admin key is stored in sessionStorage rather than localStorage:
+ * - sessionStorage is cleared when the browser tab closes (limits exposure window)
+ * - Unlike localStorage, it's not shared across tabs (limits attack surface)
+ *
+ * However, sessionStorage is still accessible to JavaScript, making it vulnerable
+ * to XSS attacks. For maximum security, consider:
+ * - Using httpOnly cookies (requires backend changes)
+ * - Implementing short session timeouts
+ * - Adding CSP headers to prevent XSS
+ *
+ * Current tradeoff: Convenience (admin stays logged in within tab) vs. security
+ */
 const ADMIN_KEY_STORAGE = 'spooled_admin_key';
 
 export function getAdminKey(): string | null {

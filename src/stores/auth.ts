@@ -8,6 +8,10 @@
  *
  * Note: This system uses API keys for authentication, not email/password.
  * The "user" is really the API key context (org + key ID).
+ *
+ * SECURITY: Refresh tokens are stored in memory only, NOT in localStorage.
+ * This prevents XSS attacks from stealing long-lived tokens.
+ * The tradeoff is that users will need to re-login after closing the tab.
  */
 
 import { create } from 'zustand';
@@ -153,9 +157,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      // SECURITY: Only persist organization context, NOT tokens
+      // Refresh tokens should never be stored in localStorage (XSS vulnerable)
+      // Users will need to re-login after closing the tab, which is more secure
       partialize: (state) => ({
-        refreshToken: state.refreshToken,
         currentOrganization: state.currentOrganization,
+        // Note: refreshToken is intentionally NOT persisted for security
       }),
     }
   )
