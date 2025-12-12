@@ -98,11 +98,23 @@ export const useAuthStore = create<AuthState>()(
         set({ user });
       },
 
-      // Fetch current user info from /auth/me
+      // Fetch current user info from /auth/me and organization details
       fetchCurrentUser: async () => {
         try {
           const user = await apiClient.get<CurrentUser>(API_ENDPOINTS.AUTH.ME);
           set({ user });
+
+          // Also fetch organization details if we have an organization_id
+          if (user.organization_id) {
+            try {
+              const org = await apiClient.get<Organization>(
+                API_ENDPOINTS.ORGANIZATIONS.GET(user.organization_id)
+              );
+              set({ currentOrganization: org, organizations: [org] });
+            } catch (orgError) {
+              console.warn('Failed to fetch organization details:', orgError);
+            }
+          }
         } catch {
           // Silently fail - user info is optional for basic functionality
           console.warn('Failed to fetch current user info');

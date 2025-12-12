@@ -7,15 +7,27 @@ import { API_ENDPOINTS } from '@/lib/constants/api';
 
 export interface APIKey {
   id: string;
-  organization_id: string;
   name: string;
-  key_prefix: string;
-  permissions: string[];
-  last_used_at?: string;
-  expires_at?: string;
+  queues: string[];
+  rate_limit: number | null;
+  is_active: boolean;
   created_at: string;
-  created_by: string;
-  status: 'active' | 'revoked' | 'expired';
+  last_used: string | null;
+  expires_at: string | null;
+}
+
+/** Helper to derive display status from API key fields */
+export function getApiKeyStatus(key: APIKey): 'active' | 'revoked' | 'expired' {
+  if (!key.is_active) return 'revoked';
+  if (key.expires_at && new Date(key.expires_at) < new Date()) return 'expired';
+  return 'active';
+}
+
+/** Get key prefix from queues for display (shows first queue or *) */
+export function getKeyDisplayPrefix(key: APIKey): string {
+  if (key.queues.length === 0) return 'none';
+  if (key.queues[0] === '*') return 'all queues';
+  return key.queues[0];
 }
 
 export interface CreateAPIKeyRequest {

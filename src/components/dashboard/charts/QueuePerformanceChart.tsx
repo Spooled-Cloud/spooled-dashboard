@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
+import { BarChart3 } from 'lucide-react';
 
 interface QueueMetrics {
   name: string;
@@ -23,15 +24,18 @@ interface QueuePerformanceChartProps {
 }
 
 export function QueuePerformanceChart({ data, metric = 'throughput' }: QueuePerformanceChartProps) {
-  const mockData: QueueMetrics[] = [
-    { name: 'email', throughput: 145, avgProcessingTime: 234, errorRate: 2.3 },
-    { name: 'notifications', throughput: 98, avgProcessingTime: 156, errorRate: 1.2 },
-    { name: 'reports', throughput: 67, avgProcessingTime: 1234, errorRate: 0.5 },
-    { name: 'webhooks', throughput: 234, avgProcessingTime: 89, errorRate: 5.1 },
-    { name: 'processing', throughput: 189, avgProcessingTime: 567, errorRate: 3.4 },
-  ];
+  // Show empty state if no data
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
+        <BarChart3 className="mb-2 h-8 w-8 opacity-50" />
+        <p className="text-sm">No queue data available</p>
+        <p className="text-xs">Queue metrics will appear here</p>
+      </div>
+    );
+  }
 
-  const chartData = data || mockData;
+  const chartData = data;
 
   const getColor = (value: number, metric: string) => {
     if (metric === 'errorRate') {

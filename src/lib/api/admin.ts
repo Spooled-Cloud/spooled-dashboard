@@ -32,6 +32,7 @@ export interface AdminUsageStats {
 
 export interface AdminOrganizationDetail extends AdminOrganization {
   settings: Record<string, unknown>;
+  custom_limits: Partial<PlanLimits> | null;
   usage_info: UsageInfo;
   api_keys_count: number;
   total_jobs: number;
@@ -107,6 +108,7 @@ export interface UpdateOrgRequest {
   plan_tier?: string;
   billing_email?: string;
   settings?: Record<string, unknown>;
+  custom_limits?: Partial<PlanLimits> | null;
 }
 
 export interface CreateOrgRequest {

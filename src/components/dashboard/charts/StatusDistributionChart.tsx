@@ -32,27 +32,28 @@ const STATUS_LABELS: Record<JobStatus, string> = {
 };
 
 export function StatusDistributionChart({ data }: StatusDistributionChartProps) {
-  const mockData: Record<JobStatus, number> = {
-    pending: 45,
-    scheduled: 12,
-    processing: 8,
-    completed: 234,
-    failed: 15,
-    cancelled: 5,
-    deadletter: 2,
-  };
-
-  const statusData = data || mockData;
-
-  const chartData: StatusData[] = Object.entries(statusData)
-    .filter(([_, value]) => value > 0)
-    .map(([status, value]) => ({
-      name: STATUS_LABELS[status as JobStatus],
-      value,
-      status: status as JobStatus,
-    }));
+  const chartData: StatusData[] = data
+    ? Object.entries(data)
+        .filter(([_, value]) => value > 0)
+        .map(([status, value]) => ({
+          name: STATUS_LABELS[status as JobStatus],
+          value,
+          status: status as JobStatus,
+        }))
+    : [];
 
   const total = chartData.reduce((sum, item) => sum + item.value, 0);
+
+  // Show empty state if no data or all values are 0
+  if (!data || chartData.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
+        <div className="mb-2 h-8 w-8 rounded-full border-4 border-muted opacity-50" />
+        <p className="text-sm">No status data available</p>
+        <p className="text-xs">Job status distribution will appear here</p>
+      </div>
+    );
+  }
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {

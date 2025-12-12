@@ -7,8 +7,8 @@
 
 import type { RuntimeConfig } from '@/pages/api/config';
 
-// Default configuration (fallback if fetch fails)
-const defaultConfig: RuntimeConfig = {
+// Static fallback configuration (used on server or before window is available)
+const staticFallback: RuntimeConfig = {
   apiUrl: 'https://api.spooled.cloud',
   wsUrl: 'wss://api.spooled.cloud',
   sentryEnvironment: 'production',
@@ -16,6 +16,21 @@ const defaultConfig: RuntimeConfig = {
   enableSchedules: true,
   enableAnalytics: false,
 };
+
+// Get default config with localhost detection
+function getDefaultConfig(): RuntimeConfig {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return {
+        ...staticFallback,
+        apiUrl: 'http://localhost:8080',
+        wsUrl: 'ws://localhost:8080',
+      };
+    }
+  }
+  return staticFallback;
+}
 
 // Cached configuration
 let cachedConfig: RuntimeConfig | null = null;
@@ -46,7 +61,7 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
  * Get cached config synchronously (returns default if not loaded yet)
  */
 export function getRuntimeConfig(): RuntimeConfig {
-  return cachedConfig || defaultConfig;
+  return cachedConfig || getDefaultConfig();
 }
 
 /**
@@ -61,12 +76,12 @@ async function fetchConfig(): Promise<RuntimeConfig> {
     const response = await fetch('/api/config');
     if (!response.ok) {
       console.warn('Failed to fetch runtime config, using defaults');
-      return defaultConfig;
+      return getDefaultConfig();
     }
     return await response.json();
   } catch (error) {
     console.warn('Failed to fetch runtime config, using defaults:', error);
-    return defaultConfig;
+    return getDefaultConfig();
   }
 }
 

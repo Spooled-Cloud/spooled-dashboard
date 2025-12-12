@@ -9,7 +9,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { format, subHours, startOfHour } from 'date-fns';
+import { format } from 'date-fns';
+import { TrendingUp } from 'lucide-react';
 
 interface JobsOverTimeData {
   timestamp: string;
@@ -23,33 +24,25 @@ interface JobsOverTimeChartProps {
   timeRange?: '24h' | '7d' | '30d';
 }
 
-function generateMockData(hours: number): JobsOverTimeData[] {
-  const data: JobsOverTimeData[] = [];
-  const now = new Date();
-
-  for (let i = hours; i >= 0; i--) {
-    const timestamp = startOfHour(subHours(now, i));
-    data.push({
-      timestamp: timestamp.toISOString(),
-      created: Math.floor(Math.random() * 100) + 20,
-      completed: Math.floor(Math.random() * 80) + 15,
-      failed: Math.floor(Math.random() * 20),
-    });
-  }
-
-  return data;
-}
-
 export function JobsOverTimeChart({ data, timeRange = '24h' }: JobsOverTimeChartProps) {
-  const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 720;
-
   const chartData = useMemo(() => {
-    const mockData = data || generateMockData(hours);
-    return mockData.map((item) => ({
+    if (!data || data.length === 0) return [];
+    return data.map((item) => ({
       ...item,
       time: format(new Date(item.timestamp), timeRange === '24h' ? 'HH:mm' : 'MMM dd'),
     }));
-  }, [data, hours, timeRange]);
+  }, [data, timeRange]);
+
+  // Show empty state if no data
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
+        <TrendingUp className="mb-2 h-8 w-8 opacity-50" />
+        <p className="text-sm">No job data available</p>
+        <p className="text-xs">Jobs will appear here once processed</p>
+      </div>
+    );
+  }
 
   const CustomTooltip = ({
     active,

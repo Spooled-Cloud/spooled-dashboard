@@ -22,7 +22,8 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   // Wait for Zustand to rehydrate from localStorage
   useEffect(() => {
     // Check if already hydrated
-    if (useAuthStore.persist.hasHydrated()) {
+    const alreadyHydrated = useAuthStore.persist.hasHydrated();
+    if (alreadyHydrated) {
       setHasHydrated(true);
     } else {
       // Wait for hydration to complete

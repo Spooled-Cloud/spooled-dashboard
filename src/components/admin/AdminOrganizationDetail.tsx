@@ -49,6 +49,9 @@ import {
   Copy,
   Check,
   RotateCcw,
+  Settings2,
+  X,
+  InfinityIcon,
 } from 'lucide-react';
 import {
   adminAPI,
@@ -80,6 +83,12 @@ export function AdminOrganizationDetail({ orgId }: Props) {
   // Usage reset state
   const [isResettingUsage, setIsResettingUsage] = useState(false);
   const [usageResetSuccess, setUsageResetSuccess] = useState(false);
+
+  // Custom limits state
+  const [customLimitsOpen, setCustomLimitsOpen] = useState(false);
+  const [editingLimits, setEditingLimits] = useState<Record<string, string>>({});
+  const [savingLimits, setSavingLimits] = useState(false);
+  const [limitsSuccess, setLimitsSuccess] = useState(false);
 
   const loadOrganization = useCallback(async () => {
     try {
@@ -176,6 +185,81 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     }
   };
 
+  const handleOpenCustomLimits = () => {
+    if (!org) return;
+    // Initialize editing limits from current custom_limits or empty
+    const current = org.custom_limits || {};
+    const limits: Record<string, string> = {};
+    const limitFields = [
+      'max_jobs_per_day',
+      'max_active_jobs',
+      'max_queues',
+      'max_workers',
+      'max_api_keys',
+      'max_schedules',
+      'max_workflows',
+      'max_webhooks',
+      'max_payload_size_bytes',
+      'rate_limit_requests_per_second',
+    ];
+    for (const field of limitFields) {
+      const value = (current as Record<string, number | null>)[field];
+      limits[field] = value !== undefined && value !== null ? String(value) : '';
+    }
+    setEditingLimits(limits);
+    setCustomLimitsOpen(true);
+  };
+
+  const handleSaveCustomLimits = async () => {
+    if (!org) return;
+
+    setSavingLimits(true);
+    setError('');
+    try {
+      // Build custom_limits object - only include non-empty values
+      const customLimits: Record<string, number | null> = {};
+      for (const [key, value] of Object.entries(editingLimits)) {
+        if (value.trim() !== '') {
+          const num = parseInt(value, 10);
+          if (!isNaN(num) && num >= 0) {
+            customLimits[key] = num;
+          }
+        }
+      }
+
+      // If all fields are empty, set to null to reset to plan defaults
+      const limitsToSave = Object.keys(customLimits).length === 0 ? null : customLimits;
+
+      await adminAPI.updateOrganization(orgId, { custom_limits: limitsToSave });
+      setLimitsSuccess(true);
+      setTimeout(() => setLimitsSuccess(false), 3000);
+      setCustomLimitsOpen(false);
+      loadOrganization();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update custom limits');
+    } finally {
+      setSavingLimits(false);
+    }
+  };
+
+  const handleResetToDefaults = async () => {
+    if (!org) return;
+
+    setSavingLimits(true);
+    setError('');
+    try {
+      await adminAPI.updateOrganization(orgId, { custom_limits: null });
+      setLimitsSuccess(true);
+      setTimeout(() => setLimitsSuccess(false), 3000);
+      setCustomLimitsOpen(false);
+      loadOrganization();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset limits');
+    } finally {
+      setSavingLimits(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-6">
@@ -245,6 +329,13 @@ export function AdminOrganizationDetail({ orgId }: Props) {
         <Alert className="border-green-500 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200">
           <CheckCircle className="h-4 w-4" />
           <AlertDescription>Plan updated successfully</AlertDescription>
+        </Alert>
+      )}
+
+      {limitsSuccess && (
+        <Alert className="border-green-500 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertDescription>Custom limits updated successfully</AlertDescription>
         </Alert>
       )}
 
@@ -452,6 +543,219 @@ export function AdminOrganizationDetail({ orgId }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Custom Limits */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" />
+              Custom Limits
+            </CardTitle>
+            <CardDescription>
+              Override plan defaults for this organization. Empty values use plan defaults.
+            </CardDescription>
+          </div>
+          <Dialog open={customLimitsOpen} onOpenChange={setCustomLimitsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={handleOpenCustomLimits}>
+                <Settings2 className="mr-2 h-4 w-4" />
+                Edit Limits
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Custom Limits for {org.name}</DialogTitle>
+                <DialogDescription>
+                  Override plan defaults. Leave empty to use the {org.plan_tier} plan defaults.
+                  Set to 0 to disable a feature.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="max_jobs_per_day">Max Jobs Per Day</Label>
+                  <Input
+                    id="max_jobs_per_day"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_jobs_per_day ?? 'Unlimited')}
+                    value={editingLimits.max_jobs_per_day || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_jobs_per_day: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_active_jobs">Max Active Jobs</Label>
+                  <Input
+                    id="max_active_jobs"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_active_jobs ?? 'Unlimited')}
+                    value={editingLimits.max_active_jobs || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_active_jobs: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_queues">Max Queues</Label>
+                  <Input
+                    id="max_queues"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_queues ?? 'Unlimited')}
+                    value={editingLimits.max_queues || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_queues: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_workers">Max Workers</Label>
+                  <Input
+                    id="max_workers"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_workers ?? 'Unlimited')}
+                    value={editingLimits.max_workers || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_workers: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_api_keys">Max API Keys</Label>
+                  <Input
+                    id="max_api_keys"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_api_keys ?? 'Unlimited')}
+                    value={editingLimits.max_api_keys || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_api_keys: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_schedules">Max Schedules</Label>
+                  <Input
+                    id="max_schedules"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_schedules ?? 'Unlimited')}
+                    value={editingLimits.max_schedules || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_schedules: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_workflows">Max Workflows</Label>
+                  <Input
+                    id="max_workflows"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_workflows ?? 'Unlimited')}
+                    value={editingLimits.max_workflows || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_workflows: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_webhooks">Max Webhooks</Label>
+                  <Input
+                    id="max_webhooks"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_webhooks ?? 'Unlimited')}
+                    value={editingLimits.max_webhooks || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_webhooks: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max_payload_size_bytes">Max Payload Size (bytes)</Label>
+                  <Input
+                    id="max_payload_size_bytes"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.max_payload_size_bytes)}
+                    value={editingLimits.max_payload_size_bytes || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, max_payload_size_bytes: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rate_limit_requests_per_second">Rate Limit (req/s)</Label>
+                  <Input
+                    id="rate_limit_requests_per_second"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.rate_limit_requests_per_second)}
+                    value={editingLimits.rate_limit_requests_per_second || ''}
+                    onChange={(e) =>
+                      setEditingLimits({
+                        ...editingLimits,
+                        rate_limit_requests_per_second: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
+                <Button
+                  variant="outline"
+                  onClick={handleResetToDefaults}
+                  disabled={savingLimits}
+                  className="w-full sm:w-auto"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Reset to Defaults
+                </Button>
+                <div className="flex flex-1 justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCustomLimitsOpen(false)}
+                    disabled={savingLimits}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveCustomLimits} disabled={savingLimits}>
+                    {savingLimits ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Save Limits
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          {org.custom_limits && Object.keys(org.custom_limits).length > 0 ? (
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <h4 className="mb-3 text-sm font-medium">Active Custom Overrides:</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3 lg:grid-cols-4">
+                {Object.entries(org.custom_limits).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between rounded bg-background px-3 py-2">
+                    <span className="text-muted-foreground">
+                      {key.replace(/_/g, ' ').replace(/max /i, '')}
+                    </span>
+                    <span className="font-mono font-medium">
+                      {value === null ? (
+                        <InfinityIcon className="h-4 w-4" />
+                      ) : (
+                        value.toLocaleString()
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              Using default {org.plan_tier} plan limits
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Usage */}
       <Card>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Briefcase,
@@ -65,7 +65,12 @@ function isNavItemActive(currentPath: string, navHref: string): boolean {
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  const [currentPath, setCurrentPath] = useState('');
+
+  // Read pathname only on client after hydration to avoid SSR mismatch
+  useEffect(() => {
+    setCurrentPath(window.location.pathname);
+  }, []);
 
   return (
     <aside

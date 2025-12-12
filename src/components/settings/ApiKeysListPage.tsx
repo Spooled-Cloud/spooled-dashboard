@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiKeysAPI } from '@/lib/api/api-keys';
+import { apiKeysAPI, getApiKeyStatus } from '@/lib/api/api-keys';
 import type { APIKey } from '@/lib/api/api-keys';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
@@ -12,7 +12,8 @@ import { RefreshCw, Trash2, Key, Shield, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateApiKeyDialog } from './CreateApiKeyDialog';
 
-function ApiKeyStatusBadge({ status }: { status: APIKey['status'] }) {
+function ApiKeyStatusBadge({ apiKey }: { apiKey: APIKey }) {
+  const status = getApiKeyStatus(apiKey);
   switch (status) {
     case 'active':
       return <Badge className="border-green-500 bg-green-500/10 text-green-700">Active</Badge>;
@@ -65,7 +66,7 @@ function ApiKeysListContent() {
     }
   };
 
-  const activeKeys = apiKeys?.filter((k) => k.status === 'active').length || 0;
+  const activeKeys = apiKeys?.filter((k) => k.is_active).length || 0;
 
   return (
     <div className="space-y-6">
@@ -178,35 +179,37 @@ function ApiKeysListContent() {
                     <div className="flex-1">
                       <div className="mb-2 flex items-center gap-3">
                         <span className="text-lg font-semibold">{apiKey.name}</span>
-                        <ApiKeyStatusBadge status={apiKey.status} />
+                        <ApiKeyStatusBadge apiKey={apiKey} />
                       </div>
 
                       <div className="mt-3 flex items-center gap-6">
                         <div>
-                          <p className="text-xs text-muted-foreground">Key Prefix</p>
-                          <p className="mt-1 font-mono text-sm">{apiKey.key_prefix}...</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Permissions</p>
+                          <p className="text-xs text-muted-foreground">Queue Access</p>
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {apiKey.permissions.slice(0, 3).map((perm) => (
-                              <Badge key={perm} variant="outline" className="text-xs">
-                                {perm}
+                            {apiKey.queues.slice(0, 3).map((queue) => (
+                              <Badge key={queue} variant="outline" className="text-xs font-mono">
+                                {queue === '*' ? 'all queues' : queue}
                               </Badge>
                             ))}
-                            {apiKey.permissions.length > 3 && (
+                            {apiKey.queues.length > 3 && (
                               <Badge variant="outline" className="text-xs">
-                                +{apiKey.permissions.length - 3} more
+                                +{apiKey.queues.length - 3} more
                               </Badge>
                             )}
                           </div>
                         </div>
+                        {apiKey.rate_limit && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Rate Limit</p>
+                            <p className="mt-1 text-sm">{apiKey.rate_limit} req/s</p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
                         <span>Created {formatRelativeTime(apiKey.created_at)}</span>
-                        {apiKey.last_used_at && (
-                          <span>Last used {formatRelativeTime(apiKey.last_used_at)}</span>
+                        {apiKey.last_used && (
+                          <span>Last used {formatRelativeTime(apiKey.last_used)}</span>
                         )}
                         {apiKey.expires_at && (
                           <span>Expires {formatRelativeTime(apiKey.expires_at)}</span>
@@ -215,7 +218,7 @@ function ApiKeysListContent() {
                     </div>
 
                     <div className="ml-4 flex gap-2">
-                      {apiKey.status === 'active' && (
+                      {apiKey.is_active && (
                         <Button
                           variant="destructive"
                           size="sm"

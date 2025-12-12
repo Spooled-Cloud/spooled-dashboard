@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { Server } from 'lucide-react';
 
 interface WorkerUtilization {
   name: string;
@@ -21,16 +22,18 @@ interface WorkerUtilizationChartProps {
 }
 
 export function WorkerUtilizationChart({ data }: WorkerUtilizationChartProps) {
-  const mockData: WorkerUtilization[] = [
-    { name: 'worker-1', active: 8, idle: 2, capacity: 10 },
-    { name: 'worker-2', active: 5, idle: 5, capacity: 10 },
-    { name: 'worker-3', active: 15, idle: 5, capacity: 20 },
-    { name: 'worker-4', active: 3, idle: 7, capacity: 10 },
-    { name: 'worker-5', active: 12, idle: 8, capacity: 20 },
-    { name: 'worker-6', active: 4, idle: 1, capacity: 5 },
-  ];
+  // Show empty state if no data
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
+        <Server className="mb-2 h-8 w-8 opacity-50" />
+        <p className="text-sm">No worker data available</p>
+        <p className="text-xs">Worker utilization will appear here</p>
+      </div>
+    );
+  }
 
-  const chartData = (data || mockData).map((worker) => ({
+  const chartData = data.map((worker) => ({
     ...worker,
     utilization: ((worker.active / worker.capacity) * 100).toFixed(0),
   }));

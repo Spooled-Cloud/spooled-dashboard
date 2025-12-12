@@ -32,7 +32,11 @@ export function LoginPage() {
       // Check if there's a redirect path stored from before login
       const redirectPath = sessionStorage.getItem('redirect_after_login');
       sessionStorage.removeItem('redirect_after_login');
-      window.location.href = redirectPath || '/dashboard';
+
+      // Small delay to ensure state is persisted before navigation
+      setTimeout(() => {
+        window.location.href = redirectPath || '/dashboard';
+      }, 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please check your API key.');
     } finally {
