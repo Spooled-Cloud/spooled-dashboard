@@ -47,9 +47,9 @@ ENV PUBLIC_WS_URL=wss://api.spooled.cloud
 ENV PUBLIC_SENTRY_ENVIRONMENT=production
 # Optional: PUBLIC_SENTRY_DSN, PUBLIC_ENABLE_WORKFLOWS, PUBLIC_ENABLE_SCHEDULES, PUBLIC_ENABLE_ANALYTICS
 
-# Health check using Node.js (wget/curl not available in node:alpine)
+# Health check using /api/config endpoint (always returns 200)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:4321/', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+    CMD node -e "require('http').get('http://localhost:4321/api/config', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Start the application
 CMD ["node", "./dist/server/entry.mjs"]
