@@ -4,7 +4,8 @@
   "description": "Spooled Cloud Dashboard - Job Queue Management Interface",
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "astro dev --force",
+    "dev:clean": "rm -rf node_modules/.vite .astro && astro dev --force",
     "build": "astro check && astro build",
     "preview": "astro preview",
     "astro": "astro",
