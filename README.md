@@ -13,13 +13,14 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 - **📋 Jobs Management** - Create, monitor, retry, and cancel jobs
 - **📦 Queue Management** - Configure queues, pause/resume, view stats
 - **👷 Worker Monitoring** - Track worker status and performance
-- **🔄 Workflows** - Orchestrate jobs with dependencies
-- **📅 Schedules** - Cron-based job scheduling
-- **🔑 API Keys** - Manage programmatic access
-- **🔔 Webhooks** - Configure real-time notifications
+- **🔄 Workflows** - Orchestrate jobs with dependencies (DAG visualization)
+- **📅 Schedules** - Cron-based job scheduling with timezone support
+- **🔑 API Keys** - Manage programmatic access with queue restrictions
+- **🔔 Webhooks** - Configure outgoing notifications with delivery history
 - **🌐 WebSocket** - Live updates across the dashboard
 - **📈 Usage Tracking** - Monitor plan limits and resource usage
-- **👤 Admin Portal** - Platform-wide organization management (for admins)
+- **💀 Dead-Letter Queue** - Review and retry failed jobs
+- **👤 Admin Portal** - Create organizations, manage plans, reset usage
 
 ## Tech Stack
 
@@ -188,7 +189,8 @@ docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 | `/admin/login` | Admin key login |
 | `/admin` | Admin dashboard with platform stats |
 | `/admin/organizations` | List all organizations |
-| `/admin/organizations/[id]` | Organization details and management |
+| `/admin/organizations/[id]` | Organization details, API keys, usage reset |
+| `/admin/plans` | View all plan tiers with limits |
 
 ## Authentication
 
