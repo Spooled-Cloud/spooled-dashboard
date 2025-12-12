@@ -111,10 +111,13 @@ export function LoginPage() {
                 )}
               </Button>
 
-              {/* Test credentials hint */}
-              <div className="mt-4 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                <p className="mb-1 font-medium">Testing Mode:</p>
-                <p>Use the admin API key for testing</p>
+              <div className="text-center">
+                <a
+                  href="/onboarding"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Need to create an organization?
+                </a>
               </div>
             </form>
           </CardContent>

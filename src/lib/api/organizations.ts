@@ -27,7 +27,39 @@ export interface InviteMemberRequest {
   role: 'admin' | 'member';
 }
 
+export interface CreateOrganizationRequest {
+  name: string;
+  slug: string;
+  billing_email?: string;
+}
+
+export interface CreateOrganizationOptions {
+  /** Admin API key for creating organizations when registration is closed */
+  adminKey?: string;
+}
+
 export const organizationsAPI = {
+  /**
+   * POST /api/v1/organizations
+   * Create a new organization
+   *
+   * When REGISTRATION_MODE=closed on the backend, requires adminKey option
+   * which is sent as X-Admin-Key header
+   */
+  create: (
+    data: CreateOrganizationRequest,
+    options?: CreateOrganizationOptions
+  ): Promise<Organization> => {
+    const headers: Record<string, string> = {};
+    if (options?.adminKey) {
+      headers['X-Admin-Key'] = options.adminKey;
+    }
+    return apiClient.post<Organization>(API_ENDPOINTS.ORGANIZATIONS.CREATE, data, {
+      headers,
+      skipAuth: true, // Organization creation is a public endpoint (with optional admin key)
+    });
+  },
+
   /**
    * GET /api/v1/organizations
    * List organizations the user belongs to
