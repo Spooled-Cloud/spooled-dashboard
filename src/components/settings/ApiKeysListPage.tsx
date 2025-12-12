@@ -187,7 +187,7 @@ function ApiKeysListContent() {
                           <p className="text-xs text-muted-foreground">Queue Access</p>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {apiKey.queues.slice(0, 3).map((queue) => (
-                              <Badge key={queue} variant="outline" className="text-xs font-mono">
+                              <Badge key={queue} variant="outline" className="font-mono text-xs">
                                 {queue === '*' ? 'all queues' : queue}
                               </Badge>
                             ))}

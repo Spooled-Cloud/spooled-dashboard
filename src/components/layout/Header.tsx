@@ -9,11 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuthStore } from '@/stores/auth';
 
 export function Header() {
@@ -45,9 +41,7 @@ export function Header() {
           <PopoverContent className="w-80" align="end">
             <div className="space-y-2">
               <h4 className="font-medium">Notifications</h4>
-              <p className="text-sm text-muted-foreground">
-                No new notifications
-              </p>
+              <p className="text-sm text-muted-foreground">No new notifications</p>
               <p className="text-xs text-muted-foreground">
                 Configure notifications in Settings → Webhooks
               </p>
@@ -67,9 +61,7 @@ export function Header() {
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium">{currentOrganization?.name || 'My Account'}</p>
                 {user?.organization_id && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {user.organization_id}
-                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{user.organization_id}</p>
                 )}
               </div>
             </DropdownMenuLabel>

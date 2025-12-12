@@ -19,6 +19,12 @@ const staticFallback: RuntimeConfig = {
 
 // Get default config with localhost detection
 function getDefaultConfig(): RuntimeConfig {
+  // In test runs (vitest), we want deterministic config and MSW handlers to match.
+  // Avoid localhost override which would make tests hit a real local backend.
+  if (import.meta.env.MODE === 'test') {
+    return staticFallback;
+  }
+
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {

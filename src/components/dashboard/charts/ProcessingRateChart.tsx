@@ -37,7 +37,8 @@ export function ProcessingRateChart({ data, realtime = true }: ProcessingRateCha
     );
   }
 
-  const average = displayData.reduce((sum, item) => sum + item.jobsPerSecond, 0) / displayData.length;
+  const average =
+    displayData.reduce((sum, item) => sum + item.jobsPerSecond, 0) / displayData.length;
   const peak = Math.max(...displayData.map((item) => item.jobsPerSecond));
 
   const CustomTooltip = ({

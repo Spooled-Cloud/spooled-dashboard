@@ -567,8 +567,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
               <DialogHeader>
                 <DialogTitle>Custom Limits for {org.name}</DialogTitle>
                 <DialogDescription>
-                  Override plan defaults. Leave empty to use the {org.plan_tier} plan defaults.
-                  Set to 0 to disable a feature.
+                  Override plan defaults. Leave empty to use the {org.plan_tier} plan defaults. Set
+                  to 0 to disable a feature.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-4 py-4">
@@ -733,7 +733,10 @@ export function AdminOrganizationDetail({ orgId }: Props) {
               <h4 className="mb-3 text-sm font-medium">Active Custom Overrides:</h4>
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3 lg:grid-cols-4">
                 {Object.entries(org.custom_limits).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between rounded bg-background px-3 py-2">
+                  <div
+                    key={key}
+                    className="flex items-center justify-between rounded bg-background px-3 py-2"
+                  >
                     <span className="text-muted-foreground">
                       {key.replace(/_/g, ' ').replace(/max /i, '')}
                     </span>
