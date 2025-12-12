@@ -174,10 +174,7 @@ class AdminAPIError extends Error {
   }
 }
 
-async function adminFetch<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function adminFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const adminKey = getAdminKey();
   if (!adminKey) {
     throw new AdminAPIError('Admin key not set', 401, 'missing_admin_key');

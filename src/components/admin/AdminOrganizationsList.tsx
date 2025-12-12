@@ -118,9 +118,7 @@ export function AdminOrganizationsList() {
               <Building2 className="h-8 w-8" />
               Organizations
             </h1>
-            <p className="text-muted-foreground">
-              {total} total organizations
-            </p>
+            <p className="text-muted-foreground">{total} total organizations</p>
           </div>
         </div>
         <Badge variant="outline" className="border-amber-500 text-amber-600">
@@ -144,7 +142,13 @@ export function AdminOrganizationsList() {
                 />
               </div>
             </div>
-            <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(0); }}>
+            <Select
+              value={planFilter}
+              onValueChange={(v) => {
+                setPlanFilter(v);
+                setPage(0);
+              }}
+            >
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="All Plans" />
               </SelectTrigger>
@@ -176,9 +180,7 @@ export function AdminOrganizationsList() {
           ) : error ? (
             <div className="py-8 text-center text-destructive">{error}</div>
           ) : organizations.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              No organizations found
-            </div>
+            <div className="py-8 text-center text-muted-foreground">No organizations found</div>
           ) : (
             <>
               <Table>
@@ -204,22 +206,14 @@ export function AdminOrganizationsList() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getPlanBadgeVariant(org.plan_tier)}>
-                          {org.plan_tier}
-                        </Badge>
+                        <Badge variant={getPlanBadgeVariant(org.plan_tier)}>{org.plan_tier}</Badge>
                       </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {org.usage.jobs_today}
-                      </TableCell>
+                      <TableCell className="text-right font-mono">{org.usage.jobs_today}</TableCell>
                       <TableCell className="text-right font-mono">
                         {org.usage.active_jobs}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {org.usage.queues}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {org.usage.workers}
-                      </TableCell>
+                      <TableCell className="text-right font-mono">{org.usage.queues}</TableCell>
+                      <TableCell className="text-right font-mono">{org.usage.workers}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatRelativeTime(org.created_at)}
                       </TableCell>

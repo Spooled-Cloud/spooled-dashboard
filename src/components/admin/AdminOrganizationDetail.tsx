@@ -332,8 +332,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Soft Delete Organization?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will mark the organization as deleted. The data will remain but
-                    the organization will be inaccessible.
+                    This will mark the organization as deleted. The data will remain but the
+                    organization will be inaccessible.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -367,9 +367,9 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Permanently Delete Organization?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the
-                    organization <strong>{org.name}</strong> and all associated data
-                    including jobs, API keys, workers, and configurations.
+                    This action cannot be undone. This will permanently delete the organization{' '}
+                    <strong>{org.name}</strong> and all associated data including jobs, API keys,
+                    workers, and configurations.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -425,11 +425,7 @@ function UsageBar({ label, usage }: UsageBarProps) {
         <span>{label}</span>
         <span
           className={
-            isCritical
-              ? 'text-red-600'
-              : isWarning
-                ? 'text-amber-600'
-                : 'text-muted-foreground'
+            isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-muted-foreground'
           }
         >
           {usage.current} / {usage.limit ?? '∞'}
@@ -438,11 +434,7 @@ function UsageBar({ label, usage }: UsageBarProps) {
       <Progress
         value={Math.min(percentage, 100)}
         className={`h-2 ${
-          isCritical
-            ? '[&>div]:bg-red-500'
-            : isWarning
-              ? '[&>div]:bg-amber-500'
-              : ''
+          isCritical ? '[&>div]:bg-red-500' : isWarning ? '[&>div]:bg-amber-500' : ''
         }`}
       />
     </div>

@@ -4,15 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  AlertCircle,
-  Loader2,
-  Building2,
-  Key,
-  Copy,
-  Check,
-  AlertTriangle,
-} from 'lucide-react';
+import { AlertCircle, Loader2, Building2, Key, Copy, Check, AlertTriangle } from 'lucide-react';
 import { organizationsAPI } from '@/lib/api/organizations';
 import type { CreateOrganizationResponse } from '@/lib/api/organizations';
 
@@ -115,11 +107,7 @@ export function OnboardingPage() {
                   Your API Key
                 </Label>
                 <div className="flex gap-2">
-                  <Input
-                    value={result.api_key.key}
-                    readOnly
-                    className="font-mono text-sm"
-                  />
+                  <Input value={result.api_key.key} readOnly className="font-mono text-sm" />
                   <Button
                     type="button"
                     variant="outline"
@@ -134,13 +122,11 @@ export function OnboardingPage() {
                     )}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Key name: {result.api_key.name}
-                </p>
+                <p className="text-xs text-muted-foreground">Key name: {result.api_key.name}</p>
               </div>
 
               {/* Organization Info */}
-              <div className="rounded-md bg-muted p-4 space-y-1">
+              <div className="space-y-1 rounded-md bg-muted p-4">
                 <p className="text-sm">
                   <span className="text-muted-foreground">Organization:</span>{' '}
                   <strong>{result.organization.name}</strong>
@@ -150,14 +136,15 @@ export function OnboardingPage() {
                   <code className="rounded bg-background px-1">{result.organization.slug}</code>
                 </p>
                 <p className="text-sm">
-                  <span className="text-muted-foreground">Plan:</span> {result.organization.plan_tier}
+                  <span className="text-muted-foreground">Plan:</span>{' '}
+                  {result.organization.plan_tier}
                 </p>
               </div>
 
               {/* Next Steps */}
               <div className="space-y-3">
                 <h4 className="font-medium">Next Steps:</h4>
-                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                <ol className="list-inside list-decimal space-y-2 text-sm text-muted-foreground">
                   <li>
                     <strong>Copy and save</strong> your API key somewhere secure
                   </li>

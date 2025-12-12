@@ -34,9 +34,7 @@ export function LoginPage() {
       sessionStorage.removeItem('redirect_after_login');
       window.location.href = redirectPath || '/dashboard';
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Login failed. Please check your API key.'
-      );
+      setError(err instanceof Error ? err.message : 'Login failed. Please check your API key.');
     } finally {
       setIsLoading(false);
     }

@@ -127,9 +127,7 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.workers.total ?? 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.workers.healthy ?? 0} healthy
-            </p>
+            <p className="text-xs text-muted-foreground">{stats?.workers.healthy ?? 0} healthy</p>
           </CardContent>
         </Card>
 
@@ -140,9 +138,7 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.jobs.completed_24h ?? 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.jobs.failed_24h ?? 0} failed
-            </p>
+            <p className="text-xs text-muted-foreground">{stats?.jobs.failed_24h ?? 0} failed</p>
           </CardContent>
         </Card>
       </div>
@@ -206,7 +202,9 @@ export function AdminDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Completed (24h)</span>
-                <span className="font-semibold text-green-600">{stats?.jobs.completed_24h ?? 0}</span>
+                <span className="font-semibold text-green-600">
+                  {stats?.jobs.completed_24h ?? 0}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Failed (24h)</span>

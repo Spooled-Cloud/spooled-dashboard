@@ -123,11 +123,7 @@ export const useAuthStore = create<AuthState>()(
             access_token: string;
             token_type: string;
             expires_in: number;
-          }>(
-            API_ENDPOINTS.AUTH.REFRESH,
-            { refresh_token: refreshToken },
-            { skipAuth: true }
-          );
+          }>(API_ENDPOINTS.AUTH.REFRESH, { refresh_token: refreshToken }, { skipAuth: true });
           set({
             accessToken: response.access_token,
             expiresAt: Date.now() + response.expires_in * 1000,

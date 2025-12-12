@@ -133,9 +133,7 @@ function ProfileSettingsContent() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">End Session</p>
-              <p className="text-xs text-muted-foreground">
-                Sign out and return to the login page
-              </p>
+              <p className="text-xs text-muted-foreground">Sign out and return to the login page</p>
             </div>
             <Button variant="destructive" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />

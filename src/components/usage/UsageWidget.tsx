@@ -83,7 +83,9 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
         {hasWarnings && (
           <Badge variant="destructive" className="gap-1">
             <AlertTriangle className="h-3 w-3" />
-            {criticalCount > 0 ? `${criticalCount} limit${criticalCount > 1 ? 's' : ''}` : 'Warning'}
+            {criticalCount > 0
+              ? `${criticalCount} limit${criticalCount > 1 ? 's' : ''}`
+              : 'Warning'}
           </Badge>
         )}
       </div>
@@ -101,9 +103,7 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
               <Zap className="h-5 w-5" />
               Usage & Limits
             </CardTitle>
-            <CardDescription>
-              Your {usage.plan_display_name} plan resource usage
-            </CardDescription>
+            <CardDescription>Your {usage.plan_display_name} plan resource usage</CardDescription>
           </div>
           <Badge
             variant={isFree ? 'outline' : 'secondary'}
@@ -121,7 +121,11 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
               <Alert
                 key={i}
                 variant={warning.severity === 'critical' ? 'destructive' : 'default'}
-                className={warning.severity === 'warning' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950' : ''}
+                className={
+                  warning.severity === 'warning'
+                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-950'
+                    : ''
+                }
               >
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{warning.message}</AlertDescription>
@@ -187,15 +191,11 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Max Payload Size</span>
-              <p className="font-medium">
-                {formatBytes(usage.limits.max_payload_size_bytes)}
-              </p>
+              <p className="font-medium">{formatBytes(usage.limits.max_payload_size_bytes)}</p>
             </div>
             <div>
               <span className="text-muted-foreground">Rate Limit</span>
-              <p className="font-medium">
-                {usage.limits.rate_limit_requests_per_second}/sec
-              </p>
+              <p className="font-medium">{usage.limits.rate_limit_requests_per_second}/sec</p>
             </div>
             <div>
               <span className="text-muted-foreground">Job Retention</span>
@@ -276,11 +276,7 @@ function UsageBar({ label, icon, usage, isFree }: UsageBarProps) {
         </div>
         <span
           className={
-            isCritical
-              ? 'font-medium text-red-600'
-              : isWarning
-                ? 'font-medium text-amber-600'
-                : ''
+            isCritical ? 'font-medium text-red-600' : isWarning ? 'font-medium text-amber-600' : ''
           }
         >
           {usage.current} / {usage.limit ?? '∞'}
@@ -289,11 +285,7 @@ function UsageBar({ label, icon, usage, isFree }: UsageBarProps) {
       <Progress
         value={Math.min(percentage, 100)}
         className={`h-2 ${
-          isCritical
-            ? '[&>div]:bg-red-500'
-            : isWarning
-              ? '[&>div]:bg-amber-500'
-              : ''
+          isCritical ? '[&>div]:bg-red-500' : isWarning ? '[&>div]:bg-amber-500' : ''
         }`}
       />
     </div>
