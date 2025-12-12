@@ -150,8 +150,8 @@ export function OnboardingPage() {
                   onChange={(e) => setSlug(e.target.value)}
                   required
                   disabled={isLoading}
-                  pattern="[a-z0-9-]+"
-                  title="Only lowercase letters, numbers, and hyphens"
+                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                  title="Only lowercase letters, numbers, and hyphens (cannot start or end with hyphen)"
                 />
                 <p className="text-xs text-muted-foreground">
                   Used in URLs and API endpoints. Only lowercase letters, numbers, and hyphens.
