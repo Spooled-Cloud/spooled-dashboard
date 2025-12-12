@@ -1,0 +1,8 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { AdminOrganizationsList } from '@/components/admin/AdminOrganizationsList';
+---
+
+<BaseLayout title="Organizations - Admin - Spooled Cloud">
+  <AdminOrganizationsList client:load />
+</BaseLayout>
