@@ -42,7 +42,7 @@ export async function initSentry(): Promise<void> {
   const dsn = import.meta.env.PUBLIC_SENTRY_DSN;
 
   if (!dsn) {
-    console.log('[Sentry] Disabled - no DSN configured');
+    // Sentry disabled - no DSN configured (this is normal in development)
     return;
   }
 
@@ -85,9 +85,7 @@ export async function initSentry(): Promise<void> {
     });
 
     // Make Sentry available globally for ErrorBoundary
-    (window as any).Sentry = Sentry;
-
-    console.log('[Sentry] Initialized successfully');
+    (window as Window).Sentry = Sentry;
   } catch (error) {
     console.error('[Sentry] Failed to initialize:', error);
   }
@@ -155,7 +153,12 @@ export function captureMessage(
   level: 'debug' | 'info' | 'warning' | 'error' = 'info'
 ): string | undefined {
   if (!sentryInstance) {
-    console.log(`[${level.toUpperCase()}]`, message);
+    // When Sentry is not available, still log errors/warnings to console
+    if (level === 'error') {
+      console.error(`[${level.toUpperCase()}]`, message);
+    } else if (level === 'warning') {
+      console.warn(`[${level.toUpperCase()}]`, message);
+    }
     return undefined;
   }
   return sentryInstance.captureMessage(message, level);

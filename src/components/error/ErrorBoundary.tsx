@@ -3,6 +3,15 @@ import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+// Extend window for Sentry integration
+declare global {
+  interface Window {
+    Sentry?: {
+      captureException: (error: Error, options?: { extra?: Record<string, unknown> }) => void;
+    };
+  }
+}
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -40,8 +49,8 @@ export class ErrorBoundary extends Component<Props, State> {
     this.props.onError?.(error, errorInfo);
 
     // Report to Sentry if available
-    if (typeof window !== 'undefined' && (window as any).Sentry) {
-      (window as any).Sentry.captureException(error, {
+    if (typeof window !== 'undefined' && window.Sentry) {
+      window.Sentry.captureException(error, {
         extra: {
           componentStack: errorInfo.componentStack,
         },

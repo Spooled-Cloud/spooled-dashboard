@@ -63,7 +63,13 @@ export function ProcessingRateChart({ data, realtime = true }: ProcessingRateCha
     displayData.reduce((sum, item) => sum + item.jobsPerSecond, 0) / displayData.length;
   const peak = Math.max(...displayData.map((item) => item.jobsPerSecond));
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{ value: number; payload: { timestamp: string } }>;
+  }) => {
     if (active && payload && payload.length) {
       return (
         <div className="rounded-lg border border-border bg-card p-3 shadow-lg">

@@ -71,7 +71,13 @@ export function QueuePerformanceChart({ data, metric = 'throughput' }: QueuePerf
 
   const config = metricConfig[metric];
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{ payload: QueueMetrics }>;
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (

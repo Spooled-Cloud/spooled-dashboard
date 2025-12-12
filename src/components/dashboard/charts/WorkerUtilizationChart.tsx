@@ -38,7 +38,13 @@ export function WorkerUtilizationChart({ data }: WorkerUtilizationChartProps) {
     utilization: ((worker.active / worker.capacity) * 100).toFixed(0),
   }));
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{ payload: WorkerUtilization & { utilization: string } }>;
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
