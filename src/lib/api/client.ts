@@ -9,7 +9,7 @@
  * - Error handling and retry logic
  */
 
-import { API_BASE_URL, DEFAULT_HEADERS, HTTP_STATUS } from '@/lib/constants/api';
+import { getApiUrl, DEFAULT_HEADERS, HTTP_STATUS } from '@/lib/constants/api';
 
 export class APIError extends Error {
   constructor(
@@ -76,13 +76,15 @@ interface RequestOptions extends RequestInit {
 }
 
 class APIClient {
-  private baseUrl: string;
+  private getBaseUrl: () => string;
   private getToken: (() => string | null) | null = null;
   private getOrgId: (() => string | null) | null = null;
   private refreshToken: (() => Promise<void>) | null = null;
 
-  constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+  constructor(baseUrlOrGetter: string | (() => string) = getApiUrl) {
+    // Support both static URL and getter function for runtime config
+    this.getBaseUrl =
+      typeof baseUrlOrGetter === 'function' ? baseUrlOrGetter : () => baseUrlOrGetter;
   }
 
   /**
@@ -113,7 +115,7 @@ class APIClient {
     endpoint: string,
     params?: Record<string, string | number | boolean | undefined>
   ): string {
-    const url = new URL(`${this.baseUrl}${endpoint}`);
+    const url = new URL(`${this.getBaseUrl()}${endpoint}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined) {

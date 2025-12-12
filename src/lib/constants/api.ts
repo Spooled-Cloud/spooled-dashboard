@@ -1,9 +1,19 @@
 /**
  * API Constants and Configuration
+ *
+ * API_BASE_URL and WS_BASE_URL are loaded at runtime from /api/config
+ * to support per-deployment configuration without rebuilding the image.
  */
 
-export const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'https://api.spooled.cloud';
-export const WS_BASE_URL = import.meta.env.PUBLIC_WS_URL || 'wss://api.spooled.cloud';
+import { getApiUrl, getWsUrl } from '@/lib/config/runtime';
+
+// Re-export the getter functions for dynamic access
+export { getApiUrl, getWsUrl };
+
+// Legacy constants - these evaluate at import time and may use defaults
+// Prefer using getApiUrl()/getWsUrl() directly for dynamic values
+export const API_BASE_URL = 'https://api.spooled.cloud'; // Default fallback
+export const WS_BASE_URL = 'wss://api.spooled.cloud'; // Default fallback
 
 export const API_ENDPOINTS = {
   // Authentication

@@ -2,7 +2,7 @@
  * WebSocket Client for Real-time Updates
  */
 
-import { WS_BASE_URL, API_ENDPOINTS } from '@/lib/constants/api';
+import { getWsUrl, API_ENDPOINTS } from '@/lib/constants/api';
 import type { WebSocketMessage, WebSocketEvent } from '@/lib/types';
 
 type EventCallback = (event: WebSocketEvent) => void;
@@ -22,7 +22,6 @@ const DEFAULT_OPTIONS: Required<WebSocketClientOptions> = {
 
 class WebSocketClient {
   private ws: WebSocket | null = null;
-  private url: string;
   private options: Required<WebSocketClientOptions>;
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -35,8 +34,14 @@ class WebSocketClient {
   private accessToken: string | null = null;
 
   constructor(options?: WebSocketClientOptions) {
-    this.url = `${WS_BASE_URL}${API_ENDPOINTS.REALTIME.WS}`;
     this.options = { ...DEFAULT_OPTIONS, ...options };
+  }
+
+  /**
+   * Get the WebSocket URL (uses runtime config)
+   */
+  private getUrl(): string {
+    return `${getWsUrl()}${API_ENDPOINTS.REALTIME.WS}`;
   }
 
   /**
@@ -65,9 +70,10 @@ class WebSocketClient {
     this.isManualClose = false;
 
     try {
+      const baseUrl = this.getUrl();
       const wsUrl = this.accessToken
-        ? `${this.url}?token=${encodeURIComponent(this.accessToken)}`
-        : this.url;
+        ? `${baseUrl}?token=${encodeURIComponent(this.accessToken)}`
+        : baseUrl;
 
       this.ws = new WebSocket(wsUrl);
 

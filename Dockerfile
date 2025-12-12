@@ -10,13 +10,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Set build-time environment variables
-ARG PUBLIC_API_URL=https://api.spooled.cloud
-ARG PUBLIC_WS_URL=wss://api.spooled.cloud
-ENV PUBLIC_API_URL=$PUBLIC_API_URL
-ENV PUBLIC_WS_URL=$PUBLIC_WS_URL
-
 # Build the application
+# Note: PUBLIC_* variables are now loaded at runtime from /api/config endpoint
+# No build-time environment variables needed for API URLs
 RUN npm run build
 
 # Production stage
@@ -43,6 +39,13 @@ EXPOSE 4321
 ENV HOST=0.0.0.0
 ENV PORT=4321
 ENV NODE_ENV=production
+
+# Runtime configuration (can be overridden via docker-compose or -e flags)
+# These are read by the /api/config endpoint at runtime
+ENV PUBLIC_API_URL=https://api.spooled.cloud
+ENV PUBLIC_WS_URL=wss://api.spooled.cloud
+ENV PUBLIC_SENTRY_ENVIRONMENT=production
+# Optional: PUBLIC_SENTRY_DSN, PUBLIC_ENABLE_WORKFLOWS, PUBLIC_ENABLE_SCHEDULES, PUBLIC_ENABLE_ANALYTICS
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
