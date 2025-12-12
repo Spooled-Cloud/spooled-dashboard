@@ -113,6 +113,7 @@ export const API_ENDPOINTS = {
   ORGANIZATIONS: {
     LIST: '/api/v1/organizations',
     CREATE: '/api/v1/organizations',
+    USAGE: '/api/v1/organizations/usage',
     GET: (id: string) => `/api/v1/organizations/${id}`,
     UPDATE: (id: string) => `/api/v1/organizations/${id}`,
     DELETE: (id: string) => `/api/v1/organizations/${id}`,

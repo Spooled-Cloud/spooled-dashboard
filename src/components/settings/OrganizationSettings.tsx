@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { Save, Loader2, Building, Users, Crown, Shield, User } from 'lucide-react';
+import { UsageWidget } from '@/components/usage/UsageWidget';
 import { toast } from 'sonner';
 
 function MemberRoleBadge({ role }: { role: OrganizationMember['role'] }) {
@@ -199,6 +200,9 @@ function OrganizationSettingsContent() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Usage & Limits */}
+      <UsageWidget />
 
       {/* Members */}
       <Card>

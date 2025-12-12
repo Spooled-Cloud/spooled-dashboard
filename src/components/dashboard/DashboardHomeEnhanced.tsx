@@ -24,6 +24,7 @@ import { StatusDistributionChart } from './charts/StatusDistributionChart';
 import { ProcessingRateChart } from './charts/ProcessingRateChart';
 import { QueuePerformanceChart } from './charts/QueuePerformanceChart';
 import { WorkerUtilizationChart } from './charts/WorkerUtilizationChart';
+import { UsageWidget } from '@/components/usage/UsageWidget';
 
 interface KPICardProps {
   title: string;
@@ -435,6 +436,9 @@ export function DashboardHomeEnhanced() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Usage & Limits */}
+      <UsageWidget />
     </div>
   );
 }
