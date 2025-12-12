@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -8,7 +7,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { format, subMinutes } from 'date-fns';
+import { format } from 'date-fns';
+import { Activity } from 'lucide-react';
 
 interface ProcessingRateData {
   timestamp: string;
@@ -21,46 +21,23 @@ interface ProcessingRateChartProps {
 }
 
 export function ProcessingRateChart({ data, realtime = true }: ProcessingRateChartProps) {
-  const [chartData, setChartData] = useState<ProcessingRateData[]>(() => {
-    if (data) return data;
-
-    const initialData: ProcessingRateData[] = [];
-    const now = new Date();
-    for (let i = 30; i >= 0; i--) {
-      initialData.push({
-        timestamp: subMinutes(now, i).toISOString(),
-        jobsPerSecond: Math.random() * 10 + 5,
-      });
-    }
-    return initialData;
-  });
-
-  useEffect(() => {
-    if (!realtime || data) return;
-
-    const interval = setInterval(() => {
-      setChartData((prev) => {
-        const newPoint = {
-          timestamp: new Date().toISOString(),
-          jobsPerSecond: Math.random() * 10 + 5,
-        };
-
-        const updated = [...prev.slice(1), newPoint];
-        return updated;
-      });
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [realtime, data]);
-
-  const displayData = data || chartData;
+  const displayData = data ?? [];
   const formattedData = displayData.map((item) => ({
     ...item,
     time: format(new Date(item.timestamp), 'HH:mm:ss'),
   }));
 
-  const average =
-    displayData.reduce((sum, item) => sum + item.jobsPerSecond, 0) / displayData.length;
+  if (displayData.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
+        <Activity className="mb-2 h-8 w-8 opacity-50" />
+        <p className="text-sm">No processing rate data available</p>
+        <p className="text-xs">Real-time processing metrics will appear here</p>
+      </div>
+    );
+  }
+
+  const average = displayData.reduce((sum, item) => sum + item.jobsPerSecond, 0) / displayData.length;
   const peak = Math.max(...displayData.map((item) => item.jobsPerSecond));
 
   const CustomTooltip = ({
@@ -97,7 +74,7 @@ export function ProcessingRateChart({ data, realtime = true }: ProcessingRateCha
           <span className="text-muted-foreground">Peak: </span>
           <span className="font-medium">{peak.toFixed(2)} j/s</span>
         </div>
-        {realtime && !data && (
+        {realtime && (
           <div className="ml-auto flex items-center gap-1">
             <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
             <span className="text-muted-foreground">Live</span>
