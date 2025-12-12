@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,44 +48,47 @@ export function AdminOrganizationsList() {
   const [page, setPage] = useState(0);
   const limit = 20;
 
+  const loadOrganizations = useCallback(
+    async (searchTerm?: string) => {
+      setIsLoading(true);
+      try {
+        const params: ListOrgsParams = {
+          limit,
+          offset: page * limit,
+          sort_by: 'created_at',
+          sort_order: 'desc',
+        };
+        if (planFilter && planFilter !== 'all') {
+          params.plan_tier = planFilter;
+        }
+        if (searchTerm !== undefined ? searchTerm : search) {
+          params.search = searchTerm !== undefined ? searchTerm : search;
+        }
+
+        const data = await adminAPI.listOrganizations(params);
+        setOrganizations(data.organizations);
+        setTotal(data.total);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load organizations');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [page, planFilter, search, limit]
+  );
+
   useEffect(() => {
     if (!isAdminAuthenticated()) {
       window.location.href = '/admin/login';
       return;
     }
     loadOrganizations();
-  }, [page, planFilter]);
-
-  const loadOrganizations = async () => {
-    setIsLoading(true);
-    try {
-      const params: ListOrgsParams = {
-        limit,
-        offset: page * limit,
-        sort_by: 'created_at',
-        sort_order: 'desc',
-      };
-      if (planFilter && planFilter !== 'all') {
-        params.plan_tier = planFilter;
-      }
-      if (search) {
-        params.search = search;
-      }
-
-      const data = await adminAPI.listOrganizations(params);
-      setOrganizations(data.organizations);
-      setTotal(data.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load organizations');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [loadOrganizations]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(0);
-    loadOrganizations();
+    loadOrganizations(search);
   };
 
   const getPlanBadgeVariant = (plan: string) => {

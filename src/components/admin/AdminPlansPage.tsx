@@ -20,7 +20,7 @@ import {
   Zap,
   Rocket,
   Building2,
-  Infinity,
+  Infinity as InfinityIcon,
   Check,
   X,
 } from 'lucide-react';
@@ -180,7 +180,7 @@ export function AdminPlansPage() {
                 <span className="text-muted-foreground">Jobs/day</span>
                 <span className="font-medium">
                   {plan.max_jobs_per_day === null ? (
-                    <Infinity className="inline h-4 w-4" />
+                    <InfinityIcon className="inline h-4 w-4" />
                   ) : (
                     formatLimit(plan.max_jobs_per_day)
                   )}

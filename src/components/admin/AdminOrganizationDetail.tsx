@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,15 +81,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
   const [isResettingUsage, setIsResettingUsage] = useState(false);
   const [usageResetSuccess, setUsageResetSuccess] = useState(false);
 
-  useEffect(() => {
-    if (!isAdminAuthenticated()) {
-      window.location.href = '/admin/login';
-      return;
-    }
-    loadOrganization();
-  }, [orgId]);
-
-  const loadOrganization = async () => {
+  const loadOrganization = useCallback(async () => {
     try {
       const data = await adminAPI.getOrganization(orgId);
       setOrg(data);
@@ -99,7 +91,15 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [orgId]);
+
+  useEffect(() => {
+    if (!isAdminAuthenticated()) {
+      window.location.href = '/admin/login';
+      return;
+    }
+    loadOrganization();
+  }, [loadOrganization]);
 
   const handleSavePlan = async () => {
     if (!org || selectedPlan === org.plan_tier) return;
