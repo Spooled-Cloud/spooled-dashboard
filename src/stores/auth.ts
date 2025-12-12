@@ -9,9 +9,12 @@
  * Note: This system uses API keys for authentication, not email/password.
  * The "user" is really the API key context (org + key ID).
  *
- * SECURITY: Refresh tokens are stored in memory only, NOT in localStorage.
- * This prevents XSS attacks from stealing long-lived tokens.
- * The tradeoff is that users will need to re-login after closing the tab.
+ * SECURITY:
+ * - Access tokens (short-lived, typically 24h) are persisted in localStorage
+ * - Refresh tokens are stored in memory only, NOT in localStorage
+ * - This means users stay logged in for the access token duration
+ * - But need to re-login after the access token expires (more secure than
+ *   storing long-lived refresh tokens in XSS-vulnerable localStorage)
  */
 
 import { create } from 'zustand';
@@ -157,12 +160,15 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      // SECURITY: Only persist organization context, NOT tokens
-      // Refresh tokens should never be stored in localStorage (XSS vulnerable)
-      // Users will need to re-login after closing the tab, which is more secure
+      // Persist accessToken (short-lived) and organization context
+      // refreshToken is intentionally NOT persisted for security (XSS protection)
+      // Users will need to re-login after the access token expires (typically 24h)
       partialize: (state) => ({
+        accessToken: state.accessToken,
+        expiresAt: state.expiresAt,
+        isAuthenticated: state.isAuthenticated,
         currentOrganization: state.currentOrganization,
-        // Note: refreshToken is intentionally NOT persisted for security
+        user: state.user,
       }),
     }
   )
@@ -173,4 +179,17 @@ if (typeof window !== 'undefined') {
   apiClient.setTokenGetter(() => useAuthStore.getState().accessToken);
   apiClient.setOrgIdGetter(() => useAuthStore.getState().currentOrganization?.id || null);
   apiClient.setRefreshHandler(() => useAuthStore.getState().refreshTokens());
+
+  // After rehydration, check if token is still valid
+  useAuthStore.persist.onFinishHydration((state) => {
+    // Set loading to false after hydration
+    useAuthStore.setState({ isLoading: false });
+
+    // If we have a token but it's expired, clear auth
+    if (state.accessToken && state.expiresAt) {
+      if (Date.now() > state.expiresAt) {
+        useAuthStore.getState().clearAuth();
+      }
+    }
+  });
 }
