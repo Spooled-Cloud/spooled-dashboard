@@ -12,12 +12,33 @@ interface AuthGuardProps {
  *
  * Redirects to login page if user is not authenticated.
  * Shows loading skeleton while checking auth state.
+ * Waits for Zustand store to rehydrate from localStorage before checking.
  */
 export function AuthGuard({ children, fallback }: AuthGuardProps) {
   const { accessToken, refreshToken, isAuthenticated, refreshTokens } = useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  // Wait for Zustand to rehydrate from localStorage
+  useEffect(() => {
+    // Check if already hydrated
+    if (useAuthStore.persist.hasHydrated()) {
+      setHasHydrated(true);
+    } else {
+      // Wait for hydration to complete
+      const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+        setHasHydrated(true);
+      });
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, []);
 
   useEffect(() => {
+    // Don't check auth until store has hydrated from localStorage
+    if (!hasHydrated) return;
+
     const checkAuth = async () => {
       // If we have a refresh token but no access token, try to refresh
       if (refreshToken && !accessToken) {
@@ -40,7 +61,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     };
 
     checkAuth();
-  }, [accessToken, refreshToken, refreshTokens]);
+  }, [hasHydrated, accessToken, refreshToken, refreshTokens]);
 
   const redirectToLogin = () => {
     if (typeof window !== 'undefined') {
@@ -110,11 +131,28 @@ export function useIsAuthenticated(): boolean {
 
 /**
  * Hook to require authentication - redirects if not authenticated
+ * Waits for store hydration before checking
  */
 export function useRequireAuth(): void {
   const { accessToken, refreshToken } = useAuthStore();
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHasHydrated(true);
+    } else {
+      const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+        setHasHydrated(true);
+      });
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+
     if (!accessToken && !refreshToken && typeof window !== 'undefined') {
       // Store the current path to redirect back after login
       const currentPath = window.location.pathname;
@@ -123,5 +161,5 @@ export function useRequireAuth(): void {
       }
       window.location.href = '/';
     }
-  }, [accessToken, refreshToken]);
+  }, [hasHydrated, accessToken, refreshToken]);
 }
