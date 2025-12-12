@@ -109,6 +109,35 @@ export interface UpdateOrgRequest {
   settings?: Record<string, unknown>;
 }
 
+export interface CreateOrgRequest {
+  name: string;
+  slug: string;
+  billing_email?: string;
+  plan_tier?: string;
+}
+
+export interface CreateOrgResponse {
+  organization: AdminOrganization;
+  api_key: {
+    id: string;
+    key: string;
+    name: string;
+    created_at: string;
+  };
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  queues?: string[];
+}
+
+export interface CreateApiKeyResponse {
+  id: string;
+  key: string;
+  name: string;
+  created_at: string;
+}
+
 export interface PlatformStats {
   organizations: {
     total: number;
@@ -300,5 +329,34 @@ export const adminAPI = {
    */
   async getPlans(): Promise<PlanLimits[]> {
     return adminFetch<PlanLimits[]>('/api/v1/admin/plans');
+  },
+
+  /**
+   * Create a new organization (admin-only)
+   */
+  async createOrganization(data: CreateOrgRequest): Promise<CreateOrgResponse> {
+    return adminFetch<CreateOrgResponse>('/api/v1/admin/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Create an API key for an organization
+   */
+  async createApiKey(orgId: string, data: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
+    return adminFetch<CreateApiKeyResponse>(`/api/v1/admin/organizations/${orgId}/api-keys`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Reset usage counters for an organization
+   */
+  async resetUsage(orgId: string): Promise<void> {
+    return adminFetch<void>(`/api/v1/admin/organizations/${orgId}/reset-usage`, {
+      method: 'POST',
+    });
   },
 };

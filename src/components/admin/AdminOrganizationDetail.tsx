@@ -25,6 +25,16 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
   Building2,
   ArrowLeft,
   Shield,
@@ -35,11 +45,16 @@ import {
   CheckCircle,
   Key,
   Briefcase,
+  Plus,
+  Copy,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import {
   adminAPI,
   isAdminAuthenticated,
   type AdminOrganizationDetail as OrgDetail,
+  type CreateApiKeyResponse,
 } from '@/lib/api/admin';
 import { formatRelativeTime } from '@/lib/utils/format';
 
@@ -54,6 +69,17 @@ export function AdminOrganizationDetail({ orgId }: Props) {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // API Key creation state
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [newApiKeyName, setNewApiKeyName] = useState('');
+  const [creatingApiKey, setCreatingApiKey] = useState(false);
+  const [createdApiKey, setCreatedApiKey] = useState<CreateApiKeyResponse | null>(null);
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
+
+  // Usage reset state
+  const [isResettingUsage, setIsResettingUsage] = useState(false);
+  const [usageResetSuccess, setUsageResetSuccess] = useState(false);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -98,6 +124,55 @@ export function AdminOrganizationDetail({ orgId }: Props) {
       window.location.href = '/admin/organizations';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete organization');
+    }
+  };
+
+  const handleCreateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newApiKeyName.trim()) return;
+
+    setCreatingApiKey(true);
+    setError('');
+    try {
+      const key = await adminAPI.createApiKey(orgId, { name: newApiKeyName.trim() });
+      setCreatedApiKey(key);
+      // Reload org to update API key count
+      loadOrganization();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create API key');
+    } finally {
+      setCreatingApiKey(false);
+    }
+  };
+
+  const handleCopyApiKey = async () => {
+    if (createdApiKey?.key) {
+      await navigator.clipboard.writeText(createdApiKey.key);
+      setApiKeyCopied(true);
+      setTimeout(() => setApiKeyCopied(false), 2000);
+    }
+  };
+
+  const handleCloseApiKeyDialog = () => {
+    setApiKeyDialogOpen(false);
+    setNewApiKeyName('');
+    setCreatedApiKey(null);
+    setApiKeyCopied(false);
+  };
+
+  const handleResetUsage = async () => {
+    setIsResettingUsage(true);
+    setError('');
+    try {
+      await adminAPI.resetUsage(orgId);
+      setUsageResetSuccess(true);
+      setTimeout(() => setUsageResetSuccess(false), 3000);
+      // Reload to show updated usage
+      loadOrganization();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset usage');
+    } finally {
+      setIsResettingUsage(false);
     }
   };
 
@@ -173,6 +248,13 @@ export function AdminOrganizationDetail({ orgId }: Props) {
         </Alert>
       )}
 
+      {usageResetSuccess && (
+        <Alert className="border-green-500 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertDescription>Usage counters reset successfully</AlertDescription>
+        </Alert>
+      )}
+
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="space-y-2">
@@ -216,10 +298,95 @@ export function AdminOrganizationDetail({ orgId }: Props) {
             </div>
 
             <div className="border-t pt-4">
-              <div className="flex items-center gap-2">
-                <Key className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">API Keys:</span>
-                <span className="font-semibold">{org.api_keys_count}</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Key className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">API Keys:</span>
+                  <span className="font-semibold">{org.api_keys_count}</span>
+                </div>
+                <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Plus className="mr-1 h-3 w-3" />
+                      Create Key
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    {!createdApiKey ? (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>Create API Key</DialogTitle>
+                          <DialogDescription>Create a new API key for {org.name}</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleCreateApiKey} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="key_name">Key Name</Label>
+                            <Input
+                              id="key_name"
+                              value={newApiKeyName}
+                              onChange={(e) => setNewApiKeyName(e.target.value)}
+                              placeholder="Production API Key"
+                              required
+                              maxLength={100}
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleCloseApiKeyDialog}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit" disabled={creatingApiKey}>
+                              {creatingApiKey ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Key className="mr-2 h-4 w-4" />
+                              )}
+                              Create Key
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      </>
+                    ) : (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2 text-green-600">
+                            <Check className="h-5 w-5" />
+                            API Key Created
+                          </DialogTitle>
+                          <DialogDescription>
+                            Copy this key now - it won't be shown again!
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <AlertDescription className="text-amber-700 dark:text-amber-400">
+                              This key will only be shown once. Copy it now!
+                            </AlertDescription>
+                          </Alert>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 break-all rounded bg-muted px-3 py-2 font-mono text-xs">
+                              {createdApiKey.key}
+                            </code>
+                            <Button variant="outline" size="icon" onClick={handleCopyApiKey}>
+                              {apiKeyCopied ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button onClick={handleCloseApiKeyDialog}>Done</Button>
+                        </DialogFooter>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="mt-2 flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -288,11 +455,38 @@ export function AdminOrganizationDetail({ orgId }: Props) {
 
       {/* Usage */}
       <Card>
-        <CardHeader>
-          <CardTitle>Resource Usage</CardTitle>
-          <CardDescription>
-            Current usage against {org.usage_info.plan_display_name} plan limits
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between">
+          <div>
+            <CardTitle>Resource Usage</CardTitle>
+            <CardDescription>
+              Current usage against {org.usage_info.plan_display_name} plan limits
+            </CardDescription>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={isResettingUsage}>
+                {isResettingUsage ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                Reset Daily Usage
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Usage Counters?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will reset the daily job counter to 0. This is useful if an organization hit
+                  their daily limit and you want to give them more capacity.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleResetUsage}>Reset Usage</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

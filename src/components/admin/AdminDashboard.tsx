@@ -14,6 +14,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { adminAPI, clearAdminKey, isAdminAuthenticated, type PlatformStats } from '@/lib/api/admin';
+import { CreateOrganizationDialog } from './CreateOrganizationDialog';
 
 export function AdminDashboard() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
@@ -222,6 +223,7 @@ export function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
+            <CreateOrganizationDialog onSuccess={loadStats} />
             <Button asChild>
               <a href="/admin/organizations">
                 <Building2 className="mr-2 h-4 w-4" />
