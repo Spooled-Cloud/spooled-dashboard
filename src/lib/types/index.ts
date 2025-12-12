@@ -47,8 +47,7 @@ export interface User {
 }
 
 export interface LoginRequest {
-  email: string;
-  password: string;
+  api_key: string;
 }
 
 export interface LoginResponse {
@@ -56,7 +55,7 @@ export interface LoginResponse {
   refresh_token: string;
   token_type: string;
   expires_in: number;
-  user: User;
+  refresh_expires_in: number;
 }
 
 // ============================================================================
@@ -253,12 +252,9 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  description?: string;
-  logo_url?: string;
-  owner_id: string;
-  plan: OrganizationPlan;
-  status: 'active' | 'suspended' | 'pending';
-  member_count: number;
+  plan_tier: string;
+  billing_email?: string;
+  settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }

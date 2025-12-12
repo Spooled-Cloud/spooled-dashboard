@@ -4,8 +4,17 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Loader2, Building2, Key } from 'lucide-react';
-import { organizationsAPI, type CreateOrganizationRequest } from '@/lib/api/organizations';
+import {
+  AlertCircle,
+  Loader2,
+  Building2,
+  Key,
+  Copy,
+  Check,
+  AlertTriangle,
+} from 'lucide-react';
+import { organizationsAPI } from '@/lib/api/organizations';
+import type { CreateOrganizationResponse } from '@/lib/api/organizations';
 
 export function OnboardingPage() {
   const [name, setName] = useState('');
@@ -15,12 +24,12 @@ export function OnboardingPage() {
   const [showAdminKey, setShowAdminKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [result, setResult] = useState<CreateOrganizationResponse | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Auto-generate slug from name
   const handleNameChange = (value: string) => {
     setName(value);
-    // Generate slug: lowercase, replace spaces with hyphens, remove special chars
     const generatedSlug = value
       .toLowerCase()
       .replace(/\s+/g, '-')
@@ -30,23 +39,32 @@ export function OnboardingPage() {
     setSlug(generatedSlug);
   };
 
+  const handleCopyKey = async () => {
+    if (result?.api_key.key) {
+      await navigator.clipboard.writeText(result.api_key.key);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      const request: CreateOrganizationRequest = {
-        name,
-        slug,
-        billing_email: billingEmail || undefined,
-      };
+      const response = await organizationsAPI.create(
+        {
+          name,
+          slug,
+          billing_email: billingEmail || undefined,
+        },
+        {
+          adminKey: adminKey || undefined,
+        }
+      );
 
-      await organizationsAPI.create(request, {
-        adminKey: adminKey || undefined,
-      });
-
-      setSuccess(true);
+      setResult(response);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -58,10 +76,11 @@ export function OnboardingPage() {
     }
   };
 
-  if (success) {
+  // Success screen with API key
+  if (result) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-background to-muted/30 p-6">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-lg space-y-8">
           <div className="text-center">
             <div className="mx-auto mb-6">
               <img src="/logo-horizontal.webp" alt="Spooled Cloud" className="mx-auto h-16" />
@@ -70,21 +89,87 @@ export function OnboardingPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-green-500" />
+              <CardTitle className="flex items-center gap-2 text-green-600">
+                <Check className="h-5 w-5" />
                 Organization Created!
               </CardTitle>
-              <CardDescription>Your organization has been set up successfully</CardDescription>
+              <CardDescription>
+                Your organization <strong>{result.organization.name}</strong> has been set up
+                successfully
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-md bg-muted p-4">
-                <p className="text-sm font-medium">Organization: {name}</p>
-                <p className="text-sm text-muted-foreground">Slug: {slug}</p>
+            <CardContent className="space-y-6">
+              {/* Warning about saving the key */}
+              <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  <strong>Important:</strong> Save your API key now! This is the only time it will
+                  be shown. You'll need it to log in.
+                </AlertDescription>
+              </Alert>
+
+              {/* API Key Display */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Key className="h-4 w-4" />
+                  Your API Key
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={result.api_key.key}
+                    readOnly
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyKey}
+                    title="Copy to clipboard"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Key name: {result.api_key.name}
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Next, you'll need to create an API key to access the API and dashboard. Use the API
-                or CLI to generate your first API key.
-              </p>
+
+              {/* Organization Info */}
+              <div className="rounded-md bg-muted p-4 space-y-1">
+                <p className="text-sm">
+                  <span className="text-muted-foreground">Organization:</span>{' '}
+                  <strong>{result.organization.name}</strong>
+                </p>
+                <p className="text-sm">
+                  <span className="text-muted-foreground">Slug:</span>{' '}
+                  <code className="rounded bg-background px-1">{result.organization.slug}</code>
+                </p>
+                <p className="text-sm">
+                  <span className="text-muted-foreground">Plan:</span> {result.organization.plan_tier}
+                </p>
+              </div>
+
+              {/* Next Steps */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Next Steps:</h4>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                  <li>
+                    <strong>Copy and save</strong> your API key somewhere secure
+                  </li>
+                  <li>
+                    <strong>Go to login</strong> and paste your API key to sign in
+                  </li>
+                  <li>
+                    <strong>Create additional API keys</strong> in Settings → API Keys
+                  </li>
+                </ol>
+              </div>
+
               <Button asChild className="w-full">
                 <a href="/">Go to Login</a>
               </Button>
@@ -95,6 +180,7 @@ export function OnboardingPage() {
     );
   }
 
+  // Form screen
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-background to-muted/30 p-6">
       <div className="w-full max-w-md space-y-8">
@@ -115,7 +201,7 @@ export function OnboardingPage() {
               Organization Details
             </CardTitle>
             <CardDescription>
-              Enter your organization information to create your account
+              Enter your organization information. An API key will be generated for you.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -215,7 +301,7 @@ export function OnboardingPage() {
 
               <div className="text-center">
                 <a href="/" className="text-sm text-muted-foreground hover:text-foreground">
-                  Already have an account? Sign in
+                  Already have an API key? Sign in
                 </a>
               </div>
             </form>

@@ -80,7 +80,7 @@ function OrganizationSettingsContent() {
   const handleEdit = () => {
     if (org) {
       setName(org.name);
-      setDescription(org.description || '');
+      setDescription('');
       setIsEditing(true);
     }
   };
@@ -172,11 +172,7 @@ function OrganizationSettingsContent() {
                     placeholder="Optional description"
                     className="min-h-[80px]"
                   />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {org.description || 'No description'}
-                  </p>
-                )}
+                ) : null}
               </div>
 
               <div className="grid grid-cols-2 gap-4 border-t pt-4">
@@ -187,12 +183,12 @@ function OrganizationSettingsContent() {
                 <div>
                   <Label className="text-muted-foreground">Plan</Label>
                   <Badge variant="outline" className="mt-1">
-                    {org.plan.charAt(0).toUpperCase() + org.plan.slice(1)}
+                    {org.plan_tier.charAt(0).toUpperCase() + org.plan_tier.slice(1)}
                   </Badge>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Members</Label>
-                  <p className="text-sm font-medium">{org.member_count}</p>
+                  <Label className="text-muted-foreground">Billing Email</Label>
+                  <p className="text-sm font-medium">{org.billing_email || 'Not set'}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Created</Label>

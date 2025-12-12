@@ -38,23 +38,40 @@ export interface CreateOrganizationOptions {
   adminKey?: string;
 }
 
+/** Initial API key returned during organization creation */
+export interface InitialApiKey {
+  id: string;
+  /** The raw API key - SAVE THIS, it's only shown once! */
+  key: string;
+  name: string;
+  created_at: string;
+}
+
+/** Response from organization creation - includes initial API key */
+export interface CreateOrganizationResponse {
+  organization: Organization;
+  api_key: InitialApiKey;
+}
+
 export const organizationsAPI = {
   /**
    * POST /api/v1/organizations
    * Create a new organization
    *
    * When REGISTRATION_MODE=closed on the backend, requires adminKey option
-   * which is sent as X-Admin-Key header
+   * which is sent as X-Admin-Key header.
+   *
+   * Returns the organization AND an initial API key for immediate access.
    */
   create: (
     data: CreateOrganizationRequest,
     options?: CreateOrganizationOptions
-  ): Promise<Organization> => {
+  ): Promise<CreateOrganizationResponse> => {
     const headers: Record<string, string> = {};
     if (options?.adminKey) {
       headers['X-Admin-Key'] = options.adminKey;
     }
-    return apiClient.post<Organization>(API_ENDPOINTS.ORGANIZATIONS.CREATE, data, {
+    return apiClient.post<CreateOrganizationResponse>(API_ENDPOINTS.ORGANIZATIONS.CREATE, data, {
       headers,
       skipAuth: true, // Organization creation is a public endpoint (with optional admin key)
     });

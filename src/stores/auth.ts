@@ -2,21 +2,32 @@
  * Authentication Store
  *
  * Manages user authentication state including:
- * - User profile
  * - Access and refresh tokens
  * - Organization context
  * - Login/logout operations
+ *
+ * Note: This system uses API keys for authentication, not email/password.
+ * The "user" is really the API key context (org + key ID).
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, LoginResponse, Organization } from '@/lib/types';
+import type { LoginResponse, Organization } from '@/lib/types';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
 
+/** Current user/session info from /auth/me */
+interface CurrentUser {
+  organization_id: string;
+  api_key_id: string;
+  queues: string[];
+  issued_at: string;
+  expires_at: string;
+}
+
 interface AuthState {
   // State
-  user: User | null;
+  user: CurrentUser | null;
   accessToken: string | null;
   refreshToken: string | null;
   expiresAt: number | null;
@@ -28,7 +39,8 @@ interface AuthState {
   // Actions
   setAuth: (data: LoginResponse) => void;
   clearAuth: () => void;
-  setUser: (user: User) => void;
+  setUser: (user: CurrentUser) => void;
+  fetchCurrentUser: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
   refreshTokens: () => Promise<void>;
   logout: () => Promise<void>;
@@ -47,16 +59,17 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
       isAuthenticated: false,
 
-      // Set authentication data
+      // Set authentication data from login response
       setAuth: (data: LoginResponse) => {
         set({
-          user: data.user,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
           expiresAt: Date.now() + data.expires_in * 1000,
           isAuthenticated: true,
           isLoading: false,
         });
+        // Fetch user info after setting tokens
+        get().fetchCurrentUser();
       },
 
       // Clear authentication
@@ -74,8 +87,19 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Update user profile
-      setUser: (user: User) => {
+      setUser: (user: CurrentUser) => {
         set({ user });
+      },
+
+      // Fetch current user info from /auth/me
+      fetchCurrentUser: async () => {
+        try {
+          const user = await apiClient.get<CurrentUser>(API_ENDPOINTS.AUTH.ME);
+          set({ user });
+        } catch {
+          // Silently fail - user info is optional for basic functionality
+          console.warn('Failed to fetch current user info');
+        }
       },
 
       // Switch organization context
@@ -95,12 +119,19 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const response = await apiClient.post<LoginResponse>(
+          const response = await apiClient.post<{
+            access_token: string;
+            token_type: string;
+            expires_in: number;
+          }>(
             API_ENDPOINTS.AUTH.REFRESH,
             { refresh_token: refreshToken },
             { skipAuth: true }
           );
-          get().setAuth(response);
+          set({
+            accessToken: response.access_token,
+            expiresAt: Date.now() + response.expires_in * 1000,
+          });
         } catch {
           get().clearAuth();
           // Redirect to login

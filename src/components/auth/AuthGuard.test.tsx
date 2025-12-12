@@ -51,18 +51,11 @@ describe('AuthGuard', () => {
       isAuthenticated: true,
       isLoading: false,
       user: {
-        id: 'user-1',
-        email: 'test@example.com',
-        name: 'Test User',
-        role: 'org_admin',
-        permissions: ['jobs:read'],
         organization_id: 'org-1',
-        organization_name: 'Test Org',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        email_verified: true,
-        two_factor_enabled: false,
-        status: 'active',
+        api_key_id: 'key-1',
+        queues: ['*'],
+        issued_at: '2024-01-01T00:00:00Z',
+        expires_at: '2024-01-02T00:00:00Z',
       },
     });
 

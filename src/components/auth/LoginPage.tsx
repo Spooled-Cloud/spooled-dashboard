@@ -3,15 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Key } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
 import type { LoginResponse } from '@/lib/types';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { setAuth } = useAuthStore();
@@ -24,7 +23,7 @@ export function LoginPage() {
     try {
       const response = await apiClient.post<LoginResponse>(
         API_ENDPOINTS.AUTH.LOGIN,
-        { email, password },
+        { api_key: apiKey },
         { skipAuth: true }
       );
 
@@ -35,7 +34,9 @@ export function LoginPage() {
       sessionStorage.removeItem('redirect_after_login');
       window.location.href = redirectPath || '/dashboard';
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
+      setError(
+        err instanceof Error ? err.message : 'Login failed. Please check your API key.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -56,8 +57,11 @@ export function LoginPage() {
         {/* Login Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Welcome Back</CardTitle>
-            <CardDescription>Sign in to access your dashboard</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Sign In
+            </CardTitle>
+            <CardDescription>Enter your API key to access the dashboard</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -69,38 +73,26 @@ export function LoginPage() {
               )}
 
               <div>
-                <label htmlFor="email" className="text-sm font-medium">
-                  Email
+                <label htmlFor="apiKey" className="text-sm font-medium">
+                  API Key
                 </label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="text-sm font-medium">
-                  Password
-                </label>
-                <Input
-                  id="password"
+                  id="apiKey"
                   type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="sk_live_..."
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
                   required
                   disabled={isLoading}
-                  className="mt-1"
+                  className="mt-1 font-mono"
+                  autoComplete="current-password"
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Your API key starts with sk_live_ or sk_test_
+                </p>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !apiKey}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

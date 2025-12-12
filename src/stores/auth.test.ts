@@ -46,20 +46,7 @@ describe('useAuthStore', () => {
         refresh_token: 'refresh-456',
         token_type: 'Bearer',
         expires_in: 3600,
-        user: {
-          id: 'user-1',
-          email: 'test@example.com',
-          name: 'Test User',
-          role: 'org_admin' as const,
-          permissions: ['jobs:read' as const],
-          organization_id: 'org-1',
-          organization_name: 'Test Org',
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-01T00:00:00Z',
-          email_verified: true,
-          two_factor_enabled: false,
-          status: 'active' as const,
-        },
+        refresh_expires_in: 86400,
       };
 
       useAuthStore.getState().setAuth(mockLoginResponse);
@@ -68,7 +55,6 @@ describe('useAuthStore', () => {
       expect(state.accessToken).toBe('access-123');
       expect(state.refreshToken).toBe('refresh-456');
       expect(state.isAuthenticated).toBe(true);
-      expect(state.user?.email).toBe('test@example.com');
       expect(state.expiresAt).toBeDefined();
     });
   });
@@ -76,25 +62,18 @@ describe('useAuthStore', () => {
   describe('setUser', () => {
     it('should set user data', () => {
       const mockUser = {
-        id: 'user-1',
-        email: 'test@example.com',
-        name: 'Test User',
-        role: 'org_admin' as const,
-        permissions: ['jobs:read' as const],
         organization_id: 'org-1',
-        organization_name: 'Test Org',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        email_verified: true,
-        two_factor_enabled: false,
-        status: 'active' as const,
+        api_key_id: 'key-1',
+        queues: ['*'],
+        issued_at: '2024-01-01T00:00:00Z',
+        expires_at: '2024-01-02T00:00:00Z',
       };
 
       useAuthStore.getState().setUser(mockUser);
 
       const state = useAuthStore.getState();
       expect(state.user).toEqual(mockUser);
-      expect(state.user?.email).toBe('test@example.com');
+      expect(state.user?.organization_id).toBe('org-1');
     });
   });
 
@@ -106,20 +85,7 @@ describe('useAuthStore', () => {
         refresh_token: 'refresh-456',
         token_type: 'Bearer',
         expires_in: 3600,
-        user: {
-          id: 'user-1',
-          email: 'test@example.com',
-          name: 'Test User',
-          role: 'org_admin' as const,
-          permissions: ['jobs:read' as const],
-          organization_id: 'org-1',
-          organization_name: 'Test Org',
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-01T00:00:00Z',
-          email_verified: true,
-          two_factor_enabled: false,
-          status: 'active' as const,
-        },
+        refresh_expires_in: 86400,
       });
 
       // Verify it was set
@@ -144,10 +110,8 @@ describe('useAuthStore', () => {
         id: 'org-1',
         name: 'Test Organization',
         slug: 'test-org',
-        plan: 'professional' as const,
-        status: 'active' as const,
-        member_count: 5,
-        owner_id: 'user-1',
+        plan_tier: 'professional',
+        settings: {},
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
