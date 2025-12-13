@@ -248,6 +248,23 @@ export const handlers = [
     });
   }),
 
+  http.post(`${API_BASE}/api/v1/auth/email/start`, () => {
+    return HttpResponse.json({ sent: true });
+  }),
+
+  http.post(`${API_BASE}/api/v1/auth/email/verify`, () => {
+    return HttpResponse.json({
+      access_token: 'email-access-token',
+      refresh_token: 'email-refresh-token',
+      token_type: 'Bearer',
+      expires_in: 3600,
+      refresh_expires_in: 2592000,
+      user_id: 'usr_test',
+      email: 'test@example.com',
+      organizations: [{ id: 'org-1', role: 'owner' }],
+    });
+  }),
+
   http.post(`${API_BASE}/api/v1/auth/refresh`, () => {
     return HttpResponse.json({
       access_token: 'new-access-token',

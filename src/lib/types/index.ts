@@ -58,6 +58,25 @@ export interface LoginResponse {
   refresh_expires_in: number;
 }
 
+export interface EmailLoginStartRequest {
+  email: string;
+}
+
+export interface EmailLoginStartResponse {
+  sent: boolean;
+}
+
+export interface EmailLoginVerifyRequest {
+  email: string;
+  code: string;
+}
+
+export interface EmailLoginVerifyResponse extends LoginResponse {
+  user_id: string;
+  email: string;
+  organizations: Array<{ id: string; role: string }>;
+}
+
 // ============================================================================
 // Job Types
 // ============================================================================

@@ -23,6 +23,8 @@ export const API_ENDPOINTS = {
     LOGOUT: '/api/v1/auth/logout',
     ME: '/api/v1/auth/me',
     VALIDATE: '/api/v1/auth/validate',
+    EMAIL_START: '/api/v1/auth/email/start',
+    EMAIL_VERIFY: '/api/v1/auth/email/verify',
   },
 
   // Dashboard
