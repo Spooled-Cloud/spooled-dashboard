@@ -360,6 +360,3 @@ export function AdminPlansPage() {
     </div>
   );
 }
-
-
-

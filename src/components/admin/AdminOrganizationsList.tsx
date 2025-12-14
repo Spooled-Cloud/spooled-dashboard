@@ -267,6 +267,3 @@ export function AdminOrganizationsList() {
     </div>
   );
 }
-
-
-

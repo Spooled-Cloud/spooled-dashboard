@@ -178,7 +178,10 @@ export function LoginPage() {
                     Forgot password?
                   </button>
 
-                  <a href="/onboarding" className="text-sm text-muted-foreground hover:text-foreground">
+                  <a
+                    href="/onboarding"
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
                     Need to create an organization?
                   </a>
                 </div>
@@ -211,7 +214,8 @@ export function LoginPage() {
                     autoComplete="email"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    We’ll send a 6-digit code to this email (always returns success to prevent enumeration).
+                    We’ll send a 6-digit code to this email (always returns success to prevent
+                    enumeration).
                   </p>
                 </div>
 
@@ -230,7 +234,9 @@ export function LoginPage() {
                       disabled={isLoading}
                       className="mt-1 font-mono tracking-widest"
                     />
-                    <p className="mt-1 text-xs text-muted-foreground">Codes expire in ~15 minutes.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Codes expire in ~15 minutes.
+                    </p>
                   </div>
                 ) : null}
 

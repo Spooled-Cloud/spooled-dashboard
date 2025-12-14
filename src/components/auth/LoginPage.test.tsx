@@ -22,5 +22,3 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
   });
 });
-
-

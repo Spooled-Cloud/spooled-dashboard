@@ -362,6 +362,3 @@ export const adminAPI = {
     });
   },
 };
-
-
-

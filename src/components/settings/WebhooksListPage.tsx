@@ -144,7 +144,8 @@ function WebhooksListContent() {
             <div>
               <p className="text-sm font-medium text-blue-700">HTTP Notifications from Spooled</p>
               <p className="text-sm text-blue-600/80">
-                Spooled will POST to your configured URLs when events occur (job.completed, queue.paused, etc.). Track delivery history and test endpoints.
+                Spooled will POST to your configured URLs when events occur (job.completed,
+                queue.paused, etc.). Track delivery history and test endpoints.
               </p>
             </div>
           </div>

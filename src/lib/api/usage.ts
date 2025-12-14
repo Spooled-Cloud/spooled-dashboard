@@ -66,6 +66,3 @@ export const usageAPI = {
     return apiClient.get<UsageInfo>(API_ENDPOINTS.ORGANIZATIONS.USAGE);
   },
 };
-
-
-

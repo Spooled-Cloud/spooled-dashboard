@@ -130,7 +130,8 @@ export function CreateWebhookDialog({ trigger, onSuccess }: CreateWebhookDialogP
           <DialogHeader>
             <DialogTitle>Create Outgoing Webhook</DialogTitle>
             <DialogDescription>
-              Configure an HTTPS endpoint where Spooled will POST notifications when events occur (e.g., job.completed, queue.paused).
+              Configure an HTTPS endpoint where Spooled will POST notifications when events occur
+              (e.g., job.completed, queue.paused).
             </DialogDescription>
           </DialogHeader>
 

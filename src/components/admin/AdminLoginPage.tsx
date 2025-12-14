@@ -122,6 +122,3 @@ export function AdminLoginPage() {
     </div>
   );
 }
-
-
-

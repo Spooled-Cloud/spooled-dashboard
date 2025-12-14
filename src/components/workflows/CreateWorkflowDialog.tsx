@@ -241,13 +241,13 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
                       <div className="grid grid-cols-2 gap-3">
                         <div className="grid gap-1">
                           <Label className="text-xs">Queue *</Label>
-                        <Select
-                          value={job.queue_name}
-                          onValueChange={(v) => updateJob(job.tempId, { queue_name: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select queue" />
-                          </SelectTrigger>
+                          <Select
+                            value={job.queue_name}
+                            onValueChange={(v) => updateJob(job.tempId, { queue_name: v })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select queue" />
+                            </SelectTrigger>
                             <SelectContent>
                               {queues?.map((q) => (
                                 <SelectItem key={q.name} value={q.name}>

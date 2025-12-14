@@ -56,8 +56,8 @@ describe('API_ENDPOINTS', () => {
       expect(API_ENDPOINTS.AUTH.LOGOUT).toBe('/api/v1/auth/logout');
       expect(API_ENDPOINTS.AUTH.ME).toBe('/api/v1/auth/me');
       expect(API_ENDPOINTS.AUTH.VALIDATE).toBe('/api/v1/auth/validate');
-    expect(API_ENDPOINTS.AUTH.EMAIL_START).toBe('/api/v1/auth/email/start');
-    expect(API_ENDPOINTS.AUTH.EMAIL_VERIFY).toBe('/api/v1/auth/email/verify');
+      expect(API_ENDPOINTS.AUTH.EMAIL_START).toBe('/api/v1/auth/email/start');
+      expect(API_ENDPOINTS.AUTH.EMAIL_VERIFY).toBe('/api/v1/auth/email/verify');
     });
   });
 
