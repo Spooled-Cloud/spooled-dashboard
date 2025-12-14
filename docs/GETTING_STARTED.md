@@ -4,7 +4,7 @@
 
 - Node.js 20+
 - npm
-- Spooled Backend running (see [spooled-backend](../../spooled-backend))
+- Spooled Backend running (see [spooled-backend](https://github.com/spooled-cloud/spooled-backend))
 
 ## Installation
 
@@ -26,7 +26,7 @@ Edit `.env`:
 # Backend API URL
 PUBLIC_API_URL=http://localhost:8080
 
-# WebSocket URL  
+# WebSocket URL
 PUBLIC_WS_URL=ws://localhost:8080
 ```
 

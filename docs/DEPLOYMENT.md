@@ -17,8 +17,8 @@ Best for single-server deployments.
 
 ```bash
 # Clone the repository
-git clone https://github.com/spooled-cloud/spooled-cloud.git
-cd spooled-cloud/spooled-dashboard
+git clone https://github.com/spooled-cloud/spooled-dashboard.git
+cd spooled-dashboard
 
 # Create environment file
 cp .env.example .env

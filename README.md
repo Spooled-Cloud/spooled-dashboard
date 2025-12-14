@@ -16,7 +16,7 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 - **🔄 Workflows** - Orchestrate jobs with dependencies (DAG visualization)
 - **📅 Schedules** - Cron-based job scheduling with timezone support
 - **🔑 API Keys** - Manage programmatic access with queue restrictions
-- **🔔 Webhooks** - Configure outgoing notifications with delivery history
+- **🔔 Outgoing Webhooks** - Configure HTTP notifications for job/queue events (with delivery history)
 - **🌐 WebSocket** - Live updates across the dashboard
 - **📈 Usage Tracking** - Monitor plan limits and resource usage
 - **💀 Dead-Letter Queue** - Review and retry failed jobs
@@ -38,14 +38,14 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 
 - Node.js 20+
 - npm or yarn
-- Spooled Backend running (see [spooled-backend](../spooled-backend))
+- Spooled Backend running (see [spooled-backend](https://github.com/spooled-cloud/spooled-backend))
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/spooled-cloud/spooled-cloud.git
-cd spooled-cloud/spooled-dashboard
+git clone https://github.com/spooled-cloud/spooled-dashboard.git
+cd spooled-dashboard
 
 # Install dependencies
 npm install
@@ -62,10 +62,10 @@ Create a `.env` file:
 
 ```env
 # Backend API URL
-PUBLIC_API_URL=http://localhost:3000
+PUBLIC_API_URL=http://localhost:8080
 
 # WebSocket URL
-PUBLIC_WS_URL=ws://localhost:3000
+PUBLIC_WS_URL=ws://localhost:8080
 ```
 
 ## Development

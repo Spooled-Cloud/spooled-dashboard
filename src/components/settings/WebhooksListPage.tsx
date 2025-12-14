@@ -118,9 +118,9 @@ function WebhooksListContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Webhooks</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Outgoing Webhooks</h1>
           <p className="text-muted-foreground">
-            Configure webhook endpoints for real-time notifications
+            Configure HTTP endpoints to receive notifications when job/queue events occur
           </p>
         </div>
         <div className="flex gap-2">
@@ -142,10 +142,9 @@ function WebhooksListContent() {
           <div className="flex gap-3">
             <Zap className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
             <div>
-              <p className="text-sm font-medium text-blue-700">Real-time Notifications</p>
+              <p className="text-sm font-medium text-blue-700">HTTP Notifications from Spooled</p>
               <p className="text-sm text-blue-600/80">
-                Webhooks allow you to receive HTTP callbacks when events occur in your job queue
-                system.
+                Spooled will POST to your configured URLs when events occur (job.completed, queue.paused, etc.). Track delivery history and test endpoints.
               </p>
             </div>
           </div>
@@ -173,7 +172,7 @@ function WebhooksListContent() {
               <WebhookIcon className="mx-auto mb-3 h-12 w-12 opacity-50" />
               <p className="mb-1 text-lg font-medium">No webhooks configured</p>
               <p className="text-sm">
-                Create your first webhook to receive real-time notifications
+                Create a webhook to receive HTTP notifications from Spooled when events occur
               </p>
             </div>
           ) : (

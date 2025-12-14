@@ -128,9 +128,9 @@ export function CreateWebhookDialog({ trigger, onSuccess }: CreateWebhookDialogP
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create New Webhook</DialogTitle>
+            <DialogTitle>Create Outgoing Webhook</DialogTitle>
             <DialogDescription>
-              Configure a webhook endpoint to receive real-time event notifications.
+              Configure an HTTPS endpoint where Spooled will POST notifications when events occur (e.g., job.completed, queue.paused).
             </DialogDescription>
           </DialogHeader>
 

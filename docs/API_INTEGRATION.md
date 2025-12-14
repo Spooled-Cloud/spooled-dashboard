@@ -18,7 +18,7 @@ import { apiClient } from '@/lib/api/client';
 const data = await apiClient.get('/api/v1/jobs');
 
 // POST request
-const result = await apiClient.post('/api/v1/jobs', { queue: 'email', ... });
+const result = await apiClient.post('/api/v1/jobs', { queue_name: 'emails', payload: {...} });
 
 // With query params
 const jobs = await apiClient.get('/api/v1/jobs', { status: 'pending' });
