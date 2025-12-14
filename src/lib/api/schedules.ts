@@ -11,7 +11,7 @@ export interface CreateScheduleRequest {
   description?: string;
   cron_expression: string;
   timezone?: string;
-  queue: string;
+  queue_name: string;
   job_type: string;
   payload: Record<string, unknown>;
   enabled?: boolean;
@@ -23,7 +23,7 @@ export interface UpdateScheduleRequest {
   description?: string;
   cron_expression?: string;
   timezone?: string;
-  queue?: string;
+  queue_name?: string;
   job_type?: string;
   payload?: Record<string, unknown>;
   metadata?: Record<string, string>;

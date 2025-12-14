@@ -139,7 +139,7 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
       description: description.trim() || undefined,
       cron_expression: cronExpression.trim(),
       timezone,
-      queue,
+      queue_name: queue,
       job_type: jobType.trim(),
       payload: parsedPayload,
       enabled: true,

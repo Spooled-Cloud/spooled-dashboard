@@ -7,14 +7,14 @@ import { API_ENDPOINTS } from '@/lib/constants/api';
 import type { Workflow, WorkflowStatus, WorkflowDependency, Job } from '@/lib/types';
 
 export interface WorkflowJob {
-  id?: string;
-  queue: string;
+  key: string; // Unique key for this job (used for dependency references)
+  queue_name: string;
   job_type: string;
   payload: Record<string, unknown>;
   priority?: number;
   max_retries?: number;
   timeout_ms?: number;
-  depends_on?: string[]; // References other job IDs within the workflow
+  depends_on?: string[]; // References other job keys within the workflow
   dependency_type?: 'success' | 'completion' | 'failure';
 }
 
@@ -69,13 +69,14 @@ export const workflowsAPI = {
     return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.CANCEL(id));
   },
 
-  /**
-   * POST /api/v1/workflows/{id}/retry
-   * Retry failed jobs in a workflow
-   */
-  retry: (id: string): Promise<Workflow> => {
-    return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.RETRY(id));
-  },
+  // NOTE: Retry endpoint not implemented in backend yet
+  // /**
+  //  * POST /api/v1/workflows/{id}/retry
+  //  * Retry failed jobs in a workflow
+  //  */
+  // retry: (id: string): Promise<Workflow> => {
+  //   return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.RETRY(id));
+  // },
 };
 
 /**

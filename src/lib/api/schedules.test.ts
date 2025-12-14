@@ -39,7 +39,7 @@ describe('schedulesAPI', () => {
       const schedule = await schedulesAPI.create({
         name: 'New Schedule',
         cron_expression: '0 * * * *',
-        queue: 'default',
+        queue_name: 'default',
         job_type: 'scheduled_task',
         payload: { key: 'value' },
       });

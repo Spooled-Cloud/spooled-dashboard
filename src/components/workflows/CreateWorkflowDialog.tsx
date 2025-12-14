@@ -35,7 +35,7 @@ interface CreateWorkflowDialogProps {
 }
 
 interface WorkflowJobInput extends WorkflowJob {
-  tempId: string;
+  tempId: string; // UI-only field for managing job list
 }
 
 export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialogProps) {
@@ -47,7 +47,7 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [jobs, setJobs] = useState<WorkflowJobInput[]>([
-    { tempId: '1', queue: '', job_type: '', payload: {}, depends_on: [] },
+    { tempId: '1', key: '1', queue_name: '', job_type: '', payload: {}, depends_on: [] },
   ]);
 
   // Fetch available queues
@@ -74,16 +74,18 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
   const resetForm = () => {
     setName('');
     setDescription('');
-    setJobs([{ tempId: '1', queue: '', job_type: '', payload: {}, depends_on: [] }]);
+    setJobs([{ tempId: '1', key: '1', queue_name: '', job_type: '', payload: {}, depends_on: [] }]);
     setError(null);
   };
 
   const addJob = () => {
+    const newId = String(Date.now());
     setJobs([
       ...jobs,
       {
-        tempId: String(Date.now()),
-        queue: '',
+        tempId: newId,
+        key: newId,
+        queue_name: '',
         job_type: '',
         payload: {},
         depends_on: jobs.length > 0 ? [jobs[jobs.length - 1].tempId] : [],
@@ -125,7 +127,7 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
     // Validate each job
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i];
-      if (!job.queue) {
+      if (!job.queue_name) {
         setError(`Job ${i + 1}: Queue is required`);
         return;
       }
@@ -139,7 +141,8 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
       name: name.trim(),
       description: description.trim() || undefined,
       jobs: jobs.map((j) => ({
-        queue: j.queue,
+        key: j.tempId, // Use tempId as the job key
+        queue_name: j.queue_name,
         job_type: j.job_type,
         payload: j.payload,
         depends_on: j.depends_on,
@@ -238,13 +241,13 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
                       <div className="grid grid-cols-2 gap-3">
                         <div className="grid gap-1">
                           <Label className="text-xs">Queue *</Label>
-                          <Select
-                            value={job.queue}
-                            onValueChange={(v) => updateJob(job.tempId, { queue: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select queue" />
-                            </SelectTrigger>
+                        <Select
+                          value={job.queue_name}
+                          onValueChange={(v) => updateJob(job.tempId, { queue_name: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select queue" />
+                          </SelectTrigger>
                             <SelectContent>
                               {queues?.map((q) => (
                                 <SelectItem key={q.name} value={q.name}>
