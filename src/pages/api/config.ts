@@ -33,8 +33,11 @@ export const GET: APIRoute = () => {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      // Cache for 5 minutes - config doesn't change often
-      'Cache-Control': 'public, max-age=300',
+      // Browser cache: 5 minutes, CDN/edge cache: 1 hour
+      // s-maxage controls shared caches (CDN), max-age controls browser
+      'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+      // Cloudflare-specific: cache at edge for 1 hour
+      'CDN-Cache-Control': 'public, max-age=3600',
     },
   });
 };
