@@ -13,9 +13,20 @@ import type { UpdateOrganizationRequest, OrganizationMember } from '@/lib/api/or
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
-import { Save, Loader2, Building, Users, Crown, Shield, User } from 'lucide-react';
+import { Save, Loader2, Building, Users, Crown, Shield, User, Webhook, Copy, RefreshCw, Trash2, Eye, EyeOff } from 'lucide-react';
 import { UsageWidget } from '@/components/usage/UsageWidget';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 function MemberRoleBadge({ role }: { role: OrganizationMember['role'] }) {
   switch (role) {
@@ -41,6 +52,203 @@ function MemberRoleBadge({ role }: { role: OrganizationMember['role'] }) {
         </Badge>
       );
   }
+}
+
+function WebhookTokenSection({ orgId }: { orgId: string }) {
+  const queryClient = useQueryClient();
+  const [showToken, setShowToken] = useState(false);
+
+  const { data: webhookData, isLoading } = useQuery({
+    queryKey: ['webhook-token', orgId],
+    queryFn: () => organizationsAPI.getWebhookToken(),
+    enabled: !!orgId,
+  });
+
+  const regenerateMutation = useMutation({
+    mutationFn: () => organizationsAPI.regenerateWebhookToken(),
+    onSuccess: () => {
+      toast.success('Webhook token regenerated');
+      queryClient.invalidateQueries({ queryKey: ['webhook-token', orgId] });
+      setShowToken(true);
+    },
+    onError: (error) => {
+      toast.error('Failed to regenerate webhook token', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => organizationsAPI.clearWebhookToken(),
+    onSuccess: () => {
+      toast.success('Webhook token cleared');
+      queryClient.invalidateQueries({ queryKey: ['webhook-token', orgId] });
+    },
+    onError: (error) => {
+      toast.error('Failed to clear webhook token', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
+  };
+
+  const maskedToken = webhookData?.webhook_token
+    ? webhookData.webhook_token.substring(0, 8) + '••••••••••••••••••••••••'
+    : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Webhook className="h-5 w-5" />
+          Incoming Webhooks
+        </CardTitle>
+        <CardDescription>
+          Configure authentication for external services to send webhooks to your organization
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : (
+          <>
+            {/* Webhook URL */}
+            <div className="space-y-2">
+              <Label>Webhook URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={webhookData?.webhook_url || ''}
+                  readOnly
+                  className="font-mono text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => copyToClipboard(webhookData?.webhook_url || '', 'Webhook URL')}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Configure this URL in your external service to send events to Spooled
+              </p>
+            </div>
+
+            {/* Webhook Token */}
+            <div className="space-y-2">
+              <Label>Webhook Token</Label>
+              {webhookData?.webhook_token ? (
+                <>
+                  <div className="flex gap-2">
+                    <Input
+                      value={showToken ? webhookData.webhook_token : maskedToken || ''}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowToken(!showToken)}
+                    >
+                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyToClipboard(webhookData.webhook_token!, 'Webhook token')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Include this token in the <code className="rounded bg-muted px-1">X-Webhook-Token</code> header when sending webhooks
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                    ⚠️ No webhook token configured. Your webhook endpoint accepts unauthenticated requests.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 border-t pt-4">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={regenerateMutation.isPending}>
+                    {regenerateMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Regenerate Token
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Regenerate Webhook Token?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will generate a new token and invalidate the current one. Any external
+                      services using the old token will need to be updated.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => regenerateMutation.mutate()}>
+                      Regenerate
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              {webhookData?.webhook_token && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={clearMutation.isPending}>
+                      {clearMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Clear Token
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Webhook Token?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will remove authentication from your webhook endpoint. Anyone with
+                        your webhook URL will be able to send events to your organization. This is
+                        not recommended for production use.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => clearMutation.mutate()}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Clear Token
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function OrganizationSettingsContent() {
@@ -251,6 +459,9 @@ function OrganizationSettingsContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Incoming Webhooks */}
+      <WebhookTokenSection orgId={orgId} />
     </div>
   );
 }

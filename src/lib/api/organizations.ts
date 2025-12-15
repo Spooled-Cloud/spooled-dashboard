@@ -124,4 +124,33 @@ export const organizationsAPI = {
   removeMember: (orgId: string, userId: string): Promise<void> => {
     return apiClient.delete<void>(`${API_ENDPOINTS.ORGANIZATIONS.MEMBERS(orgId)}/${userId}`);
   },
+
+  /**
+   * GET /api/v1/organizations/webhook-token
+   * Get the webhook token for the current organization
+   */
+  getWebhookToken: (): Promise<WebhookTokenResponse> => {
+    return apiClient.get<WebhookTokenResponse>('/api/v1/organizations/webhook-token');
+  },
+
+  /**
+   * POST /api/v1/organizations/webhook-token/regenerate
+   * Regenerate the webhook token
+   */
+  regenerateWebhookToken: (): Promise<WebhookTokenResponse> => {
+    return apiClient.post<WebhookTokenResponse>('/api/v1/organizations/webhook-token/regenerate', {});
+  },
+
+  /**
+   * POST /api/v1/organizations/webhook-token/clear
+   * Clear the webhook token (disable authentication)
+   */
+  clearWebhookToken: (): Promise<WebhookTokenResponse> => {
+    return apiClient.post<WebhookTokenResponse>('/api/v1/organizations/webhook-token/clear', { confirm: true });
+  },
 };
+
+export interface WebhookTokenResponse {
+  webhook_token: string | null;
+  webhook_url: string;
+}
