@@ -13,7 +13,21 @@ import type { UpdateOrganizationRequest, OrganizationMember } from '@/lib/api/or
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
-import { Save, Loader2, Building, Users, Crown, Shield, User, Webhook, Copy, RefreshCw, Trash2, Eye, EyeOff } from 'lucide-react';
+import {
+  Save,
+  Loader2,
+  Building,
+  Users,
+  Crown,
+  Shield,
+  User,
+  Webhook,
+  Copy,
+  RefreshCw,
+  Trash2,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { UsageWidget } from '@/components/usage/UsageWidget';
 import { toast } from 'sonner';
 import {
@@ -152,11 +166,7 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
                       readOnly
                       className="font-mono text-sm"
                     />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowToken(!showToken)}
-                    >
+                    <Button variant="outline" size="icon" onClick={() => setShowToken(!showToken)}>
                       {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                     <Button
@@ -168,13 +178,16 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Include this token in the <code className="rounded bg-muted px-1">X-Webhook-Token</code> header when sending webhooks
+                    Include this token in the{' '}
+                    <code className="rounded bg-muted px-1">X-Webhook-Token</code> header when
+                    sending webhooks
                   </p>
                 </>
               ) : (
                 <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
                   <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                    ⚠️ No webhook token configured. Your webhook endpoint accepts unauthenticated requests.
+                    ⚠️ No webhook token configured. Your webhook endpoint accepts unauthenticated
+                    requests.
                   </p>
                 </div>
               )}
@@ -226,9 +239,9 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Clear Webhook Token?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will remove authentication from your webhook endpoint. Anyone with
-                        your webhook URL will be able to send events to your organization. This is
-                        not recommended for production use.
+                        This will remove authentication from your webhook endpoint. Anyone with your
+                        webhook URL will be able to send events to your organization. This is not
+                        recommended for production use.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

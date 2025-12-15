@@ -64,7 +64,11 @@ function StatusBadge({ status }: { status: string | null }) {
 function BillingContent() {
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const { data: billing, isLoading, error } = useQuery({
+  const {
+    data: billing,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['billing', 'status'],
     queryFn: () => billingAPI.getStatus(),
   });
@@ -175,7 +179,8 @@ function BillingContent() {
                     <div>
                       <p className="font-medium">Upgrade to unlock more features</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Get higher limits, priority support, and advanced features with our paid plans.
+                        Get higher limits, priority support, and advanced features with our paid
+                        plans.
                       </p>
                     </div>
                   </div>
@@ -338,4 +343,3 @@ export function BillingPage() {
     </ProtectedPage>
   );
 }
-

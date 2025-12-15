@@ -138,7 +138,10 @@ export const organizationsAPI = {
    * Regenerate the webhook token
    */
   regenerateWebhookToken: (): Promise<WebhookTokenResponse> => {
-    return apiClient.post<WebhookTokenResponse>('/api/v1/organizations/webhook-token/regenerate', {});
+    return apiClient.post<WebhookTokenResponse>(
+      '/api/v1/organizations/webhook-token/regenerate',
+      {}
+    );
   },
 
   /**
@@ -146,7 +149,9 @@ export const organizationsAPI = {
    * Clear the webhook token (disable authentication)
    */
   clearWebhookToken: (): Promise<WebhookTokenResponse> => {
-    return apiClient.post<WebhookTokenResponse>('/api/v1/organizations/webhook-token/clear', { confirm: true });
+    return apiClient.post<WebhookTokenResponse>('/api/v1/organizations/webhook-token/clear', {
+      confirm: true,
+    });
   },
 };
 
