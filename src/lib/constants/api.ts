@@ -123,6 +123,12 @@ export const API_ENDPOINTS = {
     INVITE: (id: string) => `/api/v1/organizations/${id}/members`,
   },
 
+  // Billing
+  BILLING: {
+    STATUS: '/api/v1/billing/status',
+    PORTAL: '/api/v1/billing/portal',
+  },
+
   // Health
   HEALTH: {
     CHECK: '/health',

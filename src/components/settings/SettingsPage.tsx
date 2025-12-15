@@ -1,6 +1,6 @@
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent } from '@/components/ui/card';
-import { Key, Webhook, Building, User, ChevronRight, Shield, Bell } from 'lucide-react';
+import { Key, Webhook, Building, User, ChevronRight, Shield, Bell, CreditCard } from 'lucide-react';
 
 interface SettingsLinkProps {
   href: string;
@@ -72,6 +72,12 @@ function SettingsContent() {
             icon={<Webhook className="h-5 w-5" />}
             title="Webhooks"
             description="Configure webhook endpoints for real-time notifications"
+          />
+          <SettingsLink
+            href="/settings/billing"
+            icon={<CreditCard className="h-5 w-5" />}
+            title="Billing"
+            description="Manage your subscription, payment methods, and invoices"
           />
         </div>
       </div>
