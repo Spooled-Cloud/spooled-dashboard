@@ -69,14 +69,13 @@ export const workflowsAPI = {
     return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.CANCEL(id));
   },
 
-  // NOTE: Retry endpoint not implemented in backend yet
-  // /**
-  //  * POST /api/v1/workflows/{id}/retry
-  //  * Retry failed jobs in a workflow
-  //  */
-  // retry: (id: string): Promise<Workflow> => {
-  //   return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.RETRY(id));
-  // },
+  /**
+   * POST /api/v1/workflows/{id}/retry
+   * Retry failed jobs in a workflow
+   */
+  retry: (id: string): Promise<Workflow> => {
+    return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.RETRY(id));
+  },
 };
 
 /**

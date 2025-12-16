@@ -20,6 +20,7 @@ import {
   Play,
   ArrowDown,
   ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import type { Job, JobStatus, WorkflowStatus } from '@/lib/types';
 import { toast } from 'sonner';
@@ -214,19 +215,18 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
     },
   });
 
-  // Retry endpoint not implemented in backend yet
-  // const retryMutation = useMutation({
-  //   mutationFn: () => workflowsAPI.retry(workflowId),
-  //   onSuccess: () => {
-  //     toast.success('Workflow retry started', { description: 'Failed jobs are being reprocessed' });
-  //     queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflowId) });
-  //   },
-  //   onError: (error) => {
-  //     toast.error('Failed to retry workflow', {
-  //       description: error instanceof Error ? error.message : 'An error occurred',
-  //     });
-  //   },
-  // });
+  const retryMutation = useMutation({
+    mutationFn: () => workflowsAPI.retry(workflowId),
+    onSuccess: () => {
+      toast.success('Workflow retry started', { description: 'Failed jobs are being reprocessed' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflowId) });
+    },
+    onError: (error) => {
+      toast.error('Failed to retry workflow', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
 
   const handleCancel = () => {
     if (confirm('Cancel this workflow? All pending jobs will be cancelled.')) {
@@ -234,12 +234,11 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
     }
   };
 
-  // Retry not implemented yet
-  // const handleRetry = () => {
-  //   if (confirm('Retry failed jobs in this workflow?')) {
-  //     retryMutation.mutate();
-  //   }
-  // };
+  const handleRetry = () => {
+    if (confirm('Retry failed jobs in this workflow?')) {
+      retryMutation.mutate();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -306,13 +305,12 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
               Cancel
             </Button>
           )}
-          {/* Retry endpoint not implemented in backend yet */}
-          {/* {workflow.status === 'failed' && (
+          {workflow.status === 'failed' && (
             <Button size="sm" onClick={handleRetry} disabled={retryMutation.isPending}>
               <RotateCcw className="mr-2 h-4 w-4" />
               Retry Failed
             </Button>
-          )} */}
+          )}
         </div>
       </div>
 

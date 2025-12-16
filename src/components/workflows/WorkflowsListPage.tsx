@@ -16,6 +16,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateWorkflowDialog } from './CreateWorkflowDialog';
@@ -100,19 +101,18 @@ function WorkflowsListContent() {
     },
   });
 
-  // Retry endpoint not implemented in backend yet
-  // const retryMutation = useMutation({
-  //   mutationFn: (id: string) => workflowsAPI.retry(id),
-  //   onSuccess: () => {
-  //     toast.success('Workflow retry started');
-  //     queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
-  //   },
-  //   onError: (error) => {
-  //     toast.error('Failed to retry workflow', {
-  //       description: error instanceof Error ? error.message : 'An error occurred',
-  //     });
-  //   },
-  // });
+  const retryMutation = useMutation({
+    mutationFn: (id: string) => workflowsAPI.retry(id),
+    onSuccess: () => {
+      toast.success('Workflow retry started');
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
+    },
+    onError: (error) => {
+      toast.error('Failed to retry workflow', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
 
   const handleCancel = (workflow: Workflow) => {
     if (confirm(`Cancel workflow "${workflow.name}"? All pending jobs will be cancelled.`)) {
@@ -120,12 +120,11 @@ function WorkflowsListContent() {
     }
   };
 
-  // Retry not implemented yet
-  // const handleRetry = (workflow: Workflow) => {
-  //   if (confirm(`Retry failed jobs in workflow "${workflow.name}"?`)) {
-  //     retryMutation.mutate(workflow.id);
-  //   }
-  // };
+  const handleRetry = (workflow: Workflow) => {
+    if (confirm(`Retry failed jobs in workflow "${workflow.name}"?`)) {
+      retryMutation.mutate(workflow.id);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -236,8 +235,7 @@ function WorkflowsListContent() {
                           Cancel
                         </Button>
                       )}
-                      {/* Retry endpoint not implemented in backend yet */}
-                      {/* {workflow.status === 'failed' && (
+                      {workflow.status === 'failed' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -247,7 +245,7 @@ function WorkflowsListContent() {
                           <RotateCcw className="mr-2 h-4 w-4" />
                           Retry
                         </Button>
-                      )} */}
+                      )}
                       <a href={`/workflows/${workflow.id}`}>
                         <Button variant="ghost" size="sm">
                           <ChevronRight className="h-4 w-4" />

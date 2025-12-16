@@ -19,6 +19,43 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Plan limits - must match spooled-frontend/src/lib/plans.ts
+const PLAN_FEATURES = {
+  starter: {
+    name: 'Starter',
+    description: 'For growing teams and apps',
+    features: [
+      '10,000 jobs/day',
+      '10 queues',
+      '5 workers',
+      '14 day retention',
+      '5 workflows',
+    ],
+  },
+  pro: {
+    name: 'Pro',
+    description: 'For production workloads',
+    features: [
+      '100,000 jobs/day',
+      '50 queues',
+      '25 workers',
+      '30 day retention',
+      '25 workflows',
+    ],
+  },
+  enterprise: {
+    name: 'Enterprise',
+    description: 'For scale and compliance',
+    features: [
+      'Unlimited jobs',
+      'Unlimited queues',
+      'Unlimited workers',
+      '90 day retention',
+      '24/7 support + SLA',
+    ],
+  },
+};
+
 function PlanBadge({ planTier }: { planTier: string }) {
   const isPaid = planTier !== 'free';
 
@@ -91,6 +128,11 @@ function BillingContent() {
 
   const handleManageBilling = () => {
     portalMutation.mutate();
+  };
+
+  const handleUpgrade = () => {
+    // Redirect to the main site's pricing page
+    window.open('https://spooled.cloud/pricing', '_blank');
   };
 
   if (error) {
@@ -174,15 +216,20 @@ function BillingContent() {
 
               {!isPaidPlan && (
                 <div className="rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-4">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
-                    <div>
-                      <p className="font-medium">Upgrade to unlock more features</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Get higher limits, priority support, and advanced features with our paid
-                        plans.
-                      </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Upgrade to unlock more features</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Get higher limits, longer retention, and advanced features.
+                        </p>
+                      </div>
                     </div>
+                    <Button onClick={handleUpgrade} size="sm">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View Plans
+                    </Button>
                   </div>
                 </div>
               )}
@@ -238,19 +285,19 @@ function BillingContent() {
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                You don't have an active subscription yet. Contact support or visit our website to
-                upgrade your plan.
+                You don't have an active subscription yet. Upgrade your plan to access billing
+                management.
               </p>
-              <Button variant="outline" disabled>
-                <CreditCard className="mr-2 h-4 w-4" />
-                No Subscription
+              <Button onClick={handleUpgrade}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Upgrade Plan
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Plan Comparison (optional enhancement) */}
+      {/* Plan Comparison */}
       {!isPaidPlan && (
         <Card>
           <CardHeader>
@@ -261,74 +308,59 @@ function BillingContent() {
             <div className="grid gap-4 md:grid-cols-3">
               {/* Starter */}
               <div className="rounded-lg border p-4">
-                <h3 className="font-semibold">Starter</h3>
-                <p className="mt-1 text-sm text-muted-foreground">For small projects</p>
+                <h3 className="font-semibold">{PLAN_FEATURES.starter.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {PLAN_FEATURES.starter.description}
+                </p>
                 <ul className="mt-4 space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    10,000 jobs/day
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    10 queues
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    Email support
-                  </li>
+                  {PLAN_FEATURES.starter.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      {feature}
+                    </li>
+                  ))}
                 </ul>
               </div>
 
               {/* Pro */}
               <div className="rounded-lg border-2 border-primary p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <h3 className="font-semibold">Pro</h3>
+                  <h3 className="font-semibold">{PLAN_FEATURES.pro.name}</h3>
                   <Badge className="bg-primary text-primary-foreground">Popular</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">For growing teams</p>
+                <p className="text-sm text-muted-foreground">{PLAN_FEATURES.pro.description}</p>
                 <ul className="mt-4 space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    100,000 jobs/day
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    50 queues
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    Priority support
-                  </li>
+                  {PLAN_FEATURES.pro.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      {feature}
+                    </li>
+                  ))}
                 </ul>
               </div>
 
               {/* Enterprise */}
               <div className="rounded-lg border p-4">
-                <h3 className="font-semibold">Enterprise</h3>
-                <p className="mt-1 text-sm text-muted-foreground">For large organizations</p>
+                <h3 className="font-semibold">{PLAN_FEATURES.enterprise.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {PLAN_FEATURES.enterprise.description}
+                </p>
                 <ul className="mt-4 space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    Unlimited jobs
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    Unlimited queues
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    24/7 support + SLA
-                  </li>
+                  {PLAN_FEATURES.enterprise.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      {feature}
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              Contact us at{' '}
-              <a href="mailto:support@spooled.cloud" className="text-primary hover:underline">
-                support@spooled.cloud
-              </a>{' '}
-              to upgrade your plan.
-            </p>
+            <div className="mt-6 flex justify-center">
+              <Button onClick={handleUpgrade} size="lg">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View Pricing & Upgrade
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
