@@ -24,24 +24,12 @@ const PLAN_FEATURES = {
   starter: {
     name: 'Starter',
     description: 'For growing teams and apps',
-    features: [
-      '10,000 jobs/day',
-      '10 queues',
-      '5 workers',
-      '14 day retention',
-      '5 workflows',
-    ],
+    features: ['10,000 jobs/day', '10 queues', '5 workers', '14 day retention', '5 workflows'],
   },
   pro: {
     name: 'Pro',
     description: 'For production workloads',
-    features: [
-      '100,000 jobs/day',
-      '50 queues',
-      '25 workers',
-      '30 day retention',
-      '25 workflows',
-    ],
+    features: ['100,000 jobs/day', '50 queues', '25 workers', '30 day retention', '25 workflows'],
   },
   enterprise: {
     name: 'Enterprise',
