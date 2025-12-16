@@ -37,14 +37,17 @@ function normalizeDashboardData(data: DashboardData): DashboardData {
       success_rate: successRate,
       avg_processing_time_ms: data.jobs?.avg_processing_time_ms ?? 0,
     },
-    queue_summaries: data.queue_summaries ?? data.queues?.map(q => ({
-      name: q.name,
-      pending: q.pending,
-      processing: q.processing,
-      completed: 0,
-      failed: 0,
-      paused: q.paused,
-    })) ?? [],
+    queue_summaries:
+      data.queue_summaries ??
+      data.queues?.map((q) => ({
+        name: q.name,
+        pending: q.pending,
+        processing: q.processing,
+        completed: 0,
+        failed: 0,
+        paused: q.paused,
+      })) ??
+      [],
     worker_status: data.worker_status ?? {
       total: data.workers?.total ?? 0,
       active: data.workers?.healthy ?? 0,

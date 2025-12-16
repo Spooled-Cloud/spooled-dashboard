@@ -318,7 +318,7 @@ export interface DashboardData {
     jobs_completed_1h: number;
     jobs_failed_1h: number;
   };
-  
+
   // Legacy field names for backwards compatibility (mapped in hook)
   system_info?: {
     version: string;
