@@ -283,12 +283,49 @@ export interface Organization {
 // ============================================================================
 
 export interface DashboardData {
-  system_info: {
+  // Backend returns these field names
+  system: {
     version: string;
     uptime_seconds: number;
-    rust_version: string;
+    started_at: string;
+    database_status: string;
+    cache_status: string;
+    environment: string;
   };
-  job_statistics: {
+  jobs: {
+    total: number;
+    pending: number;
+    processing: number;
+    completed_24h: number;
+    failed_24h: number;
+    deadletter: number;
+    avg_wait_time_ms: number | null;
+    avg_processing_time_ms: number | null;
+  };
+  queues: Array<{
+    name: string;
+    pending: number;
+    processing: number;
+    paused: boolean;
+  }>;
+  workers: {
+    total: number;
+    healthy: number;
+    unhealthy: number;
+  };
+  recent_activity: {
+    jobs_created_1h: number;
+    jobs_completed_1h: number;
+    jobs_failed_1h: number;
+  };
+  
+  // Legacy field names for backwards compatibility (mapped in hook)
+  system_info?: {
+    version: string;
+    uptime_seconds: number;
+    rust_version?: string;
+  };
+  job_statistics?: {
     total: number;
     pending: number;
     processing: number;
@@ -299,25 +336,20 @@ export interface DashboardData {
     success_rate: number;
     avg_processing_time_ms: number;
   };
-  queue_summaries: Array<{
+  queue_summaries?: Array<{
     name: string;
     pending: number;
     processing: number;
-    completed: number;
-    failed: number;
+    completed?: number;
+    failed?: number;
     paused: boolean;
   }>;
-  worker_status: {
+  worker_status?: {
     total: number;
     active: number;
     idle: number;
     offline: number;
   };
-  recent_activity: ActivityEvent[];
-  processing_rate: Array<{
-    timestamp: string;
-    jobs_per_second: number;
-  }>;
 }
 
 export interface ActivityEvent {
