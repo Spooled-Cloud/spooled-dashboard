@@ -192,6 +192,19 @@ if (typeof window !== 'undefined') {
   apiClient.setOrgIdGetter(() => useAuthStore.getState().currentOrganization?.id || null);
   apiClient.setRefreshHandler(() => useAuthStore.getState().refreshTokens());
 
+  // Check if token is expired and clear auth if so
+  function checkTokenExpiration() {
+    const state = useAuthStore.getState();
+    if (state.accessToken && state.expiresAt) {
+      if (Date.now() > state.expiresAt) {
+        console.log('Token expired, clearing auth');
+        useAuthStore.getState().clearAuth();
+        // Redirect to login
+        window.location.href = '/';
+      }
+    }
+  }
+
   // After rehydration, check if token is still valid
   useAuthStore.persist.onFinishHydration((state) => {
     // Set loading to false after hydration
@@ -202,6 +215,16 @@ if (typeof window !== 'undefined') {
       if (Date.now() > state.expiresAt) {
         useAuthStore.getState().clearAuth();
       }
+    }
+  });
+
+  // Periodically check token expiration (every minute)
+  setInterval(checkTokenExpiration, 60 * 1000);
+
+  // Also check on visibility change (when user comes back to tab)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkTokenExpiration();
     }
   });
 }
