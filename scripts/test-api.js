@@ -13,7 +13,7 @@
  */
 
 const API_URL = process.env.PUBLIC_API_URL || 'https://api.spooled.cloud';
-const ADMIN_API_KEY = 'CCvwgbl3UYHzAsJQFsVkOL4XoRT0GyLZL46xz3WA0';
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
 async function testAPI() {
   console.log('🧪 Testing Spooled API Integration\n');
@@ -30,33 +30,38 @@ async function testAPI() {
 
     // Test 2: Create Organization (with admin key)
     console.log('2️⃣  Creating test organization...');
-    const orgData = {
-      name: 'Test Organization',
-      slug: 'test-org-' + Date.now(),
-      billing_email: 'test@spooled.cloud',
-    };
-
-    const orgRes = await fetch(`${API_URL}/api/v1/organizations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Key': ADMIN_API_KEY,
-      },
-      body: JSON.stringify(orgData),
-    });
-
-    if (orgRes.ok) {
-      const org = await orgRes.json();
-      console.log('✅ Organization created:', org.name);
-      console.log('   ID:', org.id);
-      console.log('   Slug:', org.slug);
-      console.log('\n   🔑 Save this organization ID for later:', org.id, '\n');
-    } else if (orgRes.status === 403) {
-      console.log('⚠️  Organization creation requires admin key (closed registration mode)');
-      console.log('   This is expected for SaaS deployments.\n');
+    if (!ADMIN_API_KEY) {
+      console.log('⚠️  ADMIN_API_KEY not set, skipping organization creation');
+      console.log('   Set ADMIN_API_KEY env var to test org creation\n');
     } else {
-      const error = await orgRes.text();
-      console.log('❌ Failed to create organization:', orgRes.status, error, '\n');
+      const orgData = {
+        name: 'Test Organization',
+        slug: 'test-org-' + Date.now(),
+        billing_email: 'test@spooled.cloud',
+      };
+
+      const orgRes = await fetch(`${API_URL}/api/v1/organizations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Key': ADMIN_API_KEY,
+        },
+        body: JSON.stringify(orgData),
+      });
+
+      if (orgRes.ok) {
+        const org = await orgRes.json();
+        console.log('✅ Organization created:', org.name);
+        console.log('   ID:', org.id);
+        console.log('   Slug:', org.slug);
+        console.log('\n   🔑 Save this organization ID for later:', org.id, '\n');
+      } else if (orgRes.status === 403) {
+        console.log('⚠️  Organization creation requires admin key (closed registration mode)');
+        console.log('   This is expected for SaaS deployments.\n');
+      } else {
+        const error = await orgRes.text();
+        console.log('❌ Failed to create organization:', orgRes.status, error, '\n');
+      }
     }
 
     // Test 3: Dashboard endpoint (requires auth, so this will fail without login)
