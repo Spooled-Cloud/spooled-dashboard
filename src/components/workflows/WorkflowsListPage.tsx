@@ -42,7 +42,20 @@ function WorkflowStatusBadge({ status }: { status: Workflow['status'] }) {
   );
 }
 
-function WorkflowProgress({ jobs }: { jobs: Workflow['jobs'] }) {
+function WorkflowProgress({ jobs }: { jobs: Workflow['jobs'] | undefined }) {
+  // Guard against undefined jobs array
+  if (!jobs || jobs.length === 0) {
+    return (
+      <div className="w-full">
+        <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+          <span>0 jobs</span>
+          <span>0%</span>
+        </div>
+        <div className="flex h-2 w-full overflow-hidden rounded-full bg-gray-200" />
+      </div>
+    );
+  }
+
   const total = jobs.length;
   const completed = jobs.filter((j) => j.status === 'completed').length;
   const failed = jobs.filter((j) => j.status === 'failed').length;
@@ -211,7 +224,7 @@ function WorkflowsListContent() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <GitBranch className="h-3 w-3" />
-                          {workflow.jobs.length} jobs
+                          {workflow.jobs?.length ?? 0} jobs
                         </span>
                         <span>Created {formatRelativeTime(workflow.created_at)}</span>
                         {workflow.started_at && (
