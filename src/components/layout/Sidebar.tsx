@@ -17,28 +17,28 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { Button } from '@/components/ui/button';
 
-interface NavItem {
+interface NavItemConfig {
   label: string;
   href: string;
-  icon: React.ReactNode;
+  Icon: React.ComponentType<{ className?: string }>;
   badge?: number;
 }
 
-const navigation: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { label: 'Jobs', href: '/jobs', icon: <Briefcase className="h-5 w-5" /> },
-  { label: 'Dead Letter Queue', href: '/jobs/dlq', icon: <AlertTriangle className="h-5 w-5" /> },
-  { label: 'Queues', href: '/queues', icon: <Layers className="h-5 w-5" /> },
-  { label: 'Workers', href: '/workers', icon: <Server className="h-5 w-5" /> },
-  { label: 'Workflows', href: '/workflows', icon: <GitBranch className="h-5 w-5" /> },
-  { label: 'Schedules', href: '/schedules', icon: <Clock className="h-5 w-5" /> },
+const navigationConfig: NavItemConfig[] = [
+  { label: 'Dashboard', href: '/dashboard', Icon: LayoutDashboard },
+  { label: 'Jobs', href: '/jobs', Icon: Briefcase },
+  { label: 'Dead Letter Queue', href: '/jobs/dlq', Icon: AlertTriangle },
+  { label: 'Queues', href: '/queues', Icon: Layers },
+  { label: 'Workers', href: '/workers', Icon: Server },
+  { label: 'Workflows', href: '/workflows', Icon: GitBranch },
+  { label: 'Schedules', href: '/schedules', Icon: Clock },
 ];
 
-const settingsNavigation: NavItem[] = [
-  { label: 'API Keys', href: '/settings/api-keys', icon: <Key className="h-5 w-5" /> },
-  { label: 'Webhooks', href: '/settings/webhooks', icon: <Webhook className="h-5 w-5" /> },
-  { label: 'Organization', href: '/settings/organization', icon: <Building className="h-5 w-5" /> },
-  { label: 'Profile', href: '/settings/profile', icon: <User className="h-5 w-5" /> },
+const settingsNavigationConfig: NavItemConfig[] = [
+  { label: 'API Keys', href: '/settings/api-keys', Icon: Key },
+  { label: 'Webhooks', href: '/settings/webhooks', Icon: Webhook },
+  { label: 'Organization', href: '/settings/organization', Icon: Building },
+  { label: 'Profile', href: '/settings/profile', Icon: User },
 ];
 
 /**
@@ -97,20 +97,20 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         <div className="space-y-1">
-          {navigation.map((item) => (
+          {navigationConfig.map((item) => (
             <a
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center rounded-md text-sm font-medium transition-colors',
                 isNavItemActive(currentPath, item.href)
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                collapsed && 'justify-center'
+                collapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2'
               )}
               title={collapsed ? item.label : undefined}
             >
-              {item.icon}
+              <item.Icon className={collapsed ? 'h-6 w-6' : 'h-5 w-5'} />
               {!collapsed && <span>{item.label}</span>}
               {!collapsed && item.badge && (
                 <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs">
@@ -130,20 +130,20 @@ export function Sidebar() {
               </h3>
             </div>
           )}
-          {settingsNavigation.map((item) => (
+          {settingsNavigationConfig.map((item) => (
             <a
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center rounded-md text-sm font-medium transition-colors',
                 isNavItemActive(currentPath, item.href)
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                collapsed && 'justify-center'
+                collapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2'
               )}
               title={collapsed ? item.label : undefined}
             >
-              {item.icon}
+              <item.Icon className={collapsed ? 'h-6 w-6' : 'h-5 w-5'} />
               {!collapsed && <span>{item.label}</span>}
             </a>
           ))}
