@@ -79,6 +79,79 @@ export const mockJobs = [
   },
 ];
 
+// Backend format for queue list (QueueConfigSummary)
+export const mockQueuesSummary = [
+  {
+    queue_name: 'default',
+    max_retries: 3,
+    default_timeout: 30,
+    rate_limit: null,
+    enabled: true,
+  },
+  {
+    queue_name: 'emails',
+    max_retries: 5,
+    default_timeout: 60,
+    rate_limit: 100,
+    enabled: true,
+  },
+];
+
+// Backend format for queue details (QueueConfig)
+export const mockQueueConfigs: Record<
+  string,
+  {
+    id: string;
+    organization_id: string;
+    queue_name: string;
+    max_retries: number;
+    default_timeout: number;
+    rate_limit: number | null;
+    enabled: boolean;
+    settings: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+  }
+> = {
+  default: {
+    id: 'queue-1',
+    organization_id: 'org-1',
+    queue_name: 'default',
+    max_retries: 3,
+    default_timeout: 30,
+    rate_limit: null,
+    enabled: true,
+    settings: {
+      description: 'Default queue',
+      concurrency: 10,
+      retry_delay_ms: 1000,
+      backoff_multiplier: 2,
+      max_retry_delay_ms: 60000,
+    },
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  emails: {
+    id: 'queue-2',
+    organization_id: 'org-1',
+    queue_name: 'emails',
+    max_retries: 5,
+    default_timeout: 60,
+    rate_limit: 100,
+    enabled: true,
+    settings: {
+      description: 'Email processing queue',
+      concurrency: 5,
+      retry_delay_ms: 2000,
+      backoff_multiplier: 2,
+      max_retry_delay_ms: 120000,
+    },
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+};
+
+// Frontend format for backwards compatibility with existing tests
 export const mockQueues = [
   {
     name: 'default',
@@ -110,6 +183,83 @@ export const mockQueues = [
   },
 ];
 
+// Backend format for workers (WorkerSummary)
+export const mockWorkersSummary = [
+  {
+    id: 'worker-1',
+    queue_name: 'default',
+    hostname: 'worker-node-1',
+    status: 'healthy',
+    current_jobs: 3,
+    max_concurrency: 10,
+    last_heartbeat: new Date().toISOString(),
+  },
+  {
+    id: 'worker-2',
+    queue_name: 'default',
+    hostname: 'worker-node-2',
+    status: 'healthy',
+    current_jobs: 0,
+    max_concurrency: 5,
+    last_heartbeat: new Date().toISOString(),
+  },
+];
+
+// Backend format for worker detail (Worker)
+export const mockWorkerDetails: Record<
+  string,
+  {
+    id: string;
+    organization_id: string;
+    queue_name: string;
+    queue_names: string[];
+    hostname: string;
+    worker_type: string | null;
+    max_concurrent_jobs: number;
+    current_job_count: number;
+    status: string;
+    last_heartbeat: string;
+    metadata: Record<string, unknown>;
+    version: string | null;
+    created_at: string;
+    updated_at: string;
+  }
+> = {
+  'worker-1': {
+    id: 'worker-1',
+    organization_id: 'org-1',
+    queue_name: 'default',
+    queue_names: ['default', 'emails'],
+    hostname: 'worker-node-1',
+    worker_type: 'http',
+    max_concurrent_jobs: 10,
+    current_job_count: 3,
+    status: 'healthy',
+    last_heartbeat: new Date().toISOString(),
+    metadata: {},
+    version: '1.0.0',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: new Date().toISOString(),
+  },
+  'worker-2': {
+    id: 'worker-2',
+    organization_id: 'org-1',
+    queue_name: 'default',
+    queue_names: ['default'],
+    hostname: 'worker-node-2',
+    worker_type: 'http',
+    max_concurrent_jobs: 5,
+    current_job_count: 0,
+    status: 'healthy',
+    last_heartbeat: new Date().toISOString(),
+    metadata: {},
+    version: '1.0.0',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: new Date().toISOString(),
+  },
+};
+
+// Frontend format for backwards compatibility with existing tests
 export const mockWorkers = [
   {
     id: 'worker-1',
@@ -373,60 +523,83 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  // Queues
+  // Queues - return backend format (API transforms to frontend format)
   http.get(`${API_BASE}/api/v1/queues`, () => {
-    return HttpResponse.json(mockQueues);
+    // Return QueueConfigSummary[] format
+    return HttpResponse.json(mockQueuesSummary);
   }),
 
   http.get(`${API_BASE}/api/v1/queues/:name`, ({ params }) => {
-    const queue = mockQueues.find((q) => q.name === params.name);
+    const name = params.name as string;
+    const queue = mockQueueConfigs[name];
     if (!queue) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Queue not found' }, { status: 404 });
     }
+    // Return QueueConfig format
     return HttpResponse.json(queue);
   }),
 
   http.post(`${API_BASE}/api/v1/queues`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Return QueueConfig format
     const newQueue = {
+      id: `queue-${Date.now()}`,
       organization_id: 'org-1',
-      concurrency: 10,
-      max_retries: 3,
-      retry_delay_ms: 1000,
-      backoff_multiplier: 2,
-      max_retry_delay_ms: 60000,
-      job_timeout_ms: 30000,
-      paused: false,
+      queue_name: (body.queue_name as string) || 'new-queue',
+      max_retries: (body.max_retries as number) || 3,
+      default_timeout: (body.default_timeout as number) || 300,
+      rate_limit: null,
+      enabled: true,
+      settings: body.settings || {},
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      ...body,
     };
     return HttpResponse.json(newQueue, { status: 201 });
   }),
 
   http.put(`${API_BASE}/api/v1/queues/:name`, async ({ params, request }) => {
-    const queue = mockQueues.find((q) => q.name === params.name);
+    const name = params.name as string;
+    const queue = mockQueueConfigs[name];
     if (!queue) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Queue not found' }, { status: 404 });
     }
     const body = (await request.json()) as Record<string, unknown>;
-    return HttpResponse.json({ ...queue, ...body, updated_at: new Date().toISOString() });
+    // Return QueueConfig format with updates
+    return HttpResponse.json({
+      ...queue,
+      ...body,
+      settings: { ...queue.settings, ...(body.settings as Record<string, unknown>) },
+      updated_at: new Date().toISOString(),
+    });
   }),
 
   http.post(`${API_BASE}/api/v1/queues/:name/pause`, ({ params }) => {
-    const queue = mockQueues.find((q) => q.name === params.name);
+    const name = params.name as string;
+    const queue = mockQueueConfigs[name];
     if (!queue) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Queue not found' }, { status: 404 });
     }
-    return HttpResponse.json({ ...queue, paused: true });
+    // Return PauseQueueResponse format
+    return HttpResponse.json({
+      queue_name: name,
+      paused: true,
+      paused_at: new Date().toISOString(),
+      reason: null,
+    });
   }),
 
   http.post(`${API_BASE}/api/v1/queues/:name/resume`, ({ params }) => {
-    const queue = mockQueues.find((q) => q.name === params.name);
+    const name = params.name as string;
+    const queue = mockQueueConfigs[name];
     if (!queue) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Queue not found' }, { status: 404 });
     }
-    return HttpResponse.json({ ...queue, paused: false });
+    // Return ResumeQueueResponse format
+    return HttpResponse.json({
+      queue_name: name,
+      resumed: true,
+      paused_duration_secs: 3600,
+    });
   }),
 
   http.delete(`${API_BASE}/api/v1/queues/:name`, () => {
@@ -438,34 +611,38 @@ export const handlers = [
   }),
 
   http.get(`${API_BASE}/api/v1/queues/:name/stats`, ({ params }) => {
+    // Return QueueStats backend format
     return HttpResponse.json({
-      name: params.name,
-      pending: 10,
-      processing: 2,
-      completed: 100,
-      failed: 5,
-      deadletter: 1,
-      active_workers: 2,
-      jobs_per_second: 3.5,
+      queue_name: params.name,
+      pending_jobs: 10,
+      processing_jobs: 2,
+      completed_jobs_24h: 100,
+      failed_jobs_24h: 5,
       avg_processing_time_ms: 1200,
+      max_job_age_seconds: 300,
+      active_workers: 2,
     });
   }),
 
-  // Workers
+  // Workers - return backend format (API transforms to frontend format)
   http.get(`${API_BASE}/api/v1/workers`, () => {
-    return HttpResponse.json(mockWorkers);
+    // Return WorkerSummary[] format
+    return HttpResponse.json(mockWorkersSummary);
   }),
 
   http.get(`${API_BASE}/api/v1/workers/:id`, ({ params }) => {
-    const worker = mockWorkers.find((w) => w.id === params.id);
+    const id = params.id as string;
+    const worker = mockWorkerDetails[id];
     if (!worker) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Worker not found' }, { status: 404 });
     }
+    // Return full Worker format
     return HttpResponse.json(worker);
   }),
 
   http.delete(`${API_BASE}/api/v1/workers/:id`, ({ params }) => {
-    const worker = mockWorkers.find((w) => w.id === params.id);
+    const id = params.id as string;
+    const worker = mockWorkerDetails[id];
     if (!worker) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Worker not found' }, { status: 404 });
     }

@@ -167,10 +167,12 @@ function QueuesListContent() {
                         </div>
                       </div>
 
-                      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Created {formatRelativeTime(queue.created_at)}</span>
-                        <span>Updated {formatRelativeTime(queue.updated_at)}</span>
-                      </div>
+                      {(queue.created_at || queue.updated_at) && (
+                        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                          {queue.created_at && <span>Created {formatRelativeTime(queue.created_at)}</span>}
+                          {queue.updated_at && <span>Updated {formatRelativeTime(queue.updated_at)}</span>}
+                        </div>
+                      )}
                     </div>
 
                     <div className="ml-4 flex gap-2">

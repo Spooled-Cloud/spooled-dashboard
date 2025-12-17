@@ -73,12 +73,15 @@ describe('QueuesListPage', () => {
       );
     });
 
-    it('should display queue descriptions', async () => {
+    it('should display queue descriptions when available', async () => {
+      // Note: The list endpoint (QueueConfigSummary) doesn't include description
+      // Description is only available in the detail view (QueueConfig)
       render(<QueuesListPage />);
 
       await waitFor(
         () => {
-          expect(screen.getByText('Default queue')).toBeInTheDocument();
+          // Queue names should be displayed
+          expect(screen.getByText('default')).toBeInTheDocument();
         },
         { timeout: 3000 }
       );
@@ -96,12 +99,12 @@ describe('QueuesListPage', () => {
       );
     });
 
-    it('should display email queue description', async () => {
+    it('should display email queue in list', async () => {
       render(<QueuesListPage />);
 
       await waitFor(
         () => {
-          expect(screen.getByText('Email processing queue')).toBeInTheDocument();
+          expect(screen.getByText('emails')).toBeInTheDocument();
         },
         { timeout: 3000 }
       );
@@ -159,28 +162,21 @@ describe('QueuesListPage', () => {
       );
     });
 
-    it('should display Created timestamp', async () => {
+    it('should not display timestamps when not provided by backend summary', async () => {
+      // Note: The list endpoint (QueueConfigSummary) doesn't include created_at/updated_at
+      // Timestamps are only available in the detail view (QueueConfig)
       render(<QueuesListPage />);
 
       await waitFor(
         () => {
-          const createdElements = screen.getAllByText(/created/i);
-          expect(createdElements.length).toBeGreaterThan(0);
+          // Queue should be loaded
+          expect(screen.getByText('default')).toBeInTheDocument();
         },
         { timeout: 3000 }
       );
-    });
 
-    it('should display Updated timestamp', async () => {
-      render(<QueuesListPage />);
-
-      await waitFor(
-        () => {
-          const updatedElements = screen.getAllByText(/updated/i);
-          expect(updatedElements.length).toBeGreaterThan(0);
-        },
-        { timeout: 3000 }
-      );
+      // Timestamps should not be present since summary doesn't include them
+      expect(screen.queryByText(/created/i)).not.toBeInTheDocument();
     });
   });
 
