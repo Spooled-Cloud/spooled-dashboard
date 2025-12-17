@@ -588,7 +588,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                 Stripe Billing
               </CardTitle>
               <CardDescription>
-                Link an existing Stripe customer/subscription to this organization (useful after DB resets).
+                Link an existing Stripe customer/subscription to this organization (useful after DB
+                resets).
               </CardDescription>
             </div>
             <Dialog open={stripeLinkOpen} onOpenChange={setStripeLinkOpen}>
@@ -602,8 +603,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                 <DialogHeader>
                   <DialogTitle>Link Stripe to {org.name}</DialogTitle>
                   <DialogDescription>
-                    Paste the Stripe <code>cus_...</code> and optional <code>sub_...</code>. The backend will attempt
-                    to reconcile plan tier and status from Stripe immediately.
+                    Paste the Stripe <code>cus_...</code> and optional <code>sub_...</code>. The
+                    backend will attempt to reconcile plan tier and status from Stripe immediately.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSaveStripeLink} className="space-y-4 py-2">
@@ -617,7 +618,9 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="stripe_subscription_id">Stripe Subscription ID (optional)</Label>
+                    <Label htmlFor="stripe_subscription_id">
+                      Stripe Subscription ID (optional)
+                    </Label>
                     <Input
                       id="stripe_subscription_id"
                       placeholder="sub_..."
@@ -662,8 +665,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
             </div>
             <Alert>
               <AlertDescription>
-                If Stripe webhooks were missed during a reset, linking + reconcile repairs the org’s billing state so the
-                Billing page and plan tier match Stripe again.
+                If Stripe webhooks were missed during a reset, linking + reconcile repairs the org’s
+                billing state so the Billing page and plan tier match Stripe again.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -1067,4 +1070,3 @@ function UsageBar({ label, usage }: UsageBarProps) {
     </div>
   );
 }
-
