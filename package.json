@@ -1,6 +1,6 @@
 {
   "name": "spooled-dashboard",
-  "version": "0.1.30",
+  "version": "0.1.31",
   "description": "Spooled Cloud Dashboard - Job Queue Management Interface",
   "type": "module",
   "scripts": {

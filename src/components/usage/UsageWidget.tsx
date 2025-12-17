@@ -224,9 +224,12 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
                 variant="outline"
                 size="sm"
                 className="border-amber-500 text-amber-600 hover:bg-amber-50"
+                asChild
               >
-                Upgrade
-                <ArrowUpRight className="ml-1 h-4 w-4" />
+                <a href="/settings/billing">
+                  Upgrade
+                  <ArrowUpRight className="ml-1 h-4 w-4" />
+                </a>
               </Button>
             </div>
           </div>
@@ -297,3 +300,4 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${Math.round(bytes / (1024 * 1024))} MB`;
 }
+
