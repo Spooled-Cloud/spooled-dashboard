@@ -60,7 +60,10 @@ export function TrendsSection({ dashboardData }: TrendsSectionProps) {
 
   // Check if we have enough data for the selected time range
   const hasInsufficientData = collectedDurationMs < expectedDurationMs * 0.5; // Less than 50% of expected
-  const coveragePercent = Math.min(100, Math.round((collectedDurationMs / expectedDurationMs) * 100));
+  const coveragePercent = Math.min(
+    100,
+    Math.round((collectedDurationMs / expectedDurationMs) * 100)
+  );
 
   return (
     <Card>
