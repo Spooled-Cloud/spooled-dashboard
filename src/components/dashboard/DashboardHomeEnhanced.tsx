@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useDashboard } from '@/lib/hooks/useDashboard';
-import { formatNumber, formatPercentage, formatRelativeTime } from '@/lib/utils/format';
+import { formatNumber, formatPercentage } from '@/lib/utils/format';
 import {
   Briefcase,
   Server,
@@ -15,7 +15,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
-  XCircle,
   BarChart3,
   Activity,
 } from 'lucide-react';
@@ -97,16 +96,6 @@ function KPICard({ title, value, change, icon, trend, isLoading, linkTo }: KPICa
   }
 
   return <Card>{content}</Card>;
-}
-
-function ActivityIcon({ type }: { type: string }) {
-  if (type.includes('completed')) {
-    return <CheckCircle className="h-4 w-4 text-success" />;
-  }
-  if (type.includes('failed')) {
-    return <XCircle className="h-4 w-4 text-destructive" />;
-  }
-  return <AlertCircle className="h-4 w-4 text-info" />;
 }
 
 export function DashboardHomeEnhanced() {
@@ -397,7 +386,7 @@ export function DashboardHomeEnhanced() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest system events</CardDescription>
+            <CardDescription>Last hour summary</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -406,32 +395,30 @@ export function DashboardHomeEnhanced() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : data?.recent_activity && data.recent_activity.length > 0 ? (
-              <div className="max-h-[400px] space-y-3 overflow-y-auto">
-                {data.recent_activity.slice(0, 10).map((activity, idx) => (
-                  <div key={idx} className="flex items-start gap-3 text-sm">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted">
-                      <ActivityIcon type={activity.type} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{activity.type}</p>
-                      {activity.job_id && (
-                        <a
-                          href={`/jobs/${activity.job_id}`}
-                          className="font-mono text-xs text-muted-foreground hover:text-primary"
-                        >
-                          {activity.job_id.substring(0, 8)}...
-                        </a>
-                      )}
-                    </div>
-                    <span className="flex-shrink-0 text-xs text-muted-foreground">
-                      {formatRelativeTime(activity.timestamp)}
-                    </span>
+            ) : data?.recent_activity ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="text-xs text-muted-foreground">Jobs created</div>
+                  <div className="mt-1 text-2xl font-bold">{formatNumber(data.recent_activity.jobs_created_1h)}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="text-xs text-muted-foreground">Jobs completed</div>
+                  <div className="mt-1 text-2xl font-bold text-success">
+                    {formatNumber(data.recent_activity.jobs_completed_1h)}
                   </div>
-                ))}
+                  <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="text-xs text-muted-foreground">Jobs failed</div>
+                  <div className="mt-1 text-2xl font-bold text-destructive">
+                    {formatNumber(data.recent_activity.jobs_failed_1h)}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
+                </div>
               </div>
             ) : (
-              <div className="py-8 text-center text-muted-foreground">No recent activity</div>
+              <div className="py-8 text-center text-muted-foreground">No activity data available</div>
             )}
           </CardContent>
         </Card>

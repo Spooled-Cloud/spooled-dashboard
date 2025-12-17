@@ -14,73 +14,68 @@ describe('dashboardAPI', () => {
 
     it('should return system info', async () => {
       const result = await dashboardAPI.getOverview();
-      expect(result.system_info).toBeDefined();
-      expect(result.system_info.version).toBeDefined();
+      expect(result.system).toBeDefined();
+      expect(result.system.version).toBeDefined();
     });
 
     it('should return job statistics', async () => {
       const result = await dashboardAPI.getOverview();
-      expect(result.job_statistics).toBeDefined();
-      expect(result.job_statistics.total).toBeDefined();
-      expect(result.job_statistics.pending).toBeDefined();
-      expect(result.job_statistics.completed).toBeDefined();
+      expect(result.jobs).toBeDefined();
+      expect(result.jobs.total).toBeDefined();
+      expect(result.jobs.pending).toBeDefined();
+      expect(result.jobs.processing).toBeDefined();
     });
 
     it('should return queue summaries', async () => {
       const result = await dashboardAPI.getOverview();
-      expect(result.queue_summaries).toBeDefined();
-      expect(Array.isArray(result.queue_summaries)).toBe(true);
+      expect(result.queues).toBeDefined();
+      expect(Array.isArray(result.queues)).toBe(true);
     });
 
     it('should return worker status', async () => {
       const result = await dashboardAPI.getOverview();
-      expect(result.worker_status).toBeDefined();
-      expect(result.worker_status.total).toBeDefined();
-      expect(result.worker_status.active).toBeDefined();
+      expect(result.workers).toBeDefined();
+      expect(result.workers.total).toBeDefined();
     });
 
     it('should return recent activity', async () => {
       const result = await dashboardAPI.getOverview();
       expect(result.recent_activity).toBeDefined();
-      expect(Array.isArray(result.recent_activity)).toBe(true);
-    });
-
-    it('should return processing rate', async () => {
-      const result = await dashboardAPI.getOverview();
-      expect(result.processing_rate).toBeDefined();
-      expect(Array.isArray(result.processing_rate)).toBe(true);
+      expect(result.recent_activity.jobs_created_1h).toBeDefined();
     });
   });
 });
 
 describe('DashboardData structure', () => {
   it('should have correct system_info structure', () => {
-    const systemInfo = {
+    const system = {
       version: '1.0.0',
       uptime_seconds: 86400,
-      rust_version: '1.75.0',
+      started_at: '2024-01-01T00:00:00Z',
+      database_status: 'ok',
+      cache_status: 'ok',
+      environment: 'production',
     };
 
-    expect(systemInfo.version).toBe('1.0.0');
-    expect(systemInfo.uptime_seconds).toBe(86400);
+    expect(system.version).toBe('1.0.0');
+    expect(system.uptime_seconds).toBe(86400);
   });
 
   it('should have correct job_statistics structure', () => {
-    const jobStats = {
+    const jobs = {
       total: 1000,
       pending: 50,
       processing: 10,
-      completed: 900,
-      failed: 30,
-      cancelled: 5,
+      completed_24h: 900,
+      failed_24h: 30,
       deadletter: 5,
-      success_rate: 96.8,
+      avg_wait_time_ms: 250,
       avg_processing_time_ms: 1500,
     };
 
-    expect(jobStats.total).toBe(1000);
-    expect(jobStats.success_rate).toBe(96.8);
-    expect(jobStats.avg_processing_time_ms).toBe(1500);
+    expect(jobs.total).toBe(1000);
+    expect(jobs.completed_24h).toBe(900);
+    expect(jobs.avg_processing_time_ms).toBe(1500);
   });
 
   it('should have correct queue_summaries structure', () => {
@@ -88,8 +83,6 @@ describe('DashboardData structure', () => {
       name: 'default',
       pending: 30,
       processing: 5,
-      completed: 500,
-      failed: 10,
       paused: false,
     };
 
@@ -98,38 +91,26 @@ describe('DashboardData structure', () => {
   });
 
   it('should have correct worker_status structure', () => {
-    const workerStatus = {
+    const workers = {
       total: 10,
-      active: 8,
-      idle: 2,
-      offline: 0,
+      healthy: 8,
+      unhealthy: 2,
     };
 
-    expect(workerStatus.total).toBe(10);
-    expect(workerStatus.active).toBe(8);
-    expect(workerStatus.idle).toBe(2);
+    expect(workers.total).toBe(10);
+    expect(workers.healthy).toBe(8);
+    expect(workers.unhealthy).toBe(2);
   });
 
   it('should have correct recent_activity structure', () => {
     const activity = {
-      type: 'job.completed',
-      job_id: 'job-1',
-      queue: 'default',
-      timestamp: '2024-01-01T12:00:00Z',
+      jobs_created_1h: 120,
+      jobs_completed_1h: 110,
+      jobs_failed_1h: 5,
     };
 
-    expect(activity.type).toBe('job.completed');
-    expect(activity.job_id).toBe('job-1');
-    expect(activity.queue).toBe('default');
-  });
-
-  it('should have correct processing_rate structure', () => {
-    const rate = {
-      timestamp: '2024-01-01T12:00:00Z',
-      jobs_per_second: 5.2,
-    };
-
-    expect(rate.timestamp).toBeDefined();
-    expect(rate.jobs_per_second).toBe(5.2);
+    expect(activity.jobs_created_1h).toBe(120);
+    expect(activity.jobs_completed_1h).toBe(110);
+    expect(activity.jobs_failed_1h).toBe(5);
   });
 });

@@ -171,42 +171,38 @@ export const mockWorkflows = [
 ];
 
 export const mockDashboard = {
-  system_info: {
+  system: {
     version: '1.0.0',
     uptime_seconds: 86400,
-    rust_version: '1.75.0',
+    started_at: '2024-01-01T00:00:00Z',
+    database_status: 'ok',
+    cache_status: 'ok',
+    environment: 'test',
   },
-  job_statistics: {
+  jobs: {
     total: 1000,
     pending: 50,
     processing: 10,
-    completed: 900,
-    failed: 30,
-    cancelled: 5,
+    completed_24h: 900,
+    failed_24h: 30,
     deadletter: 5,
-    success_rate: 96.8,
+    avg_wait_time_ms: 250,
     avg_processing_time_ms: 1500,
   },
-  queue_summaries: [
-    { name: 'default', pending: 30, processing: 5, completed: 500, failed: 10, paused: false },
-    { name: 'emails', pending: 20, processing: 5, completed: 400, failed: 20, paused: false },
+  queues: [
+    { name: 'default', pending: 30, processing: 5, paused: false },
+    { name: 'emails', pending: 20, processing: 5, paused: false },
   ],
-  worker_status: {
+  workers: {
     total: 2,
-    active: 1,
-    idle: 1,
-    offline: 0,
+    healthy: 1,
+    unhealthy: 1,
   },
-  recent_activity: [
-    {
-      type: 'job.completed',
-      job_id: 'job-1',
-      queue: 'default',
-      timestamp: new Date().toISOString(),
-    },
-    { type: 'job.started', job_id: 'job-2', queue: 'default', timestamp: new Date().toISOString() },
-  ],
-  processing_rate: [{ timestamp: new Date().toISOString(), jobs_per_second: 5.2 }],
+  recent_activity: {
+    jobs_created_1h: 120,
+    jobs_completed_1h: 110,
+    jobs_failed_1h: 5,
+  },
 };
 
 export const mockApiKeys = [
