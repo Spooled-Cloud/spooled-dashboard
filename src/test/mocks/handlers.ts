@@ -557,7 +557,7 @@ export const handlers = [
     return HttpResponse.json(newQueue, { status: 201 });
   }),
 
-  http.put(`${API_BASE}/api/v1/queues/:name`, async ({ params, request }) => {
+  http.put(`${API_BASE}/api/v1/queues/:name/config`, async ({ params, request }) => {
     const name = params.name as string;
     const queue = mockQueueConfigs[name];
     if (!queue) {
