@@ -52,7 +52,7 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/queues',
     CREATE: '/api/v1/queues',
     GET: (name: string) => `/api/v1/queues/${name}`,
-    UPDATE: (name: string) => `/api/v1/queues/${name}`,
+    UPDATE: (name: string) => `/api/v1/queues/${name}/config`,
     DELETE: (name: string) => `/api/v1/queues/${name}`,
     STATS: (name: string) => `/api/v1/queues/${name}/stats`,
     PAUSE: (name: string) => `/api/v1/queues/${name}/pause`,

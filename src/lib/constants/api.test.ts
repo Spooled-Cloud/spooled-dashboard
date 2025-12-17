@@ -93,7 +93,7 @@ describe('API_ENDPOINTS', () => {
 
     it('should have dynamic endpoints', () => {
       expect(API_ENDPOINTS.QUEUES.GET('emails')).toBe('/api/v1/queues/emails');
-      expect(API_ENDPOINTS.QUEUES.UPDATE('emails')).toBe('/api/v1/queues/emails');
+      expect(API_ENDPOINTS.QUEUES.UPDATE('emails')).toBe('/api/v1/queues/emails/config');
       expect(API_ENDPOINTS.QUEUES.DELETE('emails')).toBe('/api/v1/queues/emails');
       expect(API_ENDPOINTS.QUEUES.STATS('emails')).toBe('/api/v1/queues/emails/stats');
       expect(API_ENDPOINTS.QUEUES.PAUSE('emails')).toBe('/api/v1/queues/emails/pause');

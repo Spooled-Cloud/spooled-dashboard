@@ -1,5 +1,5 @@
 /**
- * Enhanced Dashboard with Advanced Charts & Visualizations
+ * Enhanced Dashboard with Real Data Visualizations
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,14 +15,9 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
-  BarChart3,
   Activity,
 } from 'lucide-react';
-import { JobsOverTimeChart } from './charts/JobsOverTimeChart';
 import { StatusDistributionChart } from './charts/StatusDistributionChart';
-import { ProcessingRateChart } from './charts/ProcessingRateChart';
-import { QueuePerformanceChart } from './charts/QueuePerformanceChart';
-import { WorkerUtilizationChart } from './charts/WorkerUtilizationChart';
 import { UsageWidget } from '@/components/usage/UsageWidget';
 
 interface KPICardProps {
@@ -164,136 +159,41 @@ export function DashboardHomeEnhanced() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Jobs Over Time
-                </CardTitle>
-                <CardDescription>Created, completed, and failed jobs (last 24h)</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {isLoading ? (
-                <div className="flex h-full items-center justify-center">
-                  <Skeleton className="h-full w-full" />
-                </div>
-              ) : (
-                <JobsOverTimeChart timeRange="24h" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Status Distribution</CardTitle>
-                <CardDescription>Breakdown of job statuses</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {isLoading ? (
-                <div className="flex h-full items-center justify-center">
-                  <Skeleton className="h-full w-full" />
-                </div>
-              ) : stats ? (
-                <StatusDistributionChart
-                  data={{
-                    pending: stats.pending,
-                    scheduled: 0,
-                    processing: stats.processing,
-                    completed: stats.completed,
-                    failed: stats.failed,
-                    cancelled: stats.cancelled,
-                    deadletter: stats.deadletter,
-                  }}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                  No data available
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Processing Rate (Real-Time)</CardTitle>
-              <CardDescription>Jobs per second over the last 30 minutes</CardDescription>
+              <CardTitle>Status Distribution</CardTitle>
+              <CardDescription>Breakdown of job statuses</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
+          <div className="h-[300px]">
             {isLoading ? (
               <div className="flex h-full items-center justify-center">
                 <Skeleton className="h-full w-full" />
               </div>
+            ) : stats ? (
+              <StatusDistributionChart
+                data={{
+                  pending: stats.pending,
+                  scheduled: 0,
+                  processing: stats.processing,
+                  completed: stats.completed,
+                  failed: stats.failed,
+                  cancelled: stats.cancelled,
+                  deadletter: stats.deadletter,
+                }}
+              />
             ) : (
-              <ProcessingRateChart realtime={true} />
+              <div className="flex h-full items-center justify-center text-muted-foreground">
+                No data available
+              </div>
             )}
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Queue Performance</CardTitle>
-                <CardDescription>Throughput comparison across queues</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {isLoading ? (
-                <div className="flex h-full items-center justify-center">
-                  <Skeleton className="h-full w-full" />
-                </div>
-              ) : (
-                <QueuePerformanceChart metric="throughput" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Worker Utilization</CardTitle>
-                <CardDescription>Active vs. idle capacity</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {isLoading ? (
-                <div className="flex h-full items-center justify-center">
-                  <Skeleton className="h-full w-full" />
-                </div>
-              ) : (
-                <WorkerUtilizationChart />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {data?.system_info && (
         <Card>
@@ -314,7 +214,7 @@ export function DashboardHomeEnhanced() {
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground">Rust Version:</span>{' '}
+                <span className="text-muted-foreground">Environment:</span>{' '}
                 <span className="font-mono">{data.system_info.rust_version}</span>
               </div>
             </div>
@@ -396,7 +296,7 @@ export function DashboardHomeEnhanced() {
                 ))}
               </div>
             ) : data?.recent_activity ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-3">
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
                   <div className="text-xs text-muted-foreground">Jobs created</div>
                   <div className="mt-1 text-2xl font-bold">

@@ -231,8 +231,11 @@ export const queuesAPI = {
    * POST /api/v1/queues/{name}/pause
    * Pause job processing for a queue
    */
-  pause: async (name: string): Promise<Queue> => {
-    const response = await apiClient.post<BackendPauseResponse>(API_ENDPOINTS.QUEUES.PAUSE(name));
+  pause: async (name: string, reason?: string): Promise<Queue> => {
+    const response = await apiClient.post<BackendPauseResponse>(
+      API_ENDPOINTS.QUEUES.PAUSE(name),
+      { reason } // Backend expects PauseQueueRequest with optional reason
+    );
     // Return a partial Queue object representing the paused state
     return {
       name: response.queue_name,
