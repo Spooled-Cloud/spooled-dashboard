@@ -33,6 +33,11 @@ export interface AdminUsageStats {
 export interface AdminOrganizationDetail extends AdminOrganization {
   settings: Record<string, unknown>;
   custom_limits: Partial<PlanLimits> | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_subscription_status: string | null;
+  stripe_current_period_end: string | null;
+  stripe_cancel_at_period_end: boolean | null;
   usage_info: UsageInfo;
   api_keys_count: number;
   total_jobs: number;
@@ -109,6 +114,8 @@ export interface UpdateOrgRequest {
   billing_email?: string;
   settings?: Record<string, unknown>;
   custom_limits?: Partial<PlanLimits> | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
 }
 
 export interface CreateOrgRequest {
@@ -362,3 +369,4 @@ export const adminAPI = {
     });
   },
 };
+

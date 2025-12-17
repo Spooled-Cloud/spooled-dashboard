@@ -39,11 +39,13 @@ import {
   ArrowLeft,
   Shield,
   AlertTriangle,
+  CreditCard,
   Trash2,
   Save,
   Loader2,
   CheckCircle,
   Key,
+  Link2,
   Briefcase,
   Plus,
   Copy,
@@ -90,17 +92,51 @@ export function AdminOrganizationDetail({ orgId }: Props) {
   const [savingLimits, setSavingLimits] = useState(false);
   const [limitsSuccess, setLimitsSuccess] = useState(false);
 
+  // Stripe linking state (admin-only)
+  const [stripeLinkOpen, setStripeLinkOpen] = useState(false);
+  const [stripeCustomerId, setStripeCustomerId] = useState('');
+  const [stripeSubscriptionId, setStripeSubscriptionId] = useState('');
+  const [savingStripeLink, setSavingStripeLink] = useState(false);
+  const [stripeLinkSuccess, setStripeLinkSuccess] = useState(false);
+
   const loadOrganization = useCallback(async () => {
     try {
       const data = await adminAPI.getOrganization(orgId);
       setOrg(data);
       setSelectedPlan(data.plan_tier);
+      setStripeCustomerId(data.stripe_customer_id ?? '');
+      setStripeSubscriptionId(data.stripe_subscription_id ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load organization');
     } finally {
       setIsLoading(false);
     }
   }, [orgId]);
+
+  const handleSaveStripeLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!org) return;
+
+    setSavingStripeLink(true);
+    setStripeLinkSuccess(false);
+    setError('');
+    try {
+      const updated = await adminAPI.updateOrganization(orgId, {
+        stripe_customer_id: stripeCustomerId.trim() ? stripeCustomerId.trim() : null,
+        stripe_subscription_id: stripeSubscriptionId.trim() ? stripeSubscriptionId.trim() : null,
+      });
+      // Reload full org detail (includes usage + billing fields)
+      await loadOrganization();
+      setOrg({ ...org, ...updated });
+      setStripeLinkSuccess(true);
+      setTimeout(() => setStripeLinkSuccess(false), 3000);
+      setTimeout(() => setStripeLinkOpen(false), 400);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to link Stripe customer');
+    } finally {
+      setSavingStripeLink(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -542,6 +578,96 @@ export function AdminOrganizationDetail({ orgId }: Props) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Stripe Billing Link */}
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Stripe Billing
+              </CardTitle>
+              <CardDescription>
+                Link an existing Stripe customer/subscription to this organization (useful after DB resets).
+              </CardDescription>
+            </div>
+            <Dialog open={stripeLinkOpen} onOpenChange={setStripeLinkOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Link Stripe
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>Link Stripe to {org.name}</DialogTitle>
+                  <DialogDescription>
+                    Paste the Stripe <code>cus_...</code> and optional <code>sub_...</code>. The backend will attempt
+                    to reconcile plan tier and status from Stripe immediately.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSaveStripeLink} className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="stripe_customer_id">Stripe Customer ID</Label>
+                    <Input
+                      id="stripe_customer_id"
+                      placeholder="cus_..."
+                      value={stripeCustomerId}
+                      onChange={(e) => setStripeCustomerId(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stripe_subscription_id">Stripe Subscription ID (optional)</Label>
+                    <Input
+                      id="stripe_subscription_id"
+                      placeholder="sub_..."
+                      value={stripeSubscriptionId}
+                      onChange={(e) => setStripeSubscriptionId(e.target.value)}
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" disabled={savingStripeLink}>
+                      {savingStripeLink ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      Save
+                    </Button>
+                    {stripeLinkSuccess && (
+                      <span className="flex items-center gap-2 text-sm text-green-600">
+                        <CheckCircle className="h-4 w-4" />
+                        Linked
+                      </span>
+                    )}
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">stripe_customer_id</span>
+                <code className="text-xs">{org.stripe_customer_id ?? '—'}</code>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">stripe_subscription_id</span>
+                <code className="text-xs">{org.stripe_subscription_id ?? '—'}</code>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">subscription_status</span>
+                <code className="text-xs">{org.stripe_subscription_status ?? '—'}</code>
+              </div>
+            </div>
+            <Alert>
+              <AlertDescription>
+                If Stripe webhooks were missed during a reset, linking + reconcile repairs the org’s billing state so the
+                Billing page and plan tier match Stripe again.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Custom Limits */}
@@ -941,3 +1067,4 @@ function UsageBar({ label, usage }: UsageBarProps) {
     </div>
   );
 }
+
