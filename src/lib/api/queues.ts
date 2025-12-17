@@ -134,7 +134,11 @@ export interface UpdateQueueRequest {
 /**
  * Transform frontend UpdateQueueRequest to backend format
  */
-function transformUpdateRequest(data: UpdateQueueRequest): {
+function transformUpdateRequest(
+  name: string,
+  data: UpdateQueueRequest
+): {
+  queue_name: string;
   max_retries?: number;
   default_timeout?: number;
   settings?: Record<string, unknown>;
@@ -148,6 +152,7 @@ function transformUpdateRequest(data: UpdateQueueRequest): {
   if (data.max_retry_delay_ms !== undefined) settings.max_retry_delay_ms = data.max_retry_delay_ms;
 
   return {
+    queue_name: name, // Required by backend UpsertQueueConfigRequest
     max_retries: data.max_retries,
     default_timeout: data.job_timeout_ms ? Math.floor(data.job_timeout_ms / 1000) : undefined,
     settings: Object.keys(settings).length > 0 ? settings : undefined,
@@ -198,11 +203,11 @@ export const queuesAPI = {
   },
 
   /**
-   * PUT /api/v1/queues/{name}
+   * PUT /api/v1/queues/{name}/config
    * Update queue configuration
    */
   update: async (name: string, data: UpdateQueueRequest): Promise<Queue> => {
-    const backendData = transformUpdateRequest(data);
+    const backendData = transformUpdateRequest(name, data);
     const response = await apiClient.put<BackendQueueConfig>(
       API_ENDPOINTS.QUEUES.UPDATE(name),
       backendData
