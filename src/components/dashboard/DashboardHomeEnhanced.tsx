@@ -399,7 +399,9 @@ export function DashboardHomeEnhanced() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
                   <div className="text-xs text-muted-foreground">Jobs created</div>
-                  <div className="mt-1 text-2xl font-bold">{formatNumber(data.recent_activity.jobs_created_1h)}</div>
+                  <div className="mt-1 text-2xl font-bold">
+                    {formatNumber(data.recent_activity.jobs_created_1h)}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
@@ -418,7 +420,9 @@ export function DashboardHomeEnhanced() {
                 </div>
               </div>
             ) : (
-              <div className="py-8 text-center text-muted-foreground">No activity data available</div>
+              <div className="py-8 text-center text-muted-foreground">
+                No activity data available
+              </div>
             )}
           </CardContent>
         </Card>
