@@ -17,9 +17,18 @@ import {
 } from '@/components/ui/select';
 import { useDashboardTimeseries, type TimeRange } from '@/lib/hooks/useDashboardTimeseries';
 import { BacklogTrendChart, WorkerTrendChart, FailureTrendChart } from './charts/TrendCharts';
-import { Pause, Play, Trash2, Clock, Activity } from 'lucide-react';
+import { Pause, Play, Trash2, Clock, Activity, Info } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { DashboardData } from '@/lib/types';
+
+/** Format duration in a human-readable way */
+function formatDuration(ms: number): string {
+  if (ms < 60000) return `${Math.round(ms / 1000)}s`;
+  if (ms < 3600000) return `${Math.round(ms / 60000)}m`;
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.round((ms % 3600000) / 60000);
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
 
 interface TrendsSectionProps {
   dashboardData: DashboardData | undefined;
@@ -45,7 +54,13 @@ export function TrendsSection({ dashboardData }: TrendsSectionProps) {
     lastUpdated,
     sampleInterval,
     pointCount,
+    collectedDurationMs,
+    expectedDurationMs,
   } = useDashboardTimeseries(dashboardData);
+
+  // Check if we have enough data for the selected time range
+  const hasInsufficientData = collectedDurationMs < expectedDurationMs * 0.5; // Less than 50% of expected
+  const coveragePercent = Math.min(100, Math.round((collectedDurationMs / expectedDurationMs) * 100));
 
   return (
     <Card>
@@ -91,6 +106,28 @@ export function TrendsSection({ dashboardData }: TrendsSectionProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Insufficient Data Alert */}
+        {hasInsufficientData && pointCount > 0 && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div>
+              <span className="font-medium">Limited data for {TIME_RANGE_LABELS[timeRange]}:</span>{' '}
+              You have {formatDuration(collectedDurationMs)} of data ({coveragePercent}% coverage).
+              Keep this page open to collect more samples.
+            </div>
+          </div>
+        )}
+
+        {pointCount === 0 && (
+          <div className="flex items-start gap-2 rounded-md border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-600 dark:text-blue-400">
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div>
+              <span className="font-medium">Collecting data...</span> Samples are taken every{' '}
+              {sampleInterval / 1000}s. Keep this page open to build trend history.
+            </div>
+          </div>
+        )}
+
         {/* Status Bar */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
@@ -98,11 +135,14 @@ export function TrendsSection({ dashboardData }: TrendsSectionProps) {
               <Clock className="h-3 w-3" />
               {lastUpdated
                 ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}`
-                : 'No data yet'}
+                : 'Waiting for first sample...'}
             </span>
-            <Badge variant="outline" className="text-xs">
-              {pointCount} sample{pointCount !== 1 ? 's' : ''}
-            </Badge>
+            {pointCount > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {formatDuration(collectedDurationMs)} of data ({pointCount} sample
+                {pointCount !== 1 ? 's' : ''})
+              </Badge>
+            )}
           </div>
           {isPaused && (
             <Badge variant="secondary" className="text-xs">
@@ -149,8 +189,8 @@ export function TrendsSection({ dashboardData }: TrendsSectionProps) {
 
         {/* Data Note */}
         <p className="text-center text-xs text-muted-foreground">
-          Data is collected locally in your browser and persisted across page reloads. Trend
-          accuracy depends on keeping this page open.
+          📊 Trends are built from client-side snapshots collected while this page is open. Data
+          persists in localStorage across reloads (up to 6 hours).
         </p>
       </CardContent>
     </Card>

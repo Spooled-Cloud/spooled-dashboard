@@ -63,6 +63,10 @@ interface UseDashboardTimeseriesReturn {
   lastUpdated: number | null;
   sampleInterval: number;
   pointCount: number;
+  /** Actual duration of collected data in milliseconds */
+  collectedDurationMs: number;
+  /** Expected duration for the selected time range in milliseconds */
+  expectedDurationMs: number;
 }
 
 /**
@@ -225,6 +229,13 @@ export function useDashboardTimeseries(
     deadletter: p.deadletter,
   }));
 
+  // Calculate actual duration of collected data
+  const collectedDurationMs =
+    points.length >= 2 ? points[points.length - 1].timestamp - points[0].timestamp : 0;
+
+  // Expected duration based on time range
+  const expectedDurationMs = config.maxPoints * config.intervalMs;
+
   return {
     points,
     backlogTrend,
@@ -239,5 +250,7 @@ export function useDashboardTimeseries(
     lastUpdated,
     sampleInterval: config.intervalMs,
     pointCount: points.length,
+    collectedDurationMs,
+    expectedDurationMs,
   };
 }
