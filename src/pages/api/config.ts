@@ -16,6 +16,7 @@ export interface RuntimeConfig {
   enableWorkflows?: boolean;
   enableSchedules?: boolean;
   enableAnalytics?: boolean;
+  enableQueuePurge?: boolean;
 }
 
 export const GET: APIRoute = () => {
@@ -27,6 +28,8 @@ export const GET: APIRoute = () => {
     enableWorkflows: process.env.PUBLIC_ENABLE_WORKFLOWS !== 'false',
     enableSchedules: process.env.PUBLIC_ENABLE_SCHEDULES !== 'false',
     enableAnalytics: process.env.PUBLIC_ENABLE_ANALYTICS === 'true',
+    // Queue purge disabled by default - not implemented in backend
+    enableQueuePurge: process.env.PUBLIC_ENABLE_QUEUE_PURGE === 'true',
   };
 
   return new Response(JSON.stringify(config), {

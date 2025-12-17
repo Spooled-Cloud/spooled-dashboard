@@ -63,10 +63,10 @@ export const API_ENDPOINTS = {
   // Workers
   WORKERS: {
     LIST: '/api/v1/workers',
-    REGISTER: '/api/v1/workers',
+    REGISTER: '/api/v1/workers/register',
     GET: (id: string) => `/api/v1/workers/${id}`,
     HEARTBEAT: (id: string) => `/api/v1/workers/${id}/heartbeat`,
-    DEREGISTER: (id: string) => `/api/v1/workers/${id}`,
+    DEREGISTER: (id: string) => `/api/v1/workers/${id}/deregister`,
   },
 
   // Workflows

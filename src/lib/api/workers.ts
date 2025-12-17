@@ -96,10 +96,10 @@ export const workersAPI = {
   },
 
   /**
-   * DELETE /api/v1/workers/{id}
+   * POST /api/v1/workers/{id}/deregister
    * Deregister a worker
    */
   deregister: (id: string): Promise<void> => {
-    return apiClient.delete<void>(API_ENDPOINTS.WORKERS.DEREGISTER(id));
+    return apiClient.post<void>(API_ENDPOINTS.WORKERS.DEREGISTER(id));
   },
 };

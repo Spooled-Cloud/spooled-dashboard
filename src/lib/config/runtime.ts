@@ -15,6 +15,7 @@ const staticFallback: RuntimeConfig = {
   enableWorkflows: true,
   enableSchedules: true,
   enableAnalytics: false,
+  enableQueuePurge: false, // Queue purge not implemented in backend
 };
 
 // Get default config with localhost detection

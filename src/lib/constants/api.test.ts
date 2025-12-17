@@ -105,13 +105,13 @@ describe('API_ENDPOINTS', () => {
   describe('WORKERS', () => {
     it('should have static endpoints', () => {
       expect(API_ENDPOINTS.WORKERS.LIST).toBe('/api/v1/workers');
-      expect(API_ENDPOINTS.WORKERS.REGISTER).toBe('/api/v1/workers');
+      expect(API_ENDPOINTS.WORKERS.REGISTER).toBe('/api/v1/workers/register');
     });
 
     it('should have dynamic endpoints', () => {
       expect(API_ENDPOINTS.WORKERS.GET('w-1')).toBe('/api/v1/workers/w-1');
       expect(API_ENDPOINTS.WORKERS.HEARTBEAT('w-1')).toBe('/api/v1/workers/w-1/heartbeat');
-      expect(API_ENDPOINTS.WORKERS.DEREGISTER('w-1')).toBe('/api/v1/workers/w-1');
+      expect(API_ENDPOINTS.WORKERS.DEREGISTER('w-1')).toBe('/api/v1/workers/w-1/deregister');
     });
   });
 

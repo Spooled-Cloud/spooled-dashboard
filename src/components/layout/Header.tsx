@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ConnectionStatus } from '@/components/realtime/ConnectionStatus';
 import { useAuthStore } from '@/stores/auth';
 
 export function Header() {
@@ -18,7 +19,12 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-16 items-center justify-end border-b bg-card px-6">
+    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
+      {/* Connection Status */}
+      <div className="flex items-center">
+        <ConnectionStatus />
+      </div>
+
       {/* User Menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI } from '@/lib/api/queues';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
+import { getRuntimeConfig } from '@/lib/config/runtime';
 import {
   ArrowLeft,
   RefreshCw,
@@ -20,6 +22,7 @@ import {
   TrendingUp,
   Clock,
   Activity,
+  Info,
 } from 'lucide-react';
 import type { Queue } from '@/lib/types';
 import type { UpdateQueueRequest } from '@/lib/api/queues';
@@ -482,14 +485,30 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
               <Button variant="outline" className="w-full justify-start" asChild>
                 <a href={`/jobs?queue=${queueName}`}>View Jobs in Queue</a>
               </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-destructive hover:text-destructive"
-                onClick={handlePurge}
-                disabled={purgeMutation.isPending}
-              >
-                Purge All Jobs
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block w-full">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-destructive hover:text-destructive disabled:opacity-50"
+                        onClick={handlePurge}
+                        disabled={purgeMutation.isPending || !getRuntimeConfig().enableQueuePurge}
+                      >
+                        Purge All Jobs
+                        {!getRuntimeConfig().enableQueuePurge && (
+                          <Info className="ml-auto h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!getRuntimeConfig().enableQueuePurge && (
+                    <TooltipContent>
+                      <p>Queue purge is not supported yet</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </CardContent>
           </Card>
         </div>

@@ -640,7 +640,8 @@ export const handlers = [
     return HttpResponse.json(worker);
   }),
 
-  http.delete(`${API_BASE}/api/v1/workers/:id`, ({ params }) => {
+  // Worker deregister - POST to /workers/:id/deregister
+  http.post(`${API_BASE}/api/v1/workers/:id/deregister`, ({ params }) => {
     const id = params.id as string;
     const worker = mockWorkerDetails[id];
     if (!worker) {
@@ -886,5 +887,18 @@ export const handlers = [
         joined_at: '2024-01-02T00:00:00Z',
       },
     ]);
+  }),
+
+  // Runtime config endpoint
+  http.get('/api/config', () => {
+    return HttpResponse.json({
+      apiUrl: 'https://api.spooled.cloud',
+      wsUrl: 'wss://api.spooled.cloud',
+      sentryEnvironment: 'test',
+      enableWorkflows: true,
+      enableSchedules: true,
+      enableAnalytics: false,
+      enableQueuePurge: false,
+    });
   }),
 ];
