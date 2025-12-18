@@ -35,6 +35,12 @@ This dashboard connects to the Spooled Backend. For programmatic access, use one
 
 See the [SDKs documentation](https://github.com/spooled-cloud/spooled-backend/blob/main/docs/guides/sdks.md) for installation and usage guides.
 
+## Real-world examples (beginner friendly)
+
+For 5 copy/paste “real life” setups (Stripe → jobs, GitHub Actions → jobs, cron schedules, CSV import, website signup), see:
+
+- `https://github.com/spooled-cloud/spooled-backend/blob/main/docs/guides/real-world-examples.md`
+
 ## Tech Stack
 
 - **[Astro](https://astro.build/)** - Fast, content-focused framework
