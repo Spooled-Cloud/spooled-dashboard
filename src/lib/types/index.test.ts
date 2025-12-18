@@ -98,10 +98,10 @@ describe('User & Authentication Types', () => {
   describe('LoginRequest', () => {
     it('should require api_key', () => {
       const request: LoginRequest = {
-        api_key: 'sk_test_abc123',
+        api_key: 'sp_test_abc123',
       };
 
-      expect(request.api_key).toBe('sk_test_abc123');
+      expect(request.api_key).toBe('sp_test_abc123');
     });
   });
 

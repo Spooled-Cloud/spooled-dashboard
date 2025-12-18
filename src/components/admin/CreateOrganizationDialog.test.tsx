@@ -45,7 +45,7 @@ describe('CreateOrganizationDialog', () => {
         },
         api_key: {
           id: 'key-123',
-          key: 'sk_test_abc123',
+          key: 'sp_test_abc123',
           name: 'Initial Admin Key',
           created_at: new Date().toISOString(),
         },
@@ -68,7 +68,7 @@ describe('CreateOrganizationDialog', () => {
       });
 
       expect(result.organization.name).toBe('Test Org');
-      expect(result.api_key.key).toBe('sk_test_abc123');
+      expect(result.api_key.key).toBe('sp_test_abc123');
     });
 
     it('should handle API errors', async () => {

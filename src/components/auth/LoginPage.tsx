@@ -139,7 +139,7 @@ export function LoginPage() {
                   <Input
                     id="apiKey"
                     type="password"
-                    placeholder="sk_live_..."
+                    placeholder="sp_live_..."
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     required
@@ -148,7 +148,7 @@ export function LoginPage() {
                     autoComplete="current-password"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Your API key starts with sk_live_ or sk_test_
+                    Your API key starts with sp_live_ or sp_test_
                   </p>
                 </div>
 

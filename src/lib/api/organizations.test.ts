@@ -128,13 +128,13 @@ describe('InitialApiKey interface', () => {
   it('should match expected structure', () => {
     const apiKey = {
       id: 'key-123',
-      key: 'sk_live_xxxxxxxxxxxx',
+      key: 'sp_live_xxxxxxxxxxxx',
       name: 'Initial Admin Key',
       created_at: '2024-01-01T00:00:00Z',
     };
 
     expect(apiKey.id).toBe('key-123');
-    expect(apiKey.key).toContain('sk_live_');
+    expect(apiKey.key).toContain('sp_live_');
     expect(apiKey.name).toBe('Initial Admin Key');
   });
 });
@@ -149,7 +149,7 @@ describe('CreateOrganizationResponse interface', () => {
       },
       api_key: {
         id: 'key-123',
-        key: 'sk_live_xxxx',
+        key: 'sp_live_xxxx',
         name: 'Initial Key',
         created_at: '2024-01-01T00:00:00Z',
       },
@@ -157,6 +157,6 @@ describe('CreateOrganizationResponse interface', () => {
 
     expect(response.organization).toBeDefined();
     expect(response.api_key).toBeDefined();
-    expect(response.api_key.key).toContain('sk_live_');
+    expect(response.api_key.key).toContain('sp_live_');
   });
 });
