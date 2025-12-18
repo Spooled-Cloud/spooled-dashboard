@@ -197,7 +197,7 @@ if (typeof window !== 'undefined') {
     const state = useAuthStore.getState();
     if (state.accessToken && state.expiresAt) {
       if (Date.now() > state.expiresAt) {
-        console.log('Token expired, clearing auth');
+        console.warn('Token expired, clearing auth');
         useAuthStore.getState().clearAuth();
         // Redirect to login
         window.location.href = '/';
