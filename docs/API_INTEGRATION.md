@@ -100,3 +100,16 @@ import { toast } from 'sonner';
 toast.success('Job created');
 toast.error('Failed to create job');
 ```
+
+## Official SDKs
+
+For programmatic access from your backend applications, use one of the official SDKs instead of the dashboard's internal API client:
+
+| SDK | Installation | Docs |
+|-----|--------------|------|
+| **Node.js** | `npm install @spooled/sdk` | [npm](https://www.npmjs.com/package/@spooled/sdk) |
+| **Python** | `pip install spooled` | [PyPI](https://pypi.org/project/spooled/) |
+| **Go** | `go get github.com/spooled-cloud/spooled-sdk-go` | [pkg.go.dev](https://pkg.go.dev/github.com/spooled-cloud/spooled-sdk-go) |
+| **PHP** | `composer require spooled-cloud/spooled` | [Packagist](https://packagist.org/packages/spooled-cloud/spooled) |
+
+The dashboard's internal API client (`@/lib/api/*`) is designed specifically for the dashboard UI and includes React Query integration, auth state management, and UI-specific error handling.

@@ -22,6 +22,19 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 - **💀 Dead-Letter Queue** - Review failed jobs, inspect errors, bulk retry or purge
 - **👤 Admin Portal** - Create organizations, manage plans, reset usage counters
 
+## Official SDKs
+
+This dashboard connects to the Spooled Backend. For programmatic access, use one of the official SDKs:
+
+| SDK | Package | Status |
+|-----|---------|--------|
+| **Node.js** | `@spooled/sdk` | ✅ Production Ready |
+| **Python** | `spooled` | ✅ Production Ready |
+| **Go** | `github.com/spooled-cloud/spooled-sdk-go` | ✅ Production Ready |
+| **PHP** | `spooled-cloud/spooled` | ✅ Production Ready |
+
+See the [SDKs documentation](https://github.com/spooled-cloud/spooled-backend/blob/main/docs/guides/sdks.md) for installation and usage guides.
+
 ## Tech Stack
 
 - **[Astro](https://astro.build/)** - Fast, content-focused framework

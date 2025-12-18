@@ -95,3 +95,16 @@ src/
 - [API Integration](./API_INTEGRATION.md)
 - [Deployment](./DEPLOYMENT.md)
 - [Security](./SECURITY.md)
+
+## Official SDKs
+
+For programmatic access to Spooled from your applications, use one of the official SDKs:
+
+- **Node.js**: `npm install @spooled/sdk`
+- **Python**: `pip install spooled`
+- **Go**: `go get github.com/spooled-cloud/spooled-sdk-go`
+- **PHP**: `composer require spooled-cloud/spooled`
+
+All SDKs are production-ready with full type safety, worker runtime, gRPC support, and comprehensive error handling.
+
+See the [SDKs documentation](https://github.com/spooled-cloud/spooled-backend/blob/main/docs/guides/sdks.md) for detailed guides.
