@@ -3,15 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { InlineError } from '@/components/ui/inline-error';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DataTableContainer,
+  DataTable,
+  DataTableHeader,
+  DataTableHead,
+  DataTableRow,
+  DataTableCell,
+  DataTableLoading,
+  DataTablePagination,
+} from '@/components/ui/data-table';
 import {
   Select,
   SelectContent,
@@ -22,10 +26,7 @@ import {
 import {
   Building2,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Shield,
-  ArrowLeft,
   ExternalLink,
 } from 'lucide-react';
 import {
@@ -40,21 +41,22 @@ export function AdminOrganizationsList() {
   const [organizations, setOrganizations] = useState<AdminOrganization[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Error | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<string>('');
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const limit = 20;
 
   const loadOrganizations = useCallback(
     async (searchTerm?: string) => {
       setIsLoading(true);
+      setError(null);
       try {
         const params: ListOrgsParams = {
           limit,
-          offset: page * limit,
+          offset: (page - 1) * limit,
           sort_by: 'created_at',
           sort_order: 'desc',
         };
@@ -69,7 +71,7 @@ export function AdminOrganizationsList() {
         setOrganizations(data.organizations);
         setTotal(data.total);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load organizations');
+        setError(err instanceof Error ? err : new Error('Failed to load organizations'));
       } finally {
         setIsLoading(false);
       }
@@ -87,20 +89,18 @@ export function AdminOrganizationsList() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(0);
+    setPage(1);
     loadOrganizations(search);
   };
 
   const getPlanBadgeVariant = (plan: string) => {
     switch (plan) {
       case 'enterprise':
-        return 'default';
+        return 'default' as const;
       case 'pro':
-        return 'secondary';
-      case 'starter':
-        return 'outline';
+        return 'secondary' as const;
       default:
-        return 'outline';
+        return 'outline' as const;
     }
   };
 
@@ -108,27 +108,17 @@ export function AdminOrganizationsList() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <a href="/admin">
-              <ArrowLeft className="h-4 w-4" />
-            </a>
-          </Button>
-          <div>
-            <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
-              <Building2 className="h-8 w-8" />
-              Organizations
-            </h1>
-            <p className="text-muted-foreground">{total} total organizations</p>
-          </div>
-        </div>
-        <Badge variant="outline" className="border-amber-500 text-amber-600">
-          <Shield className="mr-1 h-3 w-3" />
+      <PageHeader
+        title="Organizations"
+        description={`${total} total organizations`}
+        backHref="/admin"
+        backLabel="Admin Dashboard"
+      >
+        <Badge variant="outline" className="mt-2 w-fit border-amber-500 text-amber-600">
+          <Shield className="mr-1.5 h-3 w-3" />
           Admin View
         </Badge>
-      </div>
+      </PageHeader>
 
       {/* Filters */}
       <Card>
@@ -149,7 +139,7 @@ export function AdminOrganizationsList() {
               value={planFilter}
               onValueChange={(v) => {
                 setPlanFilter(v);
-                setPage(0);
+                setPage(1);
               }}
             >
               <SelectTrigger className="w-40">
@@ -169,101 +159,104 @@ export function AdminOrganizationsList() {
       </Card>
 
       {/* Organizations Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Organizations</CardTitle>
+      <DataTableContainer>
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            All Organizations
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : error ? (
-            <div className="py-8 text-center text-destructive">{error}</div>
-          ) : organizations.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">No organizations found</div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead className="text-right">Jobs Today</TableHead>
-                    <TableHead className="text-right">Active Jobs</TableHead>
-                    <TableHead className="text-right">Queues</TableHead>
-                    <TableHead className="text-right">Workers</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {organizations.map((org) => (
-                    <TableRow key={org.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{org.name}</div>
-                          <div className="text-sm text-muted-foreground">{org.slug}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getPlanBadgeVariant(org.plan_tier)}>{org.plan_tier}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{org.usage.jobs_today}</TableCell>
-                      <TableCell className="text-right font-mono">
-                        {org.usage.active_jobs}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{org.usage.queues}</TableCell>
-                      <TableCell className="text-right font-mono">{org.usage.workers}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatRelativeTime(org.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={`/admin/organizations/${org.id}`}>
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        
+        {isLoading ? (
+          <DataTableLoading rows={5} columns={8} />
+        ) : error ? (
+          <InlineError
+            title="Failed to load organizations"
+            error={error}
+            onRetry={() => loadOrganizations()}
+          />
+        ) : organizations.length === 0 ? (
+          <EmptyState
+            title="No organizations found"
+            description={search || planFilter ? 'Try adjusting your search or filters' : 'No organizations have been created yet'}
+            variant={search || planFilter ? 'filter' : 'empty'}
+            icon={Building2}
+          />
+        ) : (
+          <>
+            <DataTable>
+              <DataTableHeader>
+                <tr>
+                  <DataTableHead>Organization</DataTableHead>
+                  <DataTableHead>Plan</DataTableHead>
+                  <DataTableHead align="right">Jobs Today</DataTableHead>
+                  <DataTableHead align="right">Active Jobs</DataTableHead>
+                  <DataTableHead align="right">Queues</DataTableHead>
+                  <DataTableHead align="right">Workers</DataTableHead>
+                  <DataTableHead>Created</DataTableHead>
+                  <DataTableHead align="right"></DataTableHead>
+                </tr>
+              </DataTableHeader>
+              <tbody className="divide-y">
+                {organizations.map((org) => (
+                  <DataTableRow key={org.id} clickable>
+                    <DataTableCell>
+                      <div>
+                        <a 
+                          href={`/admin/organizations/${org.id}`}
+                          className="font-medium hover:text-primary hover:underline"
+                        >
+                          {org.name}
+                        </a>
+                        <div className="text-xs text-muted-foreground">{org.slug}</div>
+                      </div>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Badge variant={getPlanBadgeVariant(org.plan_tier)} className="capitalize">
+                        {org.plan_tier}
+                      </Badge>
+                    </DataTableCell>
+                    <DataTableCell align="right" mono>
+                      {org.usage.jobs_today.toLocaleString()}
+                    </DataTableCell>
+                    <DataTableCell align="right" mono>
+                      {org.usage.active_jobs.toLocaleString()}
+                    </DataTableCell>
+                    <DataTableCell align="right" mono>
+                      {org.usage.queues}
+                    </DataTableCell>
+                    <DataTableCell align="right" mono>
+                      {org.usage.workers}
+                    </DataTableCell>
+                    <DataTableCell muted>
+                      {formatRelativeTime(org.created_at)}
+                    </DataTableCell>
+                    <DataTableCell align="right">
+                      <Button variant="ghost" size="icon" asChild>
+                        <a href={`/admin/organizations/${org.id}`}>
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </DataTableCell>
+                  </DataTableRow>
+                ))}
+              </tbody>
+            </DataTable>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {page * limit + 1} to {Math.min((page + 1) * limit, total)} of {total}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(page - 1)}
-                      disabled={page === 0}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(page + 1)}
-                      disabled={page >= totalPages - 1}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <DataTablePagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={limit}
+                onPageChange={setPage}
+              />
+            )}
+          </>
+        )}
+      </DataTableContainer>
     </div>
   );
 }
+

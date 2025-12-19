@@ -1,49 +1,55 @@
 import { useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PageHeader } from '@/components/ui/page-header';
+import { QueueStatusBadge } from '@/components/ui/status-badge';
+import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
+import { InlineError } from '@/components/ui/inline-error';
+import { SSEIndicator } from '@/components/ui/sse-indicator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queuesAPI } from '@/lib/api/queues';
+import { queuesAPI, type UpdateQueueRequest } from '@/lib/api/queues';
+import { workersAPI } from '@/lib/api/workers';
+import { useQueueSSE } from '@/lib/hooks/use-sse';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
-import { getRuntimeConfig } from '@/lib/config/runtime';
+import { motion } from 'framer-motion';
 import {
-  ArrowLeft,
   RefreshCw,
   Pause,
   Play,
   Trash2,
   Save,
-  AlertCircle,
   TrendingUp,
   Clock,
   Activity,
-  Info,
+  Loader2,
+  Users,
+  Gauge,
+  AlertTriangle,
+  Zap,
 } from 'lucide-react';
-import type { Queue } from '@/lib/types';
-import type { UpdateQueueRequest } from '@/lib/api/queues';
+import type { Queue, Worker, QueueStats } from '@/lib/types';
 import { toast } from 'sonner';
 
 interface QueueDetailsContentProps {
   queueName: string;
 }
 
-function QueueStatsCard({ queueName }: { queueName: string }) {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: queryKeys.queues.stats(queueName),
-    queryFn: () => queuesAPI.getStats(queueName),
-    refetchInterval: 5000,
-  });
+interface HealthStripProps {
+  stats: QueueStats | undefined;
+  isLoading: boolean;
+}
 
+function HealthStrip({ stats, isLoading }: HealthStripProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-24 w-full" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Skeleton key={i} className="h-20 w-full" />
         ))}
       </div>
     );
@@ -51,66 +57,173 @@ function QueueStatsCard({ queueName }: { queueName: string }) {
 
   if (!stats) return null;
 
+  const metrics = [
+    {
+      label: 'Pending',
+      value: stats.pending,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-500/10',
+      icon: Clock,
+    },
+    {
+      label: 'Processing',
+      value: stats.processing,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-500/10',
+      icon: Loader2,
+      animate: stats.processing > 0,
+    },
+    {
+      label: 'Completed (24h)',
+      value: stats.completed,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-500/10',
+      icon: TrendingUp,
+    },
+    {
+      label: 'Failed (24h)',
+      value: stats.failed,
+      color: stats.failed > 0 ? 'text-red-600' : 'text-muted-foreground',
+      bgColor: stats.failed > 0 ? 'bg-red-500/10' : 'bg-muted/50',
+      icon: AlertTriangle,
+    },
+    {
+      label: 'Active Workers',
+      value: stats.active_workers,
+      color: 'text-violet-600',
+      bgColor: 'bg-violet-500/10',
+      icon: Users,
+    },
+    {
+      label: 'Throughput',
+      value: `${stats.jobs_per_second.toFixed(1)}/s`,
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
+      icon: Zap,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      <Card>
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      {metrics.map((metric, idx) => (
+        <motion.div
+          key={metric.label}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: idx * 0.05 }}
+        >
+          <Card className={metric.bgColor}>
         <CardContent className="p-4">
-          <p className="mb-1 text-xs text-muted-foreground">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+              <div className="flex items-center justify-between">
+                <metric.icon 
+                  className={`h-4 w-4 ${metric.color} ${metric.animate ? 'animate-spin' : ''}`} 
+                />
+              </div>
+              <p className={`mt-2 text-2xl font-bold ${metric.color}`}>
+                {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+              </p>
+              <p className="text-xs text-muted-foreground">{metric.label}</p>
         </CardContent>
       </Card>
-      <Card>
-        <CardContent className="p-4">
-          <p className="mb-1 text-xs text-muted-foreground">Processing</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.processing}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-4">
-          <p className="mb-1 text-xs text-muted-foreground">Completed</p>
-          <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-4">
-          <p className="mb-1 text-xs text-muted-foreground">Failed</p>
-          <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-4">
-          <div className="mb-1 flex items-center gap-2">
-            <Activity className="h-3 w-3 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Active Workers</p>
-          </div>
-          <p className="text-2xl font-bold">{stats.active_workers}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-4">
-          <div className="mb-1 flex items-center gap-2">
-            <TrendingUp className="h-3 w-3 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Jobs/Second</p>
-          </div>
-          <p className="text-2xl font-bold">{stats.jobs_per_second.toFixed(2)}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-4">
-          <div className="mb-1 flex items-center gap-2">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">Avg Process Time</p>
-          </div>
-          <p className="text-2xl font-bold">{stats.avg_processing_time_ms.toFixed(0)}ms</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-4">
-          <p className="mb-1 text-xs text-muted-foreground">Dead Letter</p>
-          <p className="text-2xl font-bold text-destructive">{stats.deadletter}</p>
-        </CardContent>
-      </Card>
+        </motion.div>
+      ))}
     </div>
+  );
+}
+
+interface CapacityViewProps {
+  queueName: string;
+  stats: QueueStats | undefined;
+}
+
+function CapacityView({ queueName, stats }: CapacityViewProps) {
+  const { data: workers, isLoading } = useQuery({
+    queryKey: queryKeys.workers.list(),
+    queryFn: () => workersAPI.list(),
+    refetchInterval: 10000,
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-32" />;
+  }
+
+  // Filter workers that handle this queue
+  const queueWorkers = workers?.filter((w: Worker) => 
+    w.queues.includes(queueName) || w.queues.includes('*')
+  ) || [];
+
+  const totalCapacity = queueWorkers.reduce((acc: number, w: Worker) => acc + w.concurrency, 0);
+  const activeWorkers = queueWorkers.filter((w: Worker) => w.status === 'active').length;
+  const currentlyProcessing = stats?.processing || 0;
+  const pending = stats?.pending || 0;
+
+  const utilizationPercent = totalCapacity > 0 
+    ? Math.min(100, (currentlyProcessing / totalCapacity) * 100) 
+    : 0;
+
+  const backlogMinutes = stats?.avg_processing_time_ms && stats.avg_processing_time_ms > 0 && totalCapacity > 0
+    ? (pending * (stats.avg_processing_time_ms / 1000 / 60)) / totalCapacity
+    : 0;
+
+  return (
+      <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Gauge className="h-4 w-4" />
+          Capacity
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Worker Utilization</span>
+            <span className="font-medium">{utilizationPercent.toFixed(0)}%</span>
+          </div>
+          <Progress value={utilizationPercent} className="h-2" />
+          <p className="text-xs text-muted-foreground">
+            {currentlyProcessing} of {totalCapacity} slots in use
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 pt-2">
+          <div className="rounded-lg bg-muted/50 p-3">
+            <p className="text-xs font-medium text-muted-foreground">Workers</p>
+            <p className="text-lg font-semibold">
+              {activeWorkers} <span className="text-sm font-normal text-muted-foreground">/ {queueWorkers.length}</span>
+            </p>
+          </div>
+          <div className="rounded-lg bg-muted/50 p-3">
+            <p className="text-xs font-medium text-muted-foreground">Total Capacity</p>
+            <p className="text-lg font-semibold">{totalCapacity}</p>
+          </div>
+        </div>
+
+        {pending > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <div className="flex items-center gap-2 text-amber-600">
+              <Clock className="h-4 w-4" />
+              <span className="text-sm font-medium">Backlog Estimate</span>
+            </div>
+            <p className="mt-1 text-lg font-semibold text-amber-600">
+              ~{backlogMinutes.toFixed(1)} min
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {pending.toLocaleString()} pending jobs
+            </p>
+          </div>
+        )}
+
+        {queueWorkers.length === 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
+            <AlertTriangle className="mx-auto h-5 w-5 text-amber-600" />
+            <p className="mt-1 text-sm font-medium text-amber-600">No Workers</p>
+            <p className="text-xs text-muted-foreground">
+              No workers are configured to process this queue
+            </p>
+          </div>
+        )}
+        </CardContent>
+      </Card>
   );
 }
 
@@ -118,15 +231,39 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editedQueue, setEditedQueue] = useState<Partial<Queue>>({});
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteJobs, setDeleteJobs] = useState(false);
 
   const {
     data: queue,
     isLoading,
     error,
     refetch,
+    isFetching,
   } = useQuery({
     queryKey: queryKeys.queues.detail(queueName),
     queryFn: () => queuesAPI.get(queueName),
+  });
+
+  // SSE for real-time queue stats updates
+  const { isConnected: sseConnected, isConnecting: sseConnecting, error: sseError, reconnect: sseReconnect } = useQueueSSE(
+    queueName,
+    {
+      enabled: true,
+      onEvent: (event) => {
+        // Refetch stats when we receive an update
+        if (event.type === 'queue_stats_updated') {
+          queryClient.invalidateQueries({ queryKey: queryKeys.queues.stats(queueName) });
+        }
+      },
+    }
+  );
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: queryKeys.queues.stats(queueName),
+    queryFn: () => queuesAPI.getStats(queueName),
+    // With SSE connected, poll less frequently as backup
+    refetchInterval: sseConnected ? 30000 : 5000,
   });
 
   const updateMutation = useMutation({
@@ -169,21 +306,8 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
     },
   });
 
-  const purgeMutation = useMutation({
-    mutationFn: () => queuesAPI.purge(queueName),
-    onSuccess: (data) => {
-      toast.success('Queue purged', { description: `${data.deleted} job(s) deleted` });
-      queryClient.invalidateQueries({ queryKey: queryKeys.queues.stats(queueName) });
-    },
-    onError: (error) => {
-      toast.error('Failed to purge queue', {
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    },
-  });
-
   const deleteMutation = useMutation({
-    mutationFn: () => queuesAPI.delete(queueName),
+    mutationFn: () => queuesAPI.delete(queueName, deleteJobs),
     onSuccess: () => {
       toast.success('Queue deleted');
       window.location.href = '/queues';
@@ -200,14 +324,10 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
     if (editedQueue.description !== undefined) updates.description = editedQueue.description;
     if (editedQueue.concurrency !== undefined) updates.concurrency = editedQueue.concurrency;
     if (editedQueue.max_retries !== undefined) updates.max_retries = editedQueue.max_retries;
-    if (editedQueue.retry_delay_ms !== undefined)
-      updates.retry_delay_ms = editedQueue.retry_delay_ms;
-    if (editedQueue.backoff_multiplier !== undefined)
-      updates.backoff_multiplier = editedQueue.backoff_multiplier;
-    if (editedQueue.max_retry_delay_ms !== undefined)
-      updates.max_retry_delay_ms = editedQueue.max_retry_delay_ms;
-    if (editedQueue.job_timeout_ms !== undefined)
-      updates.job_timeout_ms = editedQueue.job_timeout_ms;
+    if (editedQueue.retry_delay_ms !== undefined) updates.retry_delay_ms = editedQueue.retry_delay_ms;
+    if (editedQueue.backoff_multiplier !== undefined) updates.backoff_multiplier = editedQueue.backoff_multiplier;
+    if (editedQueue.max_retry_delay_ms !== undefined) updates.max_retry_delay_ms = editedQueue.max_retry_delay_ms;
+    if (editedQueue.job_timeout_ms !== undefined) updates.job_timeout_ms = editedQueue.job_timeout_ms;
 
     updateMutation.mutate(updates);
   };
@@ -220,33 +340,18 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
     }
   };
 
-  const handlePurge = () => {
-    if (
-      confirm(
-        `Are you sure you want to delete ALL jobs in the "${queueName}" queue? This action cannot be undone.`
-      )
-    ) {
-      purgeMutation.mutate();
-    }
-  };
-
-  const handleDelete = () => {
-    if (
-      confirm(
-        `Are you sure you want to delete the "${queueName}" queue? This can only be done if the queue is empty.`
-      )
-    ) {
-      deleteMutation.mutate();
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-20 w-full" />
+        <div className="grid grid-cols-6 gap-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
+        </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Skeleton className="h-96 w-full lg:col-span-2" />
-          <Skeleton className="h-96 w-full" />
+          <Skeleton className="h-96 lg:col-span-2" />
+          <Skeleton className="h-96" />
         </div>
       </div>
     );
@@ -254,75 +359,68 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
 
   if (error || !queue) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-destructive" />
-          <p className="text-lg font-medium text-destructive">Failed to load queue</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {error instanceof Error ? error.message : 'Queue not found'}
-          </p>
-          <Button variant="outline" onClick={() => window.history.back()} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Go Back
-          </Button>
-        </CardContent>
-      </Card>
+      <InlineError
+        title="Failed to load queue"
+        error={error || 'Queue not found'}
+        onRetry={() => refetch()}
+      />
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{queue.name}</h1>
-            {queue.paused && (
-              <Badge variant="outline" className="border-yellow-500 text-yellow-600">
-                Paused
-              </Badge>
-            )}
-          </div>
-          {queue.description && <p className="mt-1 text-muted-foreground">{queue.description}</p>}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
+      <PageHeader
+        title={queue.name}
+        description={queue.description}
+        backHref="/queues"
+        backLabel="Back to Queues"
+        actions={
+          <>
+            <SSEIndicator
+              isConnected={sseConnected}
+              isConnecting={sseConnecting}
+              error={sseError}
+              onReconnect={sseReconnect}
+            />
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           {!isEditing && (
             <Button
-              variant="outline"
+                variant={queue.paused ? 'default' : 'outline'}
               size="sm"
               onClick={handleTogglePause}
               disabled={pauseMutation.isPending || resumeMutation.isPending}
             >
-              {queue.paused ? (
-                <>
+                {pauseMutation.isPending || resumeMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : queue.paused ? (
                   <Play className="mr-2 h-4 w-4" />
-                  Resume
-                </>
               ) : (
-                <>
                   <Pause className="mr-2 h-4 w-4" />
-                  Pause
-                </>
               )}
+                {queue.paused ? 'Resume' : 'Pause'}
             </Button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      >
+        <QueueStatusBadge paused={queue.paused} size="sm" />
+      </PageHeader>
 
-      <QueueStatsCard queueName={queueName} />
+      {/* Health Strip */}
+      <HealthStrip stats={stats} isLoading={statsLoading} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+          {/* Configuration */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
+              <div>
               <CardTitle>Configuration</CardTitle>
+                <CardDescription>Queue processing settings</CardDescription>
+              </div>
               {!isEditing ? (
                 <Button
                   variant="outline"
@@ -347,111 +445,50 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                     Cancel
                   </Button>
                   <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
+                    {updateMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
                     <Save className="mr-2 h-4 w-4" />
+                    )}
                     Save
                   </Button>
                 </div>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Concurrency</label>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                {[
+                  { key: 'concurrency', label: 'Concurrency', type: 'number' },
+                  { key: 'max_retries', label: 'Max Retries', type: 'number' },
+                  { key: 'retry_delay_ms', label: 'Retry Delay (ms)', type: 'number' },
+                  { key: 'backoff_multiplier', label: 'Backoff Multiplier', type: 'number', step: '0.1' },
+                  { key: 'max_retry_delay_ms', label: 'Max Retry Delay (ms)', type: 'number' },
+                  { key: 'job_timeout_ms', label: 'Job Timeout (ms)', type: 'number' },
+                ].map((field) => (
+                  <div key={field.key} className="rounded-lg bg-muted/50 p-3">
+                    <label className="text-xs font-medium text-muted-foreground">{field.label}</label>
                   {isEditing ? (
                     <Input
-                      type="number"
-                      value={editedQueue.concurrency || ''}
-                      onChange={(e) =>
-                        setEditedQueue({ ...editedQueue, concurrency: parseInt(e.target.value) })
-                      }
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm">{queue.concurrency}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Max Retries</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editedQueue.max_retries || ''}
-                      onChange={(e) =>
-                        setEditedQueue({ ...editedQueue, max_retries: parseInt(e.target.value) })
-                      }
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm">{queue.max_retries}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Retry Delay (ms)</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editedQueue.retry_delay_ms || ''}
-                      onChange={(e) =>
-                        setEditedQueue({ ...editedQueue, retry_delay_ms: parseInt(e.target.value) })
-                      }
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm">{queue.retry_delay_ms}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Backoff Multiplier</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={editedQueue.backoff_multiplier || ''}
+                        type={field.type}
+                        step={field.step}
+                        value={(editedQueue as Record<string, number | string>)[field.key] || ''}
                       onChange={(e) =>
                         setEditedQueue({
                           ...editedQueue,
-                          backoff_multiplier: parseFloat(e.target.value),
+                            [field.key]: field.step 
+                              ? parseFloat(e.target.value) 
+                              : parseInt(e.target.value),
                         })
                       }
-                      className="mt-1"
+                        className="mt-1 h-8"
                     />
                   ) : (
-                    <p className="mt-1 text-sm">{queue.backoff_multiplier}</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {(queue as unknown as Record<string, number | string | boolean>)[field.key]?.toLocaleString()}
+                      </p>
                   )}
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Max Retry Delay (ms)</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editedQueue.max_retry_delay_ms || ''}
-                      onChange={(e) =>
-                        setEditedQueue({
-                          ...editedQueue,
-                          max_retry_delay_ms: parseInt(e.target.value),
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm">{queue.max_retry_delay_ms}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Job Timeout (ms)</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editedQueue.job_timeout_ms || ''}
-                      onChange={(e) =>
-                        setEditedQueue({ ...editedQueue, job_timeout_ms: parseInt(e.target.value) })
-                      }
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm">{queue.job_timeout_ms}</p>
-                  )}
-                </div>
+                ))}
               </div>
 
               {isEditing && (
@@ -459,85 +496,104 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                   <label className="text-sm font-medium">Description</label>
                   <Input
                     value={editedQueue.description || ''}
-                    onChange={(e) =>
-                      setEditedQueue({ ...editedQueue, description: e.target.value })
-                    }
+                    onChange={(e) => setEditedQueue({ ...editedQueue, description: e.target.value })}
                     placeholder="Optional description"
                     className="mt-1"
                   />
                 </div>
               )}
 
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex items-center justify-between border-t pt-4 text-xs text-muted-foreground">
                   <span>Created {formatRelativeTime(queue.created_at)}</span>
                   <span>Updated {formatRelativeTime(queue.updated_at)}</span>
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="mt-6">
+          {/* Quick Actions */}
+          <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <a href={`/jobs?queue=${queueName}`}>View Jobs in Queue</a>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button variant="outline" asChild>
+                <a href={`/jobs?queue=${queueName}`}>
+                  <Activity className="mr-2 h-4 w-4" />
+                  View Jobs
+                </a>
               </Button>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block w-full">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-destructive hover:text-destructive disabled:opacity-50"
-                        onClick={handlePurge}
-                        disabled={purgeMutation.isPending || !getRuntimeConfig().enableQueuePurge}
-                      >
-                        Purge All Jobs
-                        {!getRuntimeConfig().enableQueuePurge && (
-                          <Info className="ml-auto h-4 w-4 text-muted-foreground" />
-                        )}
+              <Button variant="outline" asChild>
+                <a href="/jobs/dlq">
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Dead Letter Queue
+                </a>
                       </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {!getRuntimeConfig().enableQueuePurge && (
-                    <TooltipContent>
-                      <p>Use Jobs → Dead Letter Queue → Purge instead</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
             </CardContent>
           </Card>
         </div>
 
-        <div>
-          <Card className="border-destructive">
+        <div className="space-y-6">
+          {/* Capacity View */}
+          <CapacityView queueName={queueName} stats={stats} />
+
+          {/* Danger Zone */}
+          <Card className="border-destructive/50">
             <CardHeader>
               <CardTitle className="text-destructive">Danger Zone</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="mb-3 text-sm text-muted-foreground">
-                  Deleting a queue is permanent and cannot be undone. The queue must be empty before
-                  deletion.
+              <p className="text-sm text-muted-foreground">
+                Deleting a queue is permanent and cannot be undone.
                 </p>
                 <Button
                   variant="destructive"
                   className="w-full"
-                  onClick={handleDelete}
+                onClick={() => setShowDeleteDialog(true)}
                   disabled={deleteMutation.isPending}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Queue
                 </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Delete Confirmation */}
+      <DangerConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={() => deleteMutation.mutate()}
+        title={`Delete Queue "${queueName}"`}
+        description={
+          <>
+            <p className="mb-3">
+              Are you sure you want to delete this queue? This action cannot be undone.
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={deleteJobs}
+                onChange={(e) => setDeleteJobs(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span>Also delete all jobs in this queue</span>
+            </label>
+          </>
+        }
+        confirmText={queueName}
+        confirmLabel="Delete Queue"
+        isLoading={deleteMutation.isPending}
+        warnings={
+          deleteJobs
+            ? [
+                'Queue configuration will be deleted',
+                'All jobs in this queue will be permanently deleted',
+                'This includes pending, processing, and completed jobs',
+              ]
+            : ['Queue configuration will be deleted', 'Queue must be empty to delete without deleting jobs']
+        }
+      />
     </div>
   );
 }

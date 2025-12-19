@@ -2,20 +2,21 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { InlineError } from '@/components/ui/inline-error';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DataTableContainer,
+  DataTable,
+  DataTableHeader,
+  DataTableHead,
+  DataTableRow,
+  DataTableCell,
+} from '@/components/ui/data-table';
+import { motion } from 'framer-motion';
 import {
-  ChevronLeft,
   Shield,
   LogOut,
-  AlertTriangle,
   Crown,
   Zap,
   Rocket,
@@ -72,7 +73,7 @@ function getPlanColor(tier: string): 'default' | 'secondary' | 'outline' | 'dest
 export function AdminPlansPage() {
   const [plans, setPlans] = useState<PlanLimits[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -84,11 +85,13 @@ export function AdminPlansPage() {
   }, []);
 
   const loadPlans = async () => {
+    setError(null);
+    setIsLoading(true);
     try {
       const data = await adminAPI.getPlans();
       setPlans(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load plans');
+      setError(err instanceof Error ? err : new Error('Failed to load plans'));
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +105,15 @@ export function AdminPlansPage() {
   if (isLoading) {
     return (
       <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
         <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-24" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
+        </div>
         <Skeleton className="h-96" />
       </div>
     );
@@ -110,17 +121,12 @@ export function AdminPlansPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Card className="w-full max-w-md border-destructive">
-          <CardContent className="pt-6 text-center">
-            <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-destructive" />
-            <h2 className="text-lg font-semibold">Error Loading Plans</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{error}</p>
-            <Button onClick={loadPlans} className="mt-4">
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-[50vh] items-center justify-center p-6">
+        <InlineError
+          title="Error Loading Plans"
+          error={error}
+          onRetry={loadPlans}
+        />
       </div>
     );
   }
@@ -132,41 +138,41 @@ export function AdminPlansPage() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <a href="/admin">
-              <ChevronLeft className="h-5 w-5" />
-            </a>
-          </Button>
-          <div>
-            <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
-              <Shield className="h-8 w-8 text-amber-500" />
-              Plan Limits
-            </h1>
-            <p className="text-muted-foreground">
-              Compare features and limits across all plan tiers
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        title="Plan Limits"
+        description="Compare features and limits across all plan tiers"
+        backHref="/admin"
+        backLabel="Admin Dashboard"
+        actions={
         <Button variant="outline" onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           Logout
         </Button>
-      </div>
+        }
+      >
+        <Badge variant="outline" className="mt-2 w-fit border-amber-500 text-amber-600">
+          <Shield className="mr-1.5 h-3 w-3" />
+          Admin View
+        </Badge>
+      </PageHeader>
 
       {/* Plan Cards Overview */}
       <div className="grid gap-4 md:grid-cols-4">
-        {sortedPlans?.map((plan) => (
-          <Card key={plan.tier} className={plan.tier === 'pro' ? 'border-primary' : ''}>
+        {sortedPlans?.map((plan, idx) => (
+          <motion.div
+            key={plan.tier}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+          >
+            <Card className={plan.tier === 'pro' ? 'border-primary ring-1 ring-primary/20' : ''}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {getPlanIcon(plan.tier)}
                   <CardTitle className="text-lg">{plan.display_name}</CardTitle>
                 </div>
-                <Badge variant={getPlanColor(plan.tier)}>{plan.tier}</Badge>
+                  <Badge variant={getPlanColor(plan.tier)} className="capitalize">{plan.tier}</Badge>
               </div>
               <CardDescription>
                 {plan.tier === 'free' && 'Perfect for testing and small projects'}
@@ -176,9 +182,9 @@ export function AdminPlansPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                 <span className="text-muted-foreground">Jobs/day</span>
-                <span className="font-medium">
+                  <span className="font-semibold">
                   {plan.max_jobs_per_day === null ? (
                     <InfinityIcon className="inline h-4 w-4" />
                   ) : (
@@ -186,19 +192,19 @@ export function AdminPlansPage() {
                   )}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                 <span className="text-muted-foreground">Rate limit</span>
-                <span className="font-medium">{plan.rate_limit_requests_per_second}/s</span>
+                  <span className="font-semibold">{plan.rate_limit_requests_per_second}/s</span>
               </div>
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                 <span className="text-muted-foreground">Retention</span>
-                <span className="font-medium">{plan.job_retention_days} days</span>
+                  <span className="font-semibold">{plan.job_retention_days} days</span>
               </div>
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                 <span className="text-muted-foreground">Workflows</span>
-                <span className="font-medium">
+                  <span className="font-semibold">
                   {plan.max_workflows === null ? (
-                    <Check className="inline h-4 w-4 text-green-500" />
+                      <Check className="inline h-4 w-4 text-emerald-500" />
                   ) : plan.max_workflows === 0 ? (
                     <X className="inline h-4 w-4 text-red-500" />
                   ) : (
@@ -208,155 +214,85 @@ export function AdminPlansPage() {
               </div>
             </CardContent>
           </Card>
+          </motion.div>
         ))}
       </div>
 
       {/* Detailed Comparison Table */}
-      <Card>
-        <CardHeader>
+      <DataTableContainer>
+        <CardHeader className="border-b">
           <CardTitle>Detailed Limits Comparison</CardTitle>
           <CardDescription>
             Complete breakdown of all resource limits across plan tiers
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">Resource</TableHead>
+        <DataTable>
+          <DataTableHeader>
+            <tr>
+              <DataTableHead className="w-[200px]">Resource</DataTableHead>
                 {sortedPlans?.map((plan) => (
-                  <TableHead key={plan.tier} className="text-center">
+                <DataTableHead key={plan.tier} align="center">
                     <div className="flex items-center justify-center gap-1">
                       {getPlanIcon(plan.tier)}
                       <span>{plan.display_name}</span>
                     </div>
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">Jobs per Day</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_jobs_per_day)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Active Jobs</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_active_jobs)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Queues</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_queues)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Workers</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_workers)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">API Keys</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_api_keys)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Schedules</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_schedules)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Workflows</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {plan.max_workflows === 0 ? (
-                      <span className="text-muted-foreground">Disabled</span>
-                    ) : (
-                      formatLimit(plan.max_workflows)
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Webhooks</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatLimit(plan.max_webhooks)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Max Payload Size</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {formatBytes(plan.max_payload_size_bytes)}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Rate Limit (req/s)</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {plan.rate_limit_requests_per_second}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Rate Limit Burst</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {plan.rate_limit_burst}
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Job Retention</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {plan.job_retention_days} days
-                  </TableCell>
-                ))}
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">History Retention</TableCell>
-                {sortedPlans?.map((plan) => (
-                  <TableCell key={plan.tier} className="text-center">
-                    {plan.history_retention_days} days
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </DataTableHead>
+              ))}
+            </tr>
+          </DataTableHeader>
+          <tbody className="divide-y">
+            {[
+              { key: 'max_jobs_per_day', label: 'Jobs per Day' },
+              { key: 'max_active_jobs', label: 'Active Jobs' },
+              { key: 'max_queues', label: 'Queues' },
+              { key: 'max_workers', label: 'Workers' },
+              { key: 'max_api_keys', label: 'API Keys' },
+              { key: 'max_schedules', label: 'Schedules' },
+              { key: 'max_workflows', label: 'Workflows', special: true },
+              { key: 'max_webhooks', label: 'Webhooks' },
+              { key: 'max_payload_size_bytes', label: 'Max Payload Size', format: 'bytes' },
+              { key: 'rate_limit_requests_per_second', label: 'Rate Limit (req/s)', format: 'number' },
+              { key: 'rate_limit_burst', label: 'Rate Limit Burst', format: 'number' },
+              { key: 'job_retention_days', label: 'Job Retention', format: 'days' },
+              { key: 'history_retention_days', label: 'History Retention', format: 'days' },
+            ].map((row) => (
+              <DataTableRow key={row.key}>
+                <DataTableCell className="font-medium">{row.label}</DataTableCell>
+                {sortedPlans?.map((plan) => {
+                  const value = (plan as unknown as Record<string, number | null>)[row.key];
+                  let displayValue: React.ReactNode;
+                  
+                  if (row.special && value === 0) {
+                    displayValue = <span className="text-muted-foreground">Disabled</span>;
+                  } else if (row.format === 'bytes') {
+                    displayValue = formatBytes(value as number);
+                  } else if (row.format === 'days') {
+                    displayValue = `${value} days`;
+                  } else if (row.format === 'number') {
+                    displayValue = value?.toLocaleString();
+                  } else {
+                    displayValue = formatLimit(value);
+                  }
+                  
+                  return (
+                    <DataTableCell key={plan.tier} align="center">
+                      {displayValue}
+                    </DataTableCell>
+                  );
+                })}
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
+      </DataTableContainer>
 
       {/* Back Link */}
       <div className="flex justify-center">
         <Button variant="outline" asChild>
-          <a href="/admin">
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Admin Dashboard
-          </a>
+          <a href="/admin">Back to Admin Dashboard</a>
         </Button>
       </div>
     </div>
   );
 }
+

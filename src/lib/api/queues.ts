@@ -217,10 +217,15 @@ export const queuesAPI = {
 
   /**
    * DELETE /api/v1/queues/{name}
-   * Delete a queue (must be empty)
+   * Delete a queue. Optionally delete all jobs in the queue.
+   * @param name Queue name to delete
+   * @param deleteJobs If true, also delete all jobs in the queue
    */
-  delete: (name: string): Promise<void> => {
-    return apiClient.delete<void>(API_ENDPOINTS.QUEUES.DELETE(name));
+  delete: (name: string, deleteJobs = false): Promise<void> => {
+    const url = deleteJobs
+      ? `${API_ENDPOINTS.QUEUES.DELETE(name)}?delete_jobs=true`
+      : API_ENDPOINTS.QUEUES.DELETE(name);
+    return apiClient.delete<void>(url);
   },
 
   /**

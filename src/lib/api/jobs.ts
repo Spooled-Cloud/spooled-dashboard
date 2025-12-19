@@ -158,6 +158,24 @@ export interface BoostPriorityResponse {
   new_priority: number;
 }
 
+export interface BatchJobStatus {
+  id: string;
+  status: JobStatus;
+  queue_name: string;
+  attempt: number;
+  max_retries: number;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+export interface JobDependencies {
+  job_id: string;
+  depends_on: string[];
+  depended_by: string[];
+  all_dependencies_met: boolean;
+}
+
 export interface RetryDlqRequest {
   job_ids?: string[];
   queue_name?: string;
@@ -315,11 +333,25 @@ export const jobsAPI = {
   },
 
   /**
-   * GET /api/v1/jobs/status
-   * Get job status counts
+   * GET /api/v1/jobs/status?ids=...
+   * Batch job status lookup (up to 100 IDs)
    */
-  getStatusCounts: (): Promise<Record<JobStatus, number>> => {
-    return apiClient.get<Record<JobStatus, number>>(API_ENDPOINTS.JOBS.STATUS);
+  batchStatus: async (ids: string[]): Promise<BatchJobStatus[]> => {
+    if (ids.length === 0) return [];
+    if (ids.length > 100) {
+      throw new Error('Maximum 100 job IDs per request');
+    }
+    return apiClient.get<BatchJobStatus[]>(API_ENDPOINTS.JOBS.STATUS, {
+      ids: ids.join(','),
+    } as Record<string, string>);
+  },
+
+  /**
+   * GET /api/v1/jobs/{id}/dependencies
+   * Get job dependencies
+   */
+  getDependencies: (id: string): Promise<JobDependencies> => {
+    return apiClient.get<JobDependencies>(API_ENDPOINTS.JOBS.DEPENDENCIES(id));
   },
 
   /**

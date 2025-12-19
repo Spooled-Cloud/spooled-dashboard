@@ -445,16 +445,24 @@ export const handlers = [
     });
   }),
 
-  http.get(`${API_BASE}/api/v1/jobs/status`, () => {
-    return HttpResponse.json({
-      pending: 50,
-      scheduled: 10,
-      processing: 10,
-      completed: 900,
-      failed: 30,
-      cancelled: 5,
-      deadletter: 5,
+  http.get(`${API_BASE}/api/v1/jobs/status`, ({ request }) => {
+    const url = new URL(request.url);
+    const idsParam = url.searchParams.get('ids');
+    if (!idsParam) {
+      return HttpResponse.json([]);
+    }
+    const ids = idsParam.split(',').filter(Boolean);
+    // Return mock status for each requested ID
+    const statuses = ids.map((id) => {
+      const job = mockJobs.find((j) => j.id === id);
+      return {
+        id,
+        status: job?.status || 'pending',
+        queue_name: job?.queue || 'default',
+        updated_at: job?.created_at || new Date().toISOString(),
+      };
     });
+    return HttpResponse.json(statuses);
   }),
 
   http.get(`${API_BASE}/api/v1/jobs`, ({ request }) => {
@@ -513,14 +521,14 @@ export const handlers = [
       priority: job.priority,
       tags: (job as { metadata?: Record<string, string> }).metadata ?? null,
       timeout_seconds: 300,
-      parent_job_id: job.parent_job_id ?? null,
+      parent_job_id: (job as { parent_job_id?: string }).parent_job_id ?? null,
       completion_webhook: null,
       assigned_worker_id: null,
       lease_id: null,
       lease_expires_at: null,
-      idempotency_key: job.idempotency_key ?? null,
+      idempotency_key: (job as { idempotency_key?: string }).idempotency_key ?? null,
       updated_at: job.created_at,
-      workflow_id: job.workflow_id ?? null,
+      workflow_id: (job as { workflow_id?: string }).workflow_id ?? null,
       dependency_mode: null,
       dependencies_met: null,
     });
@@ -563,14 +571,14 @@ export const handlers = [
       priority: job.priority,
       tags: (job as { metadata?: Record<string, string> }).metadata ?? null,
       timeout_seconds: 300,
-      parent_job_id: job.parent_job_id ?? null,
+      parent_job_id: (job as { parent_job_id?: string }).parent_job_id ?? null,
       completion_webhook: null,
       assigned_worker_id: null,
       lease_id: null,
       lease_expires_at: null,
-      idempotency_key: job.idempotency_key ?? null,
+      idempotency_key: (job as { idempotency_key?: string }).idempotency_key ?? null,
       updated_at: new Date().toISOString(),
-      workflow_id: job.workflow_id ?? null,
+      workflow_id: (job as { workflow_id?: string }).workflow_id ?? null,
       dependency_mode: null,
       dependencies_met: null,
     });
@@ -782,7 +790,7 @@ export const handlers = [
       id,
       organization_id: 'org-1',
       name,
-      description: (body.description as string) || undefined,
+      description: (body.description as string) || '',
       cron_expression,
       timezone: (body.timezone as string) || 'UTC',
       queue: queue_name,

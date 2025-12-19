@@ -91,12 +91,21 @@ describe('jobsAPI', () => {
     });
   });
 
-  describe('getStatusCounts', () => {
-    it('should fetch job status counts', async () => {
-      const counts = await jobsAPI.getStatusCounts();
-      expect(counts).toBeDefined();
-      expect(counts.pending).toBeDefined();
-      expect(counts.completed).toBeDefined();
+  describe('batchStatus', () => {
+    it('should fetch batch job status', async () => {
+      const statuses = await jobsAPI.batchStatus(['job-1', 'job-2']);
+      expect(statuses).toBeDefined();
+      expect(Array.isArray(statuses)).toBe(true);
+    });
+
+    it('should return empty array for empty input', async () => {
+      const statuses = await jobsAPI.batchStatus([]);
+      expect(statuses).toEqual([]);
+    });
+
+    it('should throw error for more than 100 IDs', async () => {
+      const ids = Array.from({ length: 101 }, (_, i) => `job-${i}`);
+      await expect(jobsAPI.batchStatus(ids)).rejects.toThrow('Maximum 100 job IDs per request');
     });
   });
 });

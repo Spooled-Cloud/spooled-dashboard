@@ -3,14 +3,21 @@ import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { JobStatusBadge } from '@/components/ui/status-badge';
+import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
+import { InlineError } from '@/components/ui/inline-error';
+import { CopyButton } from '@/components/ui/data-table';
+import { SSEIndicator } from '@/components/ui/sse-indicator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { jobsAPI } from '@/lib/api/jobs';
+import { useJobSSE } from '@/lib/hooks/use-sse';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime, formatJobId } from '@/lib/utils/format';
-import { Input } from '@/components/ui/input';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   RefreshCw,
   XCircle,
   Trash2,
@@ -20,32 +27,17 @@ import {
   Copy,
   CheckCheck,
   ArrowUp,
+  GitBranch,
+  Loader2,
+  Play,
+  Pause,
 } from 'lucide-react';
-import type { Job, JobStatus } from '@/lib/types';
+import type { Job } from '@/lib/types';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
-const statusColors: Record<JobStatus, string> = {
-  pending: 'border-yellow-500 text-yellow-600',
-  scheduled: 'border-blue-500 text-blue-600',
-  processing: 'bg-blue-500 text-white animate-pulse',
-  completed: 'bg-success text-success-foreground',
-  failed: 'bg-destructive text-destructive-foreground',
-  cancelled: 'bg-secondary text-secondary-foreground',
-  deadletter: 'bg-destructive/80 text-destructive-foreground',
-};
-
 interface JobDetailsContentProps {
   jobId: string;
-}
-
-function JobStatusBadge({ status }: { status: JobStatus }) {
-  const config = statusColors[status] || '';
-  return (
-    <Badge variant={status === 'processing' ? 'default' : 'outline'} className={config}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </Badge>
-  );
 }
 
 function JsonDisplay({
@@ -62,6 +54,8 @@ function JsonDisplay({
   }
 
   const jsonString = JSON.stringify(data, null, 2);
+  const sizeKB = new TextEncoder().encode(jsonString).length / 1024;
+  const isLarge = sizeKB > 50;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(jsonString);
@@ -72,7 +66,17 @@ function JsonDisplay({
   return (
     <div className="relative">
       <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-sm font-medium">{title}</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium">{title}</h4>
+          <span className="text-xs text-muted-foreground">
+            ({sizeKB.toFixed(1)} KB)
+          </span>
+          {isLarge && (
+            <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/50">
+              Large payload
+            </Badge>
+          )}
+        </div>
         <Button variant="ghost" size="sm" onClick={handleCopy}>
           {copied ? (
             <>
@@ -87,8 +91,8 @@ function JsonDisplay({
           )}
         </Button>
       </div>
-      <pre className="overflow-x-auto rounded-md bg-muted/50 p-4 text-xs">
-        <code>{jsonString}</code>
+      <pre className={`overflow-x-auto rounded-lg border bg-muted/30 p-4 text-xs ${isLarge ? 'max-h-96' : ''}`}>
+        <code className="font-mono">{jsonString}</code>
       </pre>
     </div>
   );
@@ -99,6 +103,7 @@ interface TimelineEvent {
   time: string;
   icon: LucideIcon;
   active: boolean;
+  variant?: 'default' | 'success' | 'danger' | 'warning';
 }
 
 function JobTimeline({ job }: { job: Job }) {
@@ -114,7 +119,7 @@ function JobTimeline({ job }: { job: Job }) {
           {
             label: 'Scheduled',
             time: job.scheduled_at,
-            icon: Clock,
+            icon: Pause,
             active: true,
           },
         ]
@@ -124,7 +129,7 @@ function JobTimeline({ job }: { job: Job }) {
           {
             label: 'Started',
             time: job.started_at,
-            icon: Clock,
+            icon: Play,
             active: true,
           },
         ]
@@ -136,6 +141,7 @@ function JobTimeline({ job }: { job: Job }) {
             time: job.completed_at,
             icon: CheckCircle,
             active: true,
+            variant: 'success' as const,
           },
         ]
       : []),
@@ -146,6 +152,7 @@ function JobTimeline({ job }: { job: Job }) {
             time: job.failed_at,
             icon: AlertCircle,
             active: true,
+            variant: 'danger' as const,
           },
         ]
       : []),
@@ -156,18 +163,36 @@ function JobTimeline({ job }: { job: Job }) {
             time: job.next_retry_at,
             icon: RefreshCw,
             active: false,
+            variant: 'warning' as const,
           },
         ]
       : []),
   ];
 
+  const variantColors = {
+    default: 'bg-primary/10 text-primary',
+    success: 'bg-emerald-500/10 text-emerald-600',
+    danger: 'bg-red-500/10 text-red-600',
+    warning: 'bg-amber-500/10 text-amber-600',
+  };
+
   return (
     <div className="space-y-3">
       {events.map((event, idx) => (
-        <div key={idx} className="flex gap-3">
+        <motion.div 
+          key={idx}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: idx * 0.1 }}
+          className="flex gap-3"
+        >
           <div className="flex flex-col items-center">
             <div
-              className={`rounded-full p-1.5 ${event.active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+              className={`rounded-full p-1.5 ${
+                event.active 
+                  ? variantColors[event.variant || 'default']
+                  : 'bg-muted text-muted-foreground'
+              }`}
             >
               <event.icon className="h-3 w-3" />
             </div>
@@ -177,34 +202,132 @@ function JobTimeline({ job }: { job: Job }) {
             <p className="text-sm font-medium">{event.label}</p>
             <p className="text-xs text-muted-foreground">{formatRelativeTime(event.time)}</p>
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
+  );
+}
+
+function JobDependenciesPanel({ jobId }: { jobId: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['job-dependencies', jobId],
+    queryFn: () => jobsAPI.getDependencies(jobId),
+    retry: false,
+    staleTime: 30000,
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-24" />;
+  }
+
+  if (error || !data) {
+    return null; // Hide if no dependencies
+  }
+
+  if (data.depends_on.length === 0 && data.depended_by.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <GitBranch className="h-4 w-4" />
+          Dependencies
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {data.depends_on.length > 0 && (
+          <div>
+            <p className="mb-2 text-sm text-muted-foreground">Depends on ({data.depends_on.length})</p>
+            <div className="flex flex-wrap gap-1">
+              {data.depends_on.map((id) => (
+                <a
+                  key={id}
+                  href={`/jobs/${id}`}
+                  className="inline-flex items-center rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
+                >
+                  {formatJobId(id, 8)}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {data.depended_by.length > 0 && (
+          <div>
+            <p className="mb-2 text-sm text-muted-foreground">Dependents ({data.depended_by.length})</p>
+            <div className="flex flex-wrap gap-1">
+              {data.depended_by.map((id) => (
+                <a
+                  key={id}
+                  href={`/jobs/${id}`}
+                  className="inline-flex items-center rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
+                >
+                  {formatJobId(id, 8)}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">All dependencies met:</span>
+          {data.all_dependencies_met ? (
+            <Badge variant="outline" className="border-emerald-500/50 text-emerald-600">
+              <CheckCircle className="mr-1 h-3 w-3" />
+              Yes
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-amber-500/50 text-amber-600">
+              <Clock className="mr-1 h-3 w-3" />
+              Waiting
+            </Badge>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function JobDetailsContent({ jobId }: JobDetailsContentProps) {
   const queryClient = useQueryClient();
   const [newPriority, setNewPriority] = useState<number | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   const {
     data: job,
     isLoading,
     error,
     refetch,
+    isFetching,
   } = useQuery({
     queryKey: queryKeys.jobs.detail(jobId),
     queryFn: () => jobsAPI.get(jobId),
     refetchInterval: (query) => {
       const jobData = query.state.data as Job | undefined;
-      // Only poll frequently for active jobs, stop polling for terminal states
       if (!jobData) return 5000;
       if (['completed', 'failed', 'cancelled', 'deadletter'].includes(jobData.status)) {
-        return false; // Stop polling for terminal states
+        return false;
       }
-      return jobData.status === 'processing' ? 3000 : 10000;
+      // With SSE connected, poll less frequently as backup
+      return sseConnected ? 30000 : (jobData.status === 'processing' ? 3000 : 10000);
     },
   });
+
+  // SSE for real-time updates (only for non-terminal states)
+  const isTerminalState = job && ['completed', 'failed', 'cancelled', 'deadletter'].includes(job.status);
+  const { isConnected: sseConnected, isConnecting: sseConnecting, error: sseError, reconnect: sseReconnect } = useJobSSE(
+    jobId,
+    {
+      enabled: !isTerminalState,
+      onEvent: (event) => {
+        // Refetch job data when we receive an update
+        if (event.type === 'job_status_changed' || event.type === 'job_completed' || event.type === 'job_failed') {
+          queryClient.invalidateQueries({ queryKey: queryKeys.jobs.detail(jobId) });
+        }
+      },
+    }
+  );
 
   const retryMutation = useMutation({
     mutationFn: () => jobsAPI.retry(jobId),
@@ -226,6 +349,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
     onSuccess: () => {
       toast.success('Job cancelled');
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs.detail(jobId) });
+      setShowCancelDialog(false);
     },
     onError: (error) => {
       toast.error('Failed to cancel job', {
@@ -273,9 +397,15 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-20 w-full" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Skeleton className="h-96 w-full" />
-          <Skeleton className="h-96 w-full" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+          <div className="space-y-6">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
         </div>
       </div>
     );
@@ -283,162 +413,175 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
 
   if (error || !job) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-destructive" />
-          <p className="text-lg font-medium text-destructive">Failed to load job</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {error instanceof Error ? error.message : 'Job not found'}
-          </p>
-          <Button variant="outline" onClick={() => window.history.back()} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Go Back
-          </Button>
-        </CardContent>
-      </Card>
+      <InlineError
+        title="Failed to load job"
+        error={error || 'Job not found'}
+        onRetry={() => refetch()}
+      />
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">Job Details</h1>
-          <p className="font-mono text-sm text-muted-foreground">{formatJobId(job.id)}</p>
+      <PageHeader
+        title="Job Details"
+        backHref="/jobs"
+        backLabel="Back to Jobs"
+        actions={
+          <>
+            {!isTerminalState && (
+              <SSEIndicator
+                isConnected={sseConnected}
+                isConnecting={sseConnecting}
+                error={sseError}
+                onReconnect={sseReconnect}
+              />
+            )}
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            {canRetry && (
+              <Button
+                size="sm"
+                onClick={() => retryMutation.mutate()}
+                disabled={retryMutation.isPending}
+              >
+                {retryMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Retry
+              </Button>
+            )}
+            {canCancel && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCancelDialog(true)}
+                disabled={cancelMutation.isPending}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="flex items-center gap-2 mt-1">
+          <span className="font-mono text-sm text-muted-foreground">{formatJobId(job.id)}</span>
+          <CopyButton value={job.id} />
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          {canRetry && (
-            <Button
-              size="sm"
-              onClick={() => retryMutation.mutate()}
-              disabled={retryMutation.isPending}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Retry
-            </Button>
-          )}
-          {canCancel && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => cancelMutation.mutate()}
-              disabled={cancelMutation.isPending}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                if (confirm('Are you sure you want to delete this job?')) {
-                  deleteMutation.mutate();
-                }
-              }}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          )}
-        </div>
-      </div>
+      </PageHeader>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {/* Overview Card */}
           <Card>
             <CardHeader>
               <CardTitle>Overview</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Status</p>
                   <div className="mt-1">
                     <JobStatusBadge status={job.status} />
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Queue</p>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Queue</p>
                   <Badge variant="outline" className="mt-1">
                     {job.queue}
                   </Badge>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Job Type</p>
-                  <p className="mt-1 text-sm font-medium">{job.job_type}</p>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Job Type</p>
+                  <p className="mt-1 text-sm font-medium">{job.job_type || 'N/A'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Priority</p>
-                  <p className="mt-1 text-sm font-medium">{job.priority}</p>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Priority</p>
+                  <p className="mt-1 text-lg font-semibold">{job.priority}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Attempt</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {job.attempt} / {job.max_retries}
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Attempt</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {job.attempt} <span className="text-sm font-normal text-muted-foreground">/ {job.max_retries}</span>
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Backoff Type</p>
-                  <p className="mt-1 text-sm font-medium">{job.backoff_type}</p>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Timeout</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {job.timeout_ms ? `${Math.round(job.timeout_ms / 1000)}s` : 'N/A'}
+                  </p>
                 </div>
-                {job.timeout_ms && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Timeout</p>
-                    <p className="mt-1 text-sm font-medium">{job.timeout_ms}ms</p>
-                  </div>
-                )}
                 {job.workflow_id && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Workflow ID</p>
-                    <p className="mt-1 font-mono text-sm font-medium">
-                      {formatJobId(job.workflow_id, 12)}
-                    </p>
+                  <div className="rounded-lg bg-muted/50 p-3 col-span-2">
+                    <p className="text-xs font-medium text-muted-foreground">Workflow ID</p>
+                    <a
+                      href={`/workflows/${job.workflow_id}`}
+                      className="mt-1 inline-flex items-center gap-1 font-mono text-sm font-medium hover:text-primary"
+                    >
+                      {formatJobId(job.workflow_id, 16)}
+                      <CopyButton value={job.workflow_id} />
+                    </a>
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {job.error && (
-            <Card className="border-destructive">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-destructive">
-                  <AlertCircle className="h-5 w-5" />
-                  Error Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Type</p>
-                  <p className="mt-1 font-mono text-sm font-medium">{job.error.type}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Message</p>
-                  <p className="mt-1 text-sm font-medium">{job.error.message}</p>
-                </div>
-                {job.error.stack && (
-                  <div>
-                    <p className="mb-2 text-sm text-muted-foreground">Stack Trace</p>
-                    <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs">
-                      <code>{job.error.stack}</code>
-                    </pre>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {/* Error Details */}
+          <AnimatePresence>
+            {job.error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <Card className="border-destructive/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-destructive">
+                      <AlertCircle className="h-5 w-5" />
+                      Error Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="rounded-lg bg-destructive/5 p-3">
+                      <p className="text-xs font-medium text-muted-foreground">Type</p>
+                      <p className="mt-1 font-mono text-sm font-medium">{job.error.type}</p>
+                    </div>
+                    <div className="rounded-lg bg-destructive/5 p-3">
+                      <p className="text-xs font-medium text-muted-foreground">Message</p>
+                      <p className="mt-1 text-sm font-medium">{job.error.message}</p>
+                    </div>
+                    {job.error.stack && (
+                      <div>
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">Stack Trace</p>
+                        <pre className="overflow-x-auto rounded-lg border bg-muted/30 p-3 text-xs">
+                          <code className="font-mono">{job.error.stack}</code>
+                        </pre>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          {/* Payload */}
           <Card>
             <CardHeader>
               <CardTitle>Payload</CardTitle>
@@ -448,10 +591,14 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
             </CardContent>
           </Card>
 
+          {/* Result */}
           {job.result && (
             <Card>
               <CardHeader>
-                <CardTitle>Result</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-emerald-600">
+                  <CheckCircle className="h-5 w-5" />
+                  Result
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <JsonDisplay data={job.result} title="Result" />
@@ -459,10 +606,11 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
             </Card>
           )}
 
+          {/* Metadata */}
           {job.metadata && Object.keys(job.metadata).length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Metadata</CardTitle>
+                <CardTitle>Metadata / Tags</CardTitle>
               </CardHeader>
               <CardContent>
                 <JsonDisplay data={job.metadata as Record<string, unknown>} title="Metadata" />
@@ -472,6 +620,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
         </div>
 
         <div className="space-y-6">
+          {/* Timeline */}
           <Card>
             <CardHeader>
               <CardTitle>Timeline</CardTitle>
@@ -481,14 +630,18 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
             </CardContent>
           </Card>
 
+          {/* Dependencies */}
+          <JobDependenciesPanel jobId={jobId} />
+
+          {/* Actions */}
           <Card>
             <CardHeader>
               <CardTitle>Actions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               {canBoostPriority && (
-                <div className="space-y-2 border-b pb-2">
-                  <p className="text-sm text-muted-foreground">Boost Priority</p>
+                <div className="space-y-2 border-b pb-3">
+                  <p className="text-sm font-medium">Boost Priority</p>
                   <div className="flex gap-2">
                     <Input
                       type="number"
@@ -508,7 +661,11 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                       }}
                       disabled={boostPriorityMutation.isPending || newPriority === job?.priority}
                     >
-                      <ArrowUp className="mr-1 h-4 w-4" />
+                      {boostPriorityMutation.isPending ? (
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowUp className="mr-1 h-4 w-4" />
+                      )}
                       Update
                     </Button>
                   </div>
@@ -529,7 +686,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => cancelMutation.mutate()}
+                  onClick={() => setShowCancelDialog(true)}
                   disabled={cancelMutation.isPending}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
@@ -540,29 +697,42 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                 <Button
                   variant="outline"
                   className="w-full justify-start text-destructive hover:text-destructive"
-                  onClick={() => {
-                    if (confirm('Are you sure you want to delete this job?')) {
-                      deleteMutation.mutate();
-                    }
-                  }}
+                  onClick={() => setShowDeleteDialog(true)}
                   disabled={deleteMutation.isPending}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Job
                 </Button>
               )}
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => (window.location.href = '/jobs')}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Jobs
-              </Button>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Cancel Confirmation */}
+      <DangerConfirmDialog
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+        onConfirm={() => cancelMutation.mutate()}
+        title="Cancel Job"
+        description="Are you sure you want to cancel this job? This action cannot be undone."
+        confirmLabel="Cancel Job"
+        isLoading={cancelMutation.isPending}
+        warnings={['Job will be marked as cancelled', 'Any pending retries will be stopped']}
+      />
+
+      {/* Delete Confirmation */}
+      <DangerConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete Job"
+        description="Are you sure you want to permanently delete this job?"
+        confirmText="DELETE"
+        confirmLabel="Delete Job"
+        isLoading={deleteMutation.isPending}
+        warnings={['Job data will be permanently deleted', 'This action cannot be undone']}
+      />
     </div>
   );
 }

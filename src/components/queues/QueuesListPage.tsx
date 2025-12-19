@@ -1,25 +1,34 @@
+import { useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/ui/page-header';
+import { QueueStatusBadge } from '@/components/ui/status-badge';
+import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
+import { EmptyState } from '@/components/ui/empty-state';
+import { InlineError } from '@/components/ui/inline-error';
+import { DataTableLoading } from '@/components/ui/data-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI } from '@/lib/api/queues';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
-import { RefreshCw, Pause, Play, Trash2, Settings } from 'lucide-react';
+import { RefreshCw, Pause, Play, Trash2, Settings, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateQueueDialog } from './CreateQueueDialog';
 import type { Queue } from '@/lib/types';
 
 function QueuesListContent() {
   const queryClient = useQueryClient();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [queueToDelete, setQueueToDelete] = useState<string | null>(null);
+  const [deleteJobs, setDeleteJobs] = useState(false);
 
   const {
     data: queues,
     isLoading,
     error,
     refetch,
+    isFetching,
   } = useQuery({
     queryKey: queryKeys.queues.list(),
     queryFn: () => queuesAPI.list(),
@@ -53,14 +62,17 @@ function QueuesListContent() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (name: string) => queuesAPI.delete(name),
-    onSuccess: (_, name) => {
+    mutationFn: ({ name, deleteJobs: del }: { name: string; deleteJobs: boolean }) => 
+      queuesAPI.delete(name, del),
+    onSuccess: (_, { name }) => {
       toast.success('Queue deleted', { description: `Queue "${name}" has been removed` });
       queryClient.invalidateQueries({ queryKey: queryKeys.queues.list() });
+      setDeleteDialogOpen(false);
+      setQueueToDelete(null);
     },
-    onError: (error, name) => {
+    onError: (error) => {
       toast.error('Failed to delete queue', {
-        description: error instanceof Error ? error.message : `Could not delete "${name}"`,
+        description: error instanceof Error ? error.message : 'Could not delete queue',
       });
     },
   });
@@ -73,57 +85,64 @@ function QueuesListContent() {
     }
   };
 
-  const handleDelete = (name: string) => {
-    if (
-      confirm(
-        `Are you sure you want to delete the queue "${name}"? This can only be done if the queue is empty.`
-      )
-    ) {
-      deleteMutation.mutate(name);
+  const handleOpenDeleteDialog = (name: string) => {
+    setQueueToDelete(name);
+    setDeleteJobs(false);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (queueToDelete) {
+      deleteMutation.mutate({ name: queueToDelete, deleteJobs });
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Queues</h1>
-          <p className="text-muted-foreground">Manage job queues and their configurations</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <CreateQueueDialog
-            onSuccess={(queueName) => {
-              refetch();
-              window.location.href = `/queues/${queueName}`;
-            }}
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="Queues"
+        description="Manage job queues and their configurations"
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <CreateQueueDialog
+              onSuccess={(queueName) => {
+                refetch();
+                window.location.href = `/queues/${queueName}`;
+              }}
+            />
+          </>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="space-y-3 p-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
-            </div>
+            <DataTableLoading rows={5} columns={4} />
           ) : error ? (
-            <div className="p-8 text-center">
-              <p className="text-destructive">Failed to load queues</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {error instanceof Error ? error.message : 'An error occurred'}
-              </p>
-            </div>
+            <InlineError
+              title="Failed to load queues"
+              error={error}
+              onRetry={() => refetch()}
+              isRetrying={isFetching}
+            />
           ) : !queues || queues.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <p className="mb-1 text-lg font-medium">No queues found</p>
-              <p className="text-sm">Create your first queue to get started</p>
-            </div>
+            <EmptyState
+              title="No queues found"
+              description="Create your first queue to start processing jobs"
+              icon={Layers}
+              action={
+                <CreateQueueDialog
+                  onSuccess={(queueName) => {
+                    refetch();
+                    window.location.href = `/queues/${queueName}`;
+                  }}
+                />
+              }
+            />
           ) : (
             <div className="divide-y">
               {queues.map((queue) => (
@@ -133,15 +152,11 @@ function QueuesListContent() {
                       <div className="mb-2 flex items-center gap-3">
                         <a
                           href={`/queues/${queue.name}`}
-                          className="text-lg font-semibold hover:text-primary"
+                          className="text-lg font-semibold hover:text-primary hover:underline"
                         >
                           {queue.name}
                         </a>
-                        {queue.paused && (
-                          <Badge variant="outline" className="border-yellow-500 text-yellow-600">
-                            Paused
-                          </Badge>
-                        )}
+                        <QueueStatusBadge paused={queue.paused} size="sm" />
                       </div>
 
                       {queue.description && (
@@ -149,21 +164,21 @@ function QueuesListContent() {
                       )}
 
                       <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Concurrency</p>
-                          <p className="text-sm font-medium">{queue.concurrency}</p>
+                        <div className="rounded-lg bg-muted/50 p-3">
+                          <p className="text-xs font-medium text-muted-foreground">Concurrency</p>
+                          <p className="text-lg font-semibold">{queue.concurrency}</p>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Max Retries</p>
-                          <p className="text-sm font-medium">{queue.max_retries}</p>
+                        <div className="rounded-lg bg-muted/50 p-3">
+                          <p className="text-xs font-medium text-muted-foreground">Max Retries</p>
+                          <p className="text-lg font-semibold">{queue.max_retries}</p>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Retry Delay</p>
-                          <p className="text-sm font-medium">{queue.retry_delay_ms}ms</p>
+                        <div className="rounded-lg bg-muted/50 p-3">
+                          <p className="text-xs font-medium text-muted-foreground">Retry Delay</p>
+                          <p className="text-lg font-semibold">{queue.retry_delay_ms}ms</p>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Job Timeout</p>
-                          <p className="text-sm font-medium">{queue.job_timeout_ms}ms</p>
+                        <div className="rounded-lg bg-muted/50 p-3">
+                          <p className="text-xs font-medium text-muted-foreground">Job Timeout</p>
+                          <p className="text-lg font-semibold">{queue.job_timeout_ms}ms</p>
                         </div>
                       </div>
 
@@ -181,7 +196,7 @@ function QueuesListContent() {
 
                     <div className="ml-4 flex gap-2">
                       <Button
-                        variant="outline"
+                        variant={queue.paused ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => handleTogglePause(queue)}
                         disabled={pauseMutation.isPending || resumeMutation.isPending}
@@ -206,11 +221,12 @@ function QueuesListContent() {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(queue.name)}
+                        size="icon"
+                        onClick={() => handleOpenDeleteDialog(queue.name)}
                         disabled={deleteMutation.isPending}
+                        className="text-muted-foreground hover:text-destructive"
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -220,6 +236,45 @@ function QueuesListContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <DangerConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setQueueToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title={`Delete Queue "${queueToDelete}"`}
+        description={
+          <>
+            <p className="mb-3">
+              Are you sure you want to delete this queue? This action cannot be undone.
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={deleteJobs}
+                onChange={(e) => setDeleteJobs(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span>Also delete all jobs in this queue</span>
+            </label>
+          </>
+        }
+        confirmText={queueToDelete || ''}
+        confirmLabel="Delete Queue"
+        isLoading={deleteMutation.isPending}
+        warnings={
+          deleteJobs
+            ? [
+                'Queue configuration will be deleted',
+                'All jobs in this queue will be permanently deleted',
+                'This includes pending, processing, and completed jobs',
+              ]
+            : ['Queue configuration will be deleted', 'Existing jobs must be moved or completed first']
+        }
+      />
     </div>
   );
 }

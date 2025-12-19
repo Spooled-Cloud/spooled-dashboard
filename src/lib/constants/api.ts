@@ -38,12 +38,20 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/v1/jobs/${id}`, // Also used for cancel
     RETRY: (id: string) => `/api/v1/jobs/${id}/retry`,
     PRIORITY: (id: string) => `/api/v1/jobs/${id}/priority`,
+    DEPENDENCIES: (id: string) => `/api/v1/jobs/${id}/dependencies`,
     STATS: '/api/v1/jobs/stats',
-    STATUS: '/api/v1/jobs/status',
+    STATUS: '/api/v1/jobs/status', // GET with ?ids=... for batch lookup
     BULK: '/api/v1/jobs/bulk',
     DLQ: '/api/v1/jobs/dlq',
     DLQ_RETRY: '/api/v1/jobs/dlq/retry',
     DLQ_PURGE: '/api/v1/jobs/dlq/purge',
+  },
+
+  // Realtime Endpoints
+  EVENTS: {
+    JOBS: (id: string) => `/api/v1/events/jobs/${id}`,
+    QUEUES: (name: string) => `/api/v1/events/queues/${name}`,
+    ALL: '/api/v1/events',
   },
 
   // Queues
