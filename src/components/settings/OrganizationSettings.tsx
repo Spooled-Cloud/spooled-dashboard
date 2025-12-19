@@ -172,7 +172,8 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
               ) : (
                 <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
                   <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                    ⚠️ No webhook token configured. Incoming webhooks are blocked until you regenerate a token.
+                    ⚠️ No webhook token configured. Incoming webhooks are blocked until you
+                    regenerate a token.
                   </p>
                 </div>
               )}
