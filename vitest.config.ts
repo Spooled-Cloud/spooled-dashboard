@@ -23,6 +23,9 @@ export default defineConfig({
     },
     testTimeout: 10000,
     hookTimeout: 10000,
+    // Run with single worker for stability
+    maxWorkers: 1,
+    fileParallelism: false,
   },
   resolve: {
     alias: {
