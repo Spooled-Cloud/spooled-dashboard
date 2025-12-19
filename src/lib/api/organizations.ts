@@ -143,16 +143,6 @@ export const organizationsAPI = {
       {}
     );
   },
-
-  /**
-   * POST /api/v1/organizations/webhook-token/clear
-   * Clear the webhook token (disable authentication)
-   */
-  clearWebhookToken: (): Promise<WebhookTokenResponse> => {
-    return apiClient.post<WebhookTokenResponse>('/api/v1/organizations/webhook-token/clear', {
-      confirm: true,
-    });
-  },
 };
 
 export interface WebhookTokenResponse {

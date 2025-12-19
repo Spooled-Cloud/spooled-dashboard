@@ -24,7 +24,6 @@ import {
   Webhook,
   Copy,
   RefreshCw,
-  Trash2,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -87,19 +86,6 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
     },
     onError: (error) => {
       toast.error('Failed to regenerate webhook token', {
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    },
-  });
-
-  const clearMutation = useMutation({
-    mutationFn: () => organizationsAPI.clearWebhookToken(),
-    onSuccess: () => {
-      toast.success('Webhook token cleared');
-      queryClient.invalidateQueries({ queryKey: ['webhook-token', orgId] });
-    },
-    onError: (error) => {
-      toast.error('Failed to clear webhook token', {
         description: error instanceof Error ? error.message : 'An error occurred',
       });
     },
@@ -186,8 +172,7 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
               ) : (
                 <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
                   <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                    ⚠️ No webhook token configured. Your webhook endpoint accepts unauthenticated
-                    requests.
+                    ⚠️ No webhook token configured. Incoming webhooks are blocked until you regenerate a token.
                   </p>
                 </div>
               )}
@@ -222,40 +207,6 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-
-              {webhookData?.webhook_token && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={clearMutation.isPending}>
-                      {clearMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="mr-2 h-4 w-4" />
-                      )}
-                      Clear Token
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Clear Webhook Token?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove authentication from your webhook endpoint. Anyone with your
-                        webhook URL will be able to send events to your organization. This is not
-                        recommended for production use.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => clearMutation.mutate()}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Clear Token
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
             </div>
           </>
         )}
