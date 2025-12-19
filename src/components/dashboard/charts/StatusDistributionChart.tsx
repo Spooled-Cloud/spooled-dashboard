@@ -1,10 +1,12 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import type { PieLabelRenderProps } from 'recharts';
 import type { JobStatus } from '@/lib/types';
 
 interface StatusData {
   name: string;
   value: number;
   status: JobStatus;
+  [key: string]: unknown;
 }
 
 interface StatusDistributionChartProps {
@@ -77,22 +79,21 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
     return null;
   };
 
-  const CustomLabel = ({
-    cx,
-    cy,
-    midAngle,
-    innerRadius,
-    outerRadius,
-    percent,
-  }: {
-    cx: number;
-    cy: number;
-    midAngle: number;
-    innerRadius: number;
-    outerRadius: number;
-    percent: number;
-  }) => {
-    if (percent < 0.05) return null;
+  const CustomLabel = (props: PieLabelRenderProps) => {
+    const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+    
+    // All these values can be undefined in PieLabelRenderProps, so we need to guard
+    if (
+      typeof cx !== 'number' ||
+      typeof cy !== 'number' ||
+      typeof midAngle !== 'number' ||
+      typeof innerRadius !== 'number' ||
+      typeof outerRadius !== 'number' ||
+      typeof percent !== 'number' ||
+      percent < 0.05
+    ) {
+      return null;
+    }
 
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos((-midAngle * Math.PI) / 180);
