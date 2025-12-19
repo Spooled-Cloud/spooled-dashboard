@@ -2,6 +2,7 @@
  * Enhanced Dashboard with Operations Control Center
  */
 
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -219,27 +220,29 @@ function QuickActionsCard() {
   );
 }
 
-function ActionButton({
-  icon,
-  label,
-  disabled = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  disabled?: boolean;
-}) {
+const ActionButton = React.forwardRef<
+  HTMLButtonElement,
+  {
+    icon: React.ReactNode;
+    label: string;
+    disabled?: boolean;
+  } & React.ButtonHTMLAttributes<HTMLButtonElement>
+>(({ icon, label, disabled = false, ...props }, ref) => {
   return (
     <Button
+      ref={ref}
       variant="outline"
       size="sm"
       className="h-auto w-full flex-col gap-1 py-3"
       disabled={disabled}
+      {...props}
     >
       <span className="flex h-5 w-5 items-center justify-center">{icon}</span>
       <span className="text-xs">{label}</span>
     </Button>
   );
-}
+});
+ActionButton.displayName = 'ActionButton';
 
 /**
  * Queues Control Table - Manage queues with pause/resume
