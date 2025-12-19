@@ -25,11 +25,7 @@ interface DataTableContainerProps {
 }
 
 export function DataTableContainer({ children, className }: DataTableContainerProps) {
-  return (
-    <div className={cn('rounded-lg border bg-card', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('rounded-lg border bg-card', className)}>{children}</div>;
 }
 
 interface DataTableProps {
@@ -42,9 +38,7 @@ interface DataTableProps {
 export function DataTable({ children, className, stickyHeader = true }: DataTableProps) {
   return (
     <div className={cn('relative w-full overflow-auto', stickyHeader && 'max-h-[600px]')}>
-      <table className={cn('w-full caption-bottom text-sm', className)}>
-        {children}
-      </table>
+      <table className={cn('w-full caption-bottom text-sm', className)}>{children}</table>
     </div>
   );
 }
@@ -57,7 +51,7 @@ interface DataTableHeaderProps {
 
 export function DataTableHeader({ children, className, sticky = true }: DataTableHeaderProps) {
   return (
-    <thead 
+    <thead
       className={cn(
         'border-b bg-muted/50 [&_tr]:border-b',
         sticky && 'sticky top-0 z-10 bg-muted/95 backdrop-blur-sm',
@@ -81,14 +75,14 @@ interface DataTableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement
   onSort?: () => void;
 }
 
-export function DataTableHead({ 
-  children, 
-  className, 
+export function DataTableHead({
+  children,
+  className,
   align = 'left',
   sortable,
   sortDirection,
   onSort,
-  ...props 
+  ...props
 }: DataTableHeadProps) {
   const alignmentClasses = {
     left: 'text-left',
@@ -109,9 +103,7 @@ export function DataTableHead({
     >
       {children}
       {sortable && sortDirection && (
-        <span className="ml-1">
-          {sortDirection === 'asc' ? '↑' : '↓'}
-        </span>
+        <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
       )}
     </th>
   );
@@ -125,12 +117,12 @@ interface DataTableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
   clickable?: boolean;
 }
 
-export function DataTableRow({ 
-  children, 
-  className, 
+export function DataTableRow({
+  children,
+  className,
   highlighted,
   clickable,
-  ...props 
+  ...props
 }: DataTableRowProps) {
   return (
     <tr
@@ -157,13 +149,13 @@ interface DataTableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement
   muted?: boolean;
 }
 
-export function DataTableCell({ 
-  children, 
+export function DataTableCell({
+  children,
   className,
   align = 'left',
   mono,
   muted,
-  ...props 
+  ...props
 }: DataTableCellProps) {
   const alignmentClasses = {
     left: 'text-left',
@@ -194,17 +186,11 @@ interface DataTableLoadingProps {
 
 export function DataTableLoading({ rows = 5, columns = 5 }: DataTableLoadingProps) {
   return (
-    <div className="p-4 space-y-3">
+    <div className="space-y-3 p-4">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex gap-4">
           {Array.from({ length: columns }).map((_, j) => (
-            <Skeleton 
-              key={j} 
-              className={cn(
-                'h-10',
-                j === 0 ? 'w-32' : 'flex-1'
-              )} 
-            />
+            <Skeleton key={j} className={cn('h-10', j === 0 ? 'w-32' : 'flex-1')} />
           ))}
         </div>
       ))}
@@ -230,14 +216,19 @@ export function DataTableEmpty({
   return (
     <EmptyState
       title={title}
-      description={description || (hasFilters ? 'Try adjusting your filters' : 'Get started by creating your first item')}
+      description={
+        description ||
+        (hasFilters ? 'Try adjusting your filters' : 'Get started by creating your first item')
+      }
       variant={hasFilters ? 'filter' : 'empty'}
       action={action}
-      secondaryAction={hasFilters && onClearFilters ? (
-        <Button variant="ghost" size="sm" onClick={onClearFilters}>
-          Clear filters
-        </Button>
-      ) : undefined}
+      secondaryAction={
+        hasFilters && onClearFilters ? (
+          <Button variant="ghost" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        ) : undefined
+      }
       compact
     />
   );
@@ -308,7 +299,7 @@ export function DataTablePagination({
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
+          <ChevronLeft className="mr-1 h-4 w-4" />
           Previous
         </Button>
         <div className="mx-2 text-sm text-muted-foreground">
@@ -321,7 +312,7 @@ export function DataTablePagination({
           disabled={currentPage >= totalPages}
         >
           Next
-          <ChevronRight className="h-4 w-4 ml-1" />
+          <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
         {showFirstLast && (
           <Button
@@ -350,7 +341,7 @@ export function CopyButton({ value, className }: CopyButtonProps) {
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    
+
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
@@ -380,12 +371,7 @@ export function CopyButton({ value, className }: CopyButtonProps) {
             <Check className="h-3.5 w-3.5 text-success" />
           </motion.span>
         ) : (
-          <motion.span
-            key="copy"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-          >
+          <motion.span key="copy" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
             <Copy className="h-3.5 w-3.5" />
           </motion.span>
         )}
@@ -393,4 +379,3 @@ export function CopyButton({ value, className }: CopyButtonProps) {
     </button>
   );
 }
-

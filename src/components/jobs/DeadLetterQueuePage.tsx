@@ -30,7 +30,7 @@ function DeadLetterQueueContent() {
   const queryClient = useQueryClient();
   const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
   const [queueFilter, setQueueFilter] = useState('');
-  
+
   // Dialog states
   const [showRetryDialog, setShowRetryDialog] = useState(false);
   const [showPurgeDialog, setShowPurgeDialog] = useState(false);
@@ -262,7 +262,9 @@ function DeadLetterQueueContent() {
                       </DataTableCell>
                       <DataTableCell>
                         <div className="flex flex-col">
-                          <span className="text-sm">{job.attempt}/{job.max_retries}</span>
+                          <span className="text-sm">
+                            {job.attempt}/{job.max_retries}
+                          </span>
                           <span className="text-xs text-muted-foreground">
                             {formatRelativeTime(job.created_at)}
                           </span>
@@ -270,7 +272,10 @@ function DeadLetterQueueContent() {
                       </DataTableCell>
                       <DataTableCell>
                         {job.error && (
-                          <p className="max-w-xs truncate text-xs text-destructive" title={job.error.message}>
+                          <p
+                            className="max-w-xs truncate text-xs text-destructive"
+                            title={job.error.message}
+                          >
                             {job.error.message}
                           </p>
                         )}

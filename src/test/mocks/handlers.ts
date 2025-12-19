@@ -758,7 +758,10 @@ export const handlers = [
       cron_expression: schedule.cron_expression,
       timezone: schedule.timezone,
       queue_name: schedule.queue,
-      payload_template: { ...(schedule.payload as Record<string, unknown>), job_type: schedule.job_type },
+      payload_template: {
+        ...(schedule.payload as Record<string, unknown>),
+        job_type: schedule.job_type,
+      },
       priority: 0,
       max_retries: 3,
       timeout_seconds: 300,
@@ -833,9 +836,10 @@ export const handlers = [
       cron_expression: (body.cron_expression as string) ?? schedule.cron_expression,
       timezone: (body.timezone as string) ?? schedule.timezone,
       queue_name: (body.queue_name as string) ?? schedule.queue,
-      payload_template:
-        (body.payload_template as Record<string, unknown>) ??
-        { ...(schedule.payload as Record<string, unknown>), job_type: schedule.job_type },
+      payload_template: (body.payload_template as Record<string, unknown>) ?? {
+        ...(schedule.payload as Record<string, unknown>),
+        job_type: schedule.job_type,
+      },
       priority: 0,
       max_retries: 3,
       timeout_seconds: 300,
@@ -881,7 +885,10 @@ export const handlers = [
       cron_expression: schedule.cron_expression,
       timezone: schedule.timezone,
       queue_name: schedule.queue,
-      payload_template: { ...(schedule.payload as Record<string, unknown>), job_type: schedule.job_type },
+      payload_template: {
+        ...(schedule.payload as Record<string, unknown>),
+        job_type: schedule.job_type,
+      },
       priority: 0,
       max_retries: 3,
       timeout_seconds: 300,
@@ -912,7 +919,10 @@ export const handlers = [
       cron_expression: schedule.cron_expression,
       timezone: schedule.timezone,
       queue_name: schedule.queue,
-      payload_template: { ...(schedule.payload as Record<string, unknown>), job_type: schedule.job_type },
+      payload_template: {
+        ...(schedule.payload as Record<string, unknown>),
+        job_type: schedule.job_type,
+      },
       priority: 0,
       max_retries: 3,
       timeout_seconds: 300,

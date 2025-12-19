@@ -101,10 +101,7 @@ export function QuickStatusLookup() {
               disabled={lookupMutation.isPending}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              {input
-                .split(/[,\n\s]+/)
-                .filter((id) => id.trim().length > 0).length}{' '}
-              ID(s) detected
+              {input.split(/[,\n\s]+/).filter((id) => id.trim().length > 0).length} ID(s) detected
             </p>
           </div>
 
@@ -203,4 +200,3 @@ export function QuickStatusLookup() {
     </Dialog>
   );
 }
-

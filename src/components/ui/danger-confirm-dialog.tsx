@@ -50,9 +50,9 @@ export function DangerConfirmDialog({
 }: DangerConfirmDialogProps) {
   const [inputValue, setInputValue] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
-  
+
   const canConfirm = confirmText ? inputValue === confirmText : true;
-  
+
   // Reset input when dialog opens/closes
   React.useEffect(() => {
     if (open) {
@@ -83,11 +83,9 @@ export function DangerConfirmDialog({
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
           <AlertDialogTitle className="text-center">{title}</AlertDialogTitle>
-          <AlertDialogDescription className="text-center">
-            {description}
-          </AlertDialogDescription>
+          <AlertDialogDescription className="text-center">{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        
+
         {warnings && warnings.length > 0 && (
           <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
             <ul className="space-y-1 text-sm text-destructive">
@@ -100,11 +98,12 @@ export function DangerConfirmDialog({
             </ul>
           </div>
         )}
-        
+
         {confirmText && (
           <div className="space-y-2">
             <Label htmlFor="confirm-input" className="text-sm text-muted-foreground">
-              Type <span className="font-mono font-semibold text-foreground">{confirmText}</span> to confirm
+              Type <span className="font-mono font-semibold text-foreground">{confirmText}</span> to
+              confirm
             </Label>
             <Input
               id="confirm-input"
@@ -115,26 +114,20 @@ export function DangerConfirmDialog({
               placeholder={confirmText}
               className={cn(
                 'font-mono',
-                inputValue && inputValue !== confirmText && 'border-destructive focus-visible:ring-destructive'
+                inputValue &&
+                  inputValue !== confirmText &&
+                  'border-destructive focus-visible:ring-destructive'
               )}
               disabled={isLoading}
             />
           </div>
         )}
-        
+
         <AlertDialogFooter className="gap-2 sm:gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             {cancelLabel}
           </Button>
-          <Button
-            variant="destructive"
-            onClick={handleConfirm}
-            disabled={!canConfirm || isLoading}
-          >
+          <Button variant="destructive" onClick={handleConfirm} disabled={!canConfirm || isLoading}>
             {isLoading ? 'Processing...' : confirmLabel}
           </Button>
         </AlertDialogFooter>
@@ -142,4 +135,3 @@ export function DangerConfirmDialog({
     </AlertDialog>
   );
 }
-

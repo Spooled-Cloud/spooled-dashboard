@@ -46,21 +46,18 @@ function StatCard({ title, value, subtitle, icon, trend, variant = 'default' }: 
               {title}
             </p>
             <p className="text-3xl font-bold tracking-tight">{value}</p>
-            {subtitle && (
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
-            )}
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
             {trend && (
               <p className="flex items-center gap-1 text-xs">
                 <span className={trend.value >= 0 ? 'text-emerald-600' : 'text-red-600'}>
-                  {trend.value >= 0 ? '+' : ''}{trend.value}
+                  {trend.value >= 0 ? '+' : ''}
+                  {trend.value}
                 </span>
                 <span className="text-muted-foreground">{trend.label}</span>
               </p>
             )}
           </div>
-          <div className={`rounded-lg p-2.5 ${variantStyles[variant]}`}>
-            {icon}
-          </div>
+          <div className={`rounded-lg p-2.5 ${variantStyles[variant]}`}>{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -122,11 +119,7 @@ export function AdminDashboard() {
   if (error) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-6">
-        <InlineError
-          title="Error Loading Dashboard"
-          error={error}
-          onRetry={loadStats}
-        />
+        <InlineError title="Error Loading Dashboard" error={error} onRetry={loadStats} />
       </div>
     );
   }
@@ -198,7 +191,9 @@ export function AdminDashboard() {
           <CardContent>
             <div className="space-y-4">
               {stats?.organizations.by_plan.map((item) => {
-                const percentage = Math.round((item.count / (stats?.organizations.total || 1)) * 100);
+                const percentage = Math.round(
+                  (item.count / (stats?.organizations.total || 1)) * 100
+                );
                 return (
                   <div key={item.plan} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -253,7 +248,9 @@ export function AdminDashboard() {
                   <Activity className="h-4 w-4 text-blue-600" />
                   <span className="text-sm">Processing</span>
                 </div>
-                <span className="text-lg font-semibold text-blue-600">{stats?.jobs.processing ?? 0}</span>
+                <span className="text-lg font-semibold text-blue-600">
+                  {stats?.jobs.processing ?? 0}
+                </span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 p-3">
                 <div className="flex items-center gap-2">
@@ -302,4 +299,3 @@ export function AdminDashboard() {
     </div>
   );
 }
-

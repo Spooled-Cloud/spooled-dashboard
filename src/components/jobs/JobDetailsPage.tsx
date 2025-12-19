@@ -68,11 +68,9 @@ function JsonDisplay({
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h4 className="text-sm font-medium">{title}</h4>
-          <span className="text-xs text-muted-foreground">
-            ({sizeKB.toFixed(1)} KB)
-          </span>
+          <span className="text-xs text-muted-foreground">({sizeKB.toFixed(1)} KB)</span>
           {isLarge && (
-            <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/50">
+            <Badge variant="outline" className="border-amber-500/50 text-xs text-amber-600">
               Large payload
             </Badge>
           )}
@@ -91,7 +89,9 @@ function JsonDisplay({
           )}
         </Button>
       </div>
-      <pre className={`overflow-x-auto rounded-lg border bg-muted/30 p-4 text-xs ${isLarge ? 'max-h-96' : ''}`}>
+      <pre
+        className={`overflow-x-auto rounded-lg border bg-muted/30 p-4 text-xs ${isLarge ? 'max-h-96' : ''}`}
+      >
         <code className="font-mono">{jsonString}</code>
       </pre>
     </div>
@@ -179,7 +179,7 @@ function JobTimeline({ job }: { job: Job }) {
   return (
     <div className="space-y-3">
       {events.map((event, idx) => (
-        <motion.div 
+        <motion.div
           key={idx}
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
@@ -189,7 +189,7 @@ function JobTimeline({ job }: { job: Job }) {
           <div className="flex flex-col items-center">
             <div
               className={`rounded-full p-1.5 ${
-                event.active 
+                event.active
                   ? variantColors[event.variant || 'default']
                   : 'bg-muted text-muted-foreground'
               }`}
@@ -239,7 +239,9 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
       <CardContent className="space-y-4">
         {data.depends_on.length > 0 && (
           <div>
-            <p className="mb-2 text-sm text-muted-foreground">Depends on ({data.depends_on.length})</p>
+            <p className="mb-2 text-sm text-muted-foreground">
+              Depends on ({data.depends_on.length})
+            </p>
             <div className="flex flex-wrap gap-1">
               {data.depends_on.map((id) => (
                 <a
@@ -255,7 +257,9 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
         )}
         {data.depended_by.length > 0 && (
           <div>
-            <p className="mb-2 text-sm text-muted-foreground">Dependents ({data.depended_by.length})</p>
+            <p className="mb-2 text-sm text-muted-foreground">
+              Dependents ({data.depended_by.length})
+            </p>
             <div className="flex flex-wrap gap-1">
               {data.depended_by.map((id) => (
                 <a
@@ -310,24 +314,31 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
         return false;
       }
       // With SSE connected, poll less frequently as backup
-      return sseConnected ? 30000 : (jobData.status === 'processing' ? 3000 : 10000);
+      return sseConnected ? 30000 : jobData.status === 'processing' ? 3000 : 10000;
     },
   });
 
   // SSE for real-time updates (only for non-terminal states)
-  const isTerminalState = job && ['completed', 'failed', 'cancelled', 'deadletter'].includes(job.status);
-  const { isConnected: sseConnected, isConnecting: sseConnecting, error: sseError, reconnect: sseReconnect } = useJobSSE(
-    jobId,
-    {
-      enabled: !isTerminalState,
-      onEvent: (event) => {
-        // Refetch job data when we receive an update
-        if (event.type === 'job_status_changed' || event.type === 'job_completed' || event.type === 'job_failed') {
-          queryClient.invalidateQueries({ queryKey: queryKeys.jobs.detail(jobId) });
-        }
-      },
-    }
-  );
+  const isTerminalState =
+    job && ['completed', 'failed', 'cancelled', 'deadletter'].includes(job.status);
+  const {
+    isConnected: sseConnected,
+    isConnecting: sseConnecting,
+    error: sseError,
+    reconnect: sseReconnect,
+  } = useJobSSE(jobId, {
+    enabled: !isTerminalState,
+    onEvent: (event) => {
+      // Refetch job data when we receive an update
+      if (
+        event.type === 'job_status_changed' ||
+        event.type === 'job_completed' ||
+        event.type === 'job_failed'
+      ) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobs.detail(jobId) });
+      }
+    },
+  });
 
   const retryMutation = useMutation({
     mutationFn: () => jobsAPI.retry(jobId),
@@ -480,7 +491,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
           </>
         }
       >
-        <div className="flex items-center gap-2 mt-1">
+        <div className="mt-1 flex items-center gap-2">
           <span className="font-mono text-sm text-muted-foreground">{formatJobId(job.id)}</span>
           <CopyButton value={job.id} />
         </div>
@@ -518,7 +529,10 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                 <div className="rounded-lg bg-muted/50 p-3">
                   <p className="text-xs font-medium text-muted-foreground">Attempt</p>
                   <p className="mt-1 text-lg font-semibold">
-                    {job.attempt} <span className="text-sm font-normal text-muted-foreground">/ {job.max_retries}</span>
+                    {job.attempt}{' '}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      / {job.max_retries}
+                    </span>
                   </p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3">
@@ -528,7 +542,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                   </p>
                 </div>
                 {job.workflow_id && (
-                  <div className="rounded-lg bg-muted/50 p-3 col-span-2">
+                  <div className="col-span-2 rounded-lg bg-muted/50 p-3">
                     <p className="text-xs font-medium text-muted-foreground">Workflow ID</p>
                     <a
                       href={`/workflows/${job.workflow_id}`}
@@ -569,7 +583,9 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                     </div>
                     {job.error.stack && (
                       <div>
-                        <p className="mb-2 text-xs font-medium text-muted-foreground">Stack Trace</p>
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          Stack Trace
+                        </p>
                         <pre className="overflow-x-auto rounded-lg border bg-muted/30 p-3 text-xs">
                           <code className="font-mono">{job.error.stack}</code>
                         </pre>

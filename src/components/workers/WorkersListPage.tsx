@@ -39,9 +39,7 @@ function StatCard({ title, value, icon, color }: StatCardProps) {
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
-          <div className={`rounded-lg ${color} p-2`}>
-            {icon}
-          </div>
+          <div className={`rounded-lg ${color} p-2`}>{icon}</div>
           <div>
             <p className="text-xs font-medium text-muted-foreground">{title}</p>
             <p className="text-2xl font-bold">{value}</p>
@@ -207,7 +205,7 @@ function WorkersListContent() {
                         <div className="rounded-lg bg-muted/50 p-2">
                           <p className="text-xs font-medium text-muted-foreground">Current Jobs</p>
                           <p className="text-lg font-semibold">
-                            {worker.current_jobs} 
+                            {worker.current_jobs}
                             <span className="text-sm font-normal text-muted-foreground">
                               / {worker.concurrency}
                             </span>

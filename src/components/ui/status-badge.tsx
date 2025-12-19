@@ -1,15 +1,15 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from './badge';
-import { 
-  Clock, 
-  Loader2, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
-  Pause, 
+import {
+  Clock,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Pause,
   Calendar,
-  Ban
+  Ban,
 } from 'lucide-react';
 import type { JobStatus } from '@/lib/types';
 
@@ -97,18 +97,18 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-export function StatusBadge({ 
-  status, 
-  showIcon = true, 
+export function StatusBadge({
+  status,
+  showIcon = true,
   label,
   size = 'default',
-  className 
+  className,
 }: StatusBadgeProps) {
   const config = statusConfigs[status] || statusConfigs.pending;
   const Icon = config.icon;
-  
+
   return (
-    <Badge 
+    <Badge
       variant="outline"
       className={cn(
         'font-medium',
@@ -118,12 +118,12 @@ export function StatusBadge({
       )}
     >
       {showIcon && (
-        <Icon 
+        <Icon
           className={cn(
             'mr-1',
             size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5',
             config.animate && 'animate-spin'
-          )} 
+          )}
         />
       )}
       {label || config.label}
@@ -152,4 +152,3 @@ interface QueueStatusBadgeProps {
 export function QueueStatusBadge({ paused, ...props }: QueueStatusBadgeProps) {
   return <StatusBadge status={paused ? 'paused' : 'active'} {...props} />;
 }
-

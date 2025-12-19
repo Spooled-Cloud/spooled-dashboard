@@ -133,11 +133,7 @@ function JobsListContent() {
         {isLoading ? (
           <DataTableLoading rows={5} columns={7} />
         ) : error ? (
-          <DataTableError 
-            error={error} 
-            onRetry={() => refetch()} 
-            isRetrying={isFetching} 
-          />
+          <DataTableError error={error} onRetry={() => refetch()} isRetrying={isFetching} />
         ) : !data?.data || data.data.length === 0 ? (
           <DataTableEmpty
             title="No jobs found"
@@ -198,9 +194,7 @@ function JobsListContent() {
                     <DataTableCell align="center" muted>
                       {job.attempt}/{job.max_retries}
                     </DataTableCell>
-                    <DataTableCell muted>
-                      {formatRelativeTime(job.created_at)}
-                    </DataTableCell>
+                    <DataTableCell muted>{formatRelativeTime(job.created_at)}</DataTableCell>
                     <DataTableCell align="right">
                       <Button variant="ghost" size="sm" asChild>
                         <a href={`/jobs/${job.id}`}>View</a>

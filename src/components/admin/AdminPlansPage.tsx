@@ -106,7 +106,7 @@ export function AdminPlansPage() {
     return (
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
-        <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-64" />
           <Skeleton className="h-10 w-24" />
         </div>
         <div className="grid gap-4 md:grid-cols-4">
@@ -122,11 +122,7 @@ export function AdminPlansPage() {
   if (error) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-6">
-        <InlineError
-          title="Error Loading Plans"
-          error={error}
-          onRetry={loadPlans}
-        />
+        <InlineError title="Error Loading Plans" error={error} onRetry={loadPlans} />
       </div>
     );
   }
@@ -144,10 +140,10 @@ export function AdminPlansPage() {
         backHref="/admin"
         backLabel="Admin Dashboard"
         actions={
-        <Button variant="outline" onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          Logout
-        </Button>
+          <Button variant="outline" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
         }
       >
         <Badge variant="outline" className="mt-2 w-fit border-amber-500 text-amber-600">
@@ -166,54 +162,56 @@ export function AdminPlansPage() {
             transition={{ delay: idx * 0.1 }}
           >
             <Card className={plan.tier === 'pro' ? 'border-primary ring-1 ring-primary/20' : ''}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {getPlanIcon(plan.tier)}
-                  <CardTitle className="text-lg">{plan.display_name}</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getPlanIcon(plan.tier)}
+                    <CardTitle className="text-lg">{plan.display_name}</CardTitle>
+                  </div>
+                  <Badge variant={getPlanColor(plan.tier)} className="capitalize">
+                    {plan.tier}
+                  </Badge>
                 </div>
-                  <Badge variant={getPlanColor(plan.tier)} className="capitalize">{plan.tier}</Badge>
-              </div>
-              <CardDescription>
-                {plan.tier === 'free' && 'Perfect for testing and small projects'}
-                {plan.tier === 'starter' && 'For growing teams and applications'}
-                {plan.tier === 'pro' && 'For production workloads'}
-                {plan.tier === 'enterprise' && 'For large-scale deployments'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
+                <CardDescription>
+                  {plan.tier === 'free' && 'Perfect for testing and small projects'}
+                  {plan.tier === 'starter' && 'For growing teams and applications'}
+                  {plan.tier === 'pro' && 'For production workloads'}
+                  {plan.tier === 'enterprise' && 'For large-scale deployments'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
                 <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                <span className="text-muted-foreground">Jobs/day</span>
+                  <span className="text-muted-foreground">Jobs/day</span>
                   <span className="font-semibold">
-                  {plan.max_jobs_per_day === null ? (
-                    <InfinityIcon className="inline h-4 w-4" />
-                  ) : (
-                    formatLimit(plan.max_jobs_per_day)
-                  )}
-                </span>
-              </div>
+                    {plan.max_jobs_per_day === null ? (
+                      <InfinityIcon className="inline h-4 w-4" />
+                    ) : (
+                      formatLimit(plan.max_jobs_per_day)
+                    )}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                <span className="text-muted-foreground">Rate limit</span>
+                  <span className="text-muted-foreground">Rate limit</span>
                   <span className="font-semibold">{plan.rate_limit_requests_per_second}/s</span>
-              </div>
+                </div>
                 <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                <span className="text-muted-foreground">Retention</span>
+                  <span className="text-muted-foreground">Retention</span>
                   <span className="font-semibold">{plan.job_retention_days} days</span>
-              </div>
+                </div>
                 <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                <span className="text-muted-foreground">Workflows</span>
+                  <span className="text-muted-foreground">Workflows</span>
                   <span className="font-semibold">
-                  {plan.max_workflows === null ? (
+                    {plan.max_workflows === null ? (
                       <Check className="inline h-4 w-4 text-emerald-500" />
-                  ) : plan.max_workflows === 0 ? (
-                    <X className="inline h-4 w-4 text-red-500" />
-                  ) : (
-                    formatLimit(plan.max_workflows)
-                  )}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+                    ) : plan.max_workflows === 0 ? (
+                      <X className="inline h-4 w-4 text-red-500" />
+                    ) : (
+                      formatLimit(plan.max_workflows)
+                    )}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
         ))}
       </div>
@@ -230,12 +228,12 @@ export function AdminPlansPage() {
           <DataTableHeader>
             <tr>
               <DataTableHead className="w-[200px]">Resource</DataTableHead>
-                {sortedPlans?.map((plan) => (
+              {sortedPlans?.map((plan) => (
                 <DataTableHead key={plan.tier} align="center">
-                    <div className="flex items-center justify-center gap-1">
-                      {getPlanIcon(plan.tier)}
-                      <span>{plan.display_name}</span>
-                    </div>
+                  <div className="flex items-center justify-center gap-1">
+                    {getPlanIcon(plan.tier)}
+                    <span>{plan.display_name}</span>
+                  </div>
                 </DataTableHead>
               ))}
             </tr>
@@ -251,7 +249,11 @@ export function AdminPlansPage() {
               { key: 'max_workflows', label: 'Workflows', special: true },
               { key: 'max_webhooks', label: 'Webhooks' },
               { key: 'max_payload_size_bytes', label: 'Max Payload Size', format: 'bytes' },
-              { key: 'rate_limit_requests_per_second', label: 'Rate Limit (req/s)', format: 'number' },
+              {
+                key: 'rate_limit_requests_per_second',
+                label: 'Rate Limit (req/s)',
+                format: 'number',
+              },
               { key: 'rate_limit_burst', label: 'Rate Limit Burst', format: 'number' },
               { key: 'job_retention_days', label: 'Job Retention', format: 'days' },
               { key: 'history_retention_days', label: 'History Retention', format: 'days' },
@@ -261,7 +263,7 @@ export function AdminPlansPage() {
                 {sortedPlans?.map((plan) => {
                   const value = (plan as unknown as Record<string, number | null>)[row.key];
                   let displayValue: React.ReactNode;
-                  
+
                   if (row.special && value === 0) {
                     displayValue = <span className="text-muted-foreground">Disabled</span>;
                   } else if (row.format === 'bytes') {
@@ -273,7 +275,7 @@ export function AdminPlansPage() {
                   } else {
                     displayValue = formatLimit(value);
                   }
-                  
+
                   return (
                     <DataTableCell key={plan.tier} align="center">
                       {displayValue}
@@ -295,4 +297,3 @@ export function AdminPlansPage() {
     </div>
   );
 }
-

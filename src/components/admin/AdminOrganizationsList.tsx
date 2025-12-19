@@ -23,12 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Building2,
-  Search,
-  Shield,
-  ExternalLink,
-} from 'lucide-react';
+import { Building2, Search, Shield, ExternalLink } from 'lucide-react';
 import {
   adminAPI,
   isAdminAuthenticated,
@@ -166,7 +161,7 @@ export function AdminOrganizationsList() {
             All Organizations
           </CardTitle>
         </CardHeader>
-        
+
         {isLoading ? (
           <DataTableLoading rows={5} columns={8} />
         ) : error ? (
@@ -178,7 +173,11 @@ export function AdminOrganizationsList() {
         ) : organizations.length === 0 ? (
           <EmptyState
             title="No organizations found"
-            description={search || planFilter ? 'Try adjusting your search or filters' : 'No organizations have been created yet'}
+            description={
+              search || planFilter
+                ? 'Try adjusting your search or filters'
+                : 'No organizations have been created yet'
+            }
             variant={search || planFilter ? 'filter' : 'empty'}
             icon={Building2}
           />
@@ -202,7 +201,7 @@ export function AdminOrganizationsList() {
                   <DataTableRow key={org.id} clickable>
                     <DataTableCell>
                       <div>
-                        <a 
+                        <a
                           href={`/admin/organizations/${org.id}`}
                           className="font-medium hover:text-primary hover:underline"
                         >
@@ -228,9 +227,7 @@ export function AdminOrganizationsList() {
                     <DataTableCell align="right" mono>
                       {org.usage.workers}
                     </DataTableCell>
-                    <DataTableCell muted>
-                      {formatRelativeTime(org.created_at)}
-                    </DataTableCell>
+                    <DataTableCell muted>{formatRelativeTime(org.created_at)}</DataTableCell>
                     <DataTableCell align="right">
                       <Button variant="ghost" size="icon" asChild>
                         <a href={`/admin/organizations/${org.id}`}>
@@ -259,4 +256,3 @@ export function AdminOrganizationsList() {
     </div>
   );
 }
-

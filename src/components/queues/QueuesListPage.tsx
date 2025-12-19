@@ -62,7 +62,7 @@ function QueuesListContent() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: ({ name, deleteJobs: del }: { name: string; deleteJobs: boolean }) => 
+    mutationFn: ({ name, deleteJobs: del }: { name: string; deleteJobs: boolean }) =>
       queuesAPI.delete(name, del),
     onSuccess: (_, { name }) => {
       toast.success('Queue deleted', { description: `Queue "${name}" has been removed` });
@@ -272,7 +272,10 @@ function QueuesListContent() {
                 'All jobs in this queue will be permanently deleted',
                 'This includes pending, processing, and completed jobs',
               ]
-            : ['Queue configuration will be deleted', 'Existing jobs must be moved or completed first']
+            : [
+                'Queue configuration will be deleted',
+                'Existing jobs must be moved or completed first',
+              ]
         }
       />
     </div>

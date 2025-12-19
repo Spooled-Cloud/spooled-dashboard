@@ -269,7 +269,9 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
                 value={rateLimit}
                 onChange={(e) => setRateLimit(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Override rate limit for this key (1-10000)</p>
+              <p className="text-xs text-muted-foreground">
+                Override rate limit for this key (1-10000)
+              </p>
             </div>
           </div>
 

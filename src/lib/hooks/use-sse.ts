@@ -1,6 +1,6 @@
 /**
  * SSE (Server-Sent Events) Hook for real-time updates
- * 
+ *
  * Provides a React hook for subscribing to SSE streams from the backend.
  * Falls back gracefully to polling if SSE connection fails.
  */
@@ -84,11 +84,11 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
 
   const queryClient = useQueryClient();
   const { accessToken } = useAuthStore();
-  
+
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -119,7 +119,7 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
       const apiUrl = getApiUrl();
       // SSE requires token in query params since headers can't be set
       const url = `${apiUrl}${endpoint}?token=${encodeURIComponent(accessToken)}`;
-      
+
       const eventSource = new EventSource(url);
       eventSourceRef.current = eventSource;
 
@@ -135,9 +135,13 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
         try {
           const data = JSON.parse(event.data) as SSEEvent;
           onEvent?.(data);
-          
+
           // Invalidate relevant queries based on event type
-          if (data.type === 'job_status_changed' || data.type === 'job_completed' || data.type === 'job_failed') {
+          if (
+            data.type === 'job_status_changed' ||
+            data.type === 'job_completed' ||
+            data.type === 'job_failed'
+          ) {
             queryClient.invalidateQueries({ queryKey: ['jobs'] });
           }
           if (data.type === 'queue_stats_updated') {
@@ -151,7 +155,7 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
       eventSource.onerror = (_e) => {
         setIsConnected(false);
         setIsConnecting(false);
-        
+
         const sseError = new Error('SSE connection error');
         setError(sseError);
         onError?.(sseError);
@@ -167,7 +171,9 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
             connect();
           }, reconnectDelay * reconnectAttemptsRef.current); // Exponential backoff
         } else {
-          console.warn(`SSE: Max reconnection attempts (${maxReconnectAttempts}) reached for ${endpoint}`);
+          console.warn(
+            `SSE: Max reconnection attempts (${maxReconnectAttempts}) reached for ${endpoint}`
+          );
         }
       };
     } catch (err) {
@@ -176,7 +182,18 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
       setError(connectError);
       onError?.(connectError);
     }
-  }, [enabled, accessToken, endpoint, cleanup, onOpen, onEvent, onError, maxReconnectAttempts, reconnectDelay, queryClient]);
+  }, [
+    enabled,
+    accessToken,
+    endpoint,
+    cleanup,
+    onOpen,
+    onEvent,
+    onError,
+    maxReconnectAttempts,
+    reconnectDelay,
+    queryClient,
+  ]);
 
   const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0;
@@ -212,4 +229,3 @@ export interface SSEStatusIndicatorProps {
   error: Error | null;
   onReconnect?: () => void;
 }
-

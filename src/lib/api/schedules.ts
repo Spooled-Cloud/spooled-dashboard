@@ -107,7 +107,10 @@ function transformBackendSchedule(schedule: BackendSchedule): Schedule {
   };
 }
 
-function buildPayloadTemplate(payload: Record<string, unknown>, jobType?: string): Record<string, unknown> {
+function buildPayloadTemplate(
+  payload: Record<string, unknown>,
+  jobType?: string
+): Record<string, unknown> {
   if (!jobType) return payload;
   const existing = (payload as { job_type?: unknown }).job_type;
   return typeof existing === 'string' ? payload : { ...payload, job_type: jobType };

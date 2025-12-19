@@ -1,6 +1,6 @@
 /**
  * SSE Connection Status Indicator
- * 
+ *
  * Shows the current status of SSE connection with the ability to reconnect.
  */
 
@@ -70,14 +70,14 @@ export function SSEIndicator({
           Connecting...
         </Badge>
       )}
-      
+
       {isConnected && (
         <Badge variant="outline" className="gap-1 border-emerald-500/50 text-emerald-600">
           <Wifi className="h-3 w-3" />
           Live
         </Badge>
       )}
-      
+
       {error && !isConnecting && (
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1 border-red-500/50 text-red-600">
@@ -107,4 +107,3 @@ export function LiveIndicator({ className }: { className?: string }) {
     </span>
   );
 }
-

@@ -113,18 +113,18 @@ function HealthStrip({ stats, isLoading }: HealthStripProps) {
           transition={{ delay: idx * 0.05 }}
         >
           <Card className={metric.bgColor}>
-        <CardContent className="p-4">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <metric.icon 
-                  className={`h-4 w-4 ${metric.color} ${metric.animate ? 'animate-spin' : ''}`} 
+                <metric.icon
+                  className={`h-4 w-4 ${metric.color} ${metric.animate ? 'animate-spin' : ''}`}
                 />
               </div>
               <p className={`mt-2 text-2xl font-bold ${metric.color}`}>
                 {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
               </p>
               <p className="text-xs text-muted-foreground">{metric.label}</p>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
         </motion.div>
       ))}
     </div>
@@ -148,25 +148,24 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
   }
 
   // Filter workers that handle this queue
-  const queueWorkers = workers?.filter((w: Worker) => 
-    w.queues.includes(queueName) || w.queues.includes('*')
-  ) || [];
+  const queueWorkers =
+    workers?.filter((w: Worker) => w.queues.includes(queueName) || w.queues.includes('*')) || [];
 
   const totalCapacity = queueWorkers.reduce((acc: number, w: Worker) => acc + w.concurrency, 0);
   const activeWorkers = queueWorkers.filter((w: Worker) => w.status === 'active').length;
   const currentlyProcessing = stats?.processing || 0;
   const pending = stats?.pending || 0;
 
-  const utilizationPercent = totalCapacity > 0 
-    ? Math.min(100, (currentlyProcessing / totalCapacity) * 100) 
-    : 0;
+  const utilizationPercent =
+    totalCapacity > 0 ? Math.min(100, (currentlyProcessing / totalCapacity) * 100) : 0;
 
-  const backlogMinutes = stats?.avg_processing_time_ms && stats.avg_processing_time_ms > 0 && totalCapacity > 0
-    ? (pending * (stats.avg_processing_time_ms / 1000 / 60)) / totalCapacity
-    : 0;
+  const backlogMinutes =
+    stats?.avg_processing_time_ms && stats.avg_processing_time_ms > 0 && totalCapacity > 0
+      ? (pending * (stats.avg_processing_time_ms / 1000 / 60)) / totalCapacity
+      : 0;
 
   return (
-      <Card>
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Gauge className="h-4 w-4" />
@@ -189,7 +188,10 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
           <div className="rounded-lg bg-muted/50 p-3">
             <p className="text-xs font-medium text-muted-foreground">Workers</p>
             <p className="text-lg font-semibold">
-              {activeWorkers} <span className="text-sm font-normal text-muted-foreground">/ {queueWorkers.length}</span>
+              {activeWorkers}{' '}
+              <span className="text-sm font-normal text-muted-foreground">
+                / {queueWorkers.length}
+              </span>
             </p>
           </div>
           <div className="rounded-lg bg-muted/50 p-3">
@@ -207,9 +209,7 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
             <p className="mt-1 text-lg font-semibold text-amber-600">
               ~{backlogMinutes.toFixed(1)} min
             </p>
-            <p className="text-xs text-muted-foreground">
-              {pending.toLocaleString()} pending jobs
-            </p>
+            <p className="text-xs text-muted-foreground">{pending.toLocaleString()} pending jobs</p>
           </div>
         )}
 
@@ -222,8 +222,8 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
             </p>
           </div>
         )}
-        </CardContent>
-      </Card>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -246,18 +246,20 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
   });
 
   // SSE for real-time queue stats updates
-  const { isConnected: sseConnected, isConnecting: sseConnecting, error: sseError, reconnect: sseReconnect } = useQueueSSE(
-    queueName,
-    {
-      enabled: true,
-      onEvent: (event) => {
-        // Refetch stats when we receive an update
-        if (event.type === 'queue_stats_updated') {
-          queryClient.invalidateQueries({ queryKey: queryKeys.queues.stats(queueName) });
-        }
-      },
-    }
-  );
+  const {
+    isConnected: sseConnected,
+    isConnecting: sseConnecting,
+    error: sseError,
+    reconnect: sseReconnect,
+  } = useQueueSSE(queueName, {
+    enabled: true,
+    onEvent: (event) => {
+      // Refetch stats when we receive an update
+      if (event.type === 'queue_stats_updated') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.queues.stats(queueName) });
+      }
+    },
+  });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: queryKeys.queues.stats(queueName),
@@ -324,10 +326,14 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
     if (editedQueue.description !== undefined) updates.description = editedQueue.description;
     if (editedQueue.concurrency !== undefined) updates.concurrency = editedQueue.concurrency;
     if (editedQueue.max_retries !== undefined) updates.max_retries = editedQueue.max_retries;
-    if (editedQueue.retry_delay_ms !== undefined) updates.retry_delay_ms = editedQueue.retry_delay_ms;
-    if (editedQueue.backoff_multiplier !== undefined) updates.backoff_multiplier = editedQueue.backoff_multiplier;
-    if (editedQueue.max_retry_delay_ms !== undefined) updates.max_retry_delay_ms = editedQueue.max_retry_delay_ms;
-    if (editedQueue.job_timeout_ms !== undefined) updates.job_timeout_ms = editedQueue.job_timeout_ms;
+    if (editedQueue.retry_delay_ms !== undefined)
+      updates.retry_delay_ms = editedQueue.retry_delay_ms;
+    if (editedQueue.backoff_multiplier !== undefined)
+      updates.backoff_multiplier = editedQueue.backoff_multiplier;
+    if (editedQueue.max_retry_delay_ms !== undefined)
+      updates.max_retry_delay_ms = editedQueue.max_retry_delay_ms;
+    if (editedQueue.job_timeout_ms !== undefined)
+      updates.job_timeout_ms = editedQueue.job_timeout_ms;
 
     updateMutation.mutate(updates);
   };
@@ -386,23 +392,23 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
               <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-          {!isEditing && (
-            <Button
+            {!isEditing && (
+              <Button
                 variant={queue.paused ? 'default' : 'outline'}
-              size="sm"
-              onClick={handleTogglePause}
-              disabled={pauseMutation.isPending || resumeMutation.isPending}
-            >
+                size="sm"
+                onClick={handleTogglePause}
+                disabled={pauseMutation.isPending || resumeMutation.isPending}
+              >
                 {pauseMutation.isPending || resumeMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : queue.paused ? (
                   <Play className="mr-2 h-4 w-4" />
-              ) : (
+                ) : (
                   <Pause className="mr-2 h-4 w-4" />
-              )}
+                )}
                 {queue.paused ? 'Resume' : 'Pause'}
-            </Button>
-          )}
+              </Button>
+            )}
           </>
         }
       >
@@ -418,7 +424,7 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-              <CardTitle>Configuration</CardTitle>
+                <CardTitle>Configuration</CardTitle>
                 <CardDescription>Queue processing settings</CardDescription>
               </div>
               {!isEditing ? (
@@ -448,7 +454,7 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                     {updateMutation.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                    <Save className="mr-2 h-4 w-4" />
+                      <Save className="mr-2 h-4 w-4" />
                     )}
                     Save
                   </Button>
@@ -461,33 +467,42 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                   { key: 'concurrency', label: 'Concurrency', type: 'number' },
                   { key: 'max_retries', label: 'Max Retries', type: 'number' },
                   { key: 'retry_delay_ms', label: 'Retry Delay (ms)', type: 'number' },
-                  { key: 'backoff_multiplier', label: 'Backoff Multiplier', type: 'number', step: '0.1' },
+                  {
+                    key: 'backoff_multiplier',
+                    label: 'Backoff Multiplier',
+                    type: 'number',
+                    step: '0.1',
+                  },
                   { key: 'max_retry_delay_ms', label: 'Max Retry Delay (ms)', type: 'number' },
                   { key: 'job_timeout_ms', label: 'Job Timeout (ms)', type: 'number' },
                 ].map((field) => (
                   <div key={field.key} className="rounded-lg bg-muted/50 p-3">
-                    <label className="text-xs font-medium text-muted-foreground">{field.label}</label>
-                  {isEditing ? (
-                    <Input
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {field.label}
+                    </label>
+                    {isEditing ? (
+                      <Input
                         type={field.type}
                         step={field.step}
                         value={(editedQueue as Record<string, number | string>)[field.key] || ''}
-                      onChange={(e) =>
-                        setEditedQueue({
-                          ...editedQueue,
-                            [field.key]: field.step 
-                              ? parseFloat(e.target.value) 
+                        onChange={(e) =>
+                          setEditedQueue({
+                            ...editedQueue,
+                            [field.key]: field.step
+                              ? parseFloat(e.target.value)
                               : parseInt(e.target.value),
-                        })
-                      }
+                          })
+                        }
                         className="mt-1 h-8"
-                    />
-                  ) : (
+                      />
+                    ) : (
                       <p className="mt-1 text-lg font-semibold">
-                        {(queue as unknown as Record<string, number | string | boolean>)[field.key]?.toLocaleString()}
+                        {(queue as unknown as Record<string, number | string | boolean>)[
+                          field.key
+                        ]?.toLocaleString()}
                       </p>
-                  )}
-                </div>
+                    )}
+                  </div>
                 ))}
               </div>
 
@@ -496,7 +511,9 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                   <label className="text-sm font-medium">Description</label>
                   <Input
                     value={editedQueue.description || ''}
-                    onChange={(e) => setEditedQueue({ ...editedQueue, description: e.target.value })}
+                    onChange={(e) =>
+                      setEditedQueue({ ...editedQueue, description: e.target.value })
+                    }
                     placeholder="Optional description"
                     className="mt-1"
                   />
@@ -504,8 +521,8 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
               )}
 
               <div className="flex items-center justify-between border-t pt-4 text-xs text-muted-foreground">
-                  <span>Created {formatRelativeTime(queue.created_at)}</span>
-                  <span>Updated {formatRelativeTime(queue.updated_at)}</span>
+                <span>Created {formatRelativeTime(queue.created_at)}</span>
+                <span>Updated {formatRelativeTime(queue.updated_at)}</span>
               </div>
             </CardContent>
           </Card>
@@ -527,7 +544,7 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                   <AlertTriangle className="mr-2 h-4 w-4" />
                   Dead Letter Queue
                 </a>
-                      </Button>
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -544,16 +561,16 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Deleting a queue is permanent and cannot be undone.
-                </p>
-                <Button
-                  variant="destructive"
-                  className="w-full"
+              </p>
+              <Button
+                variant="destructive"
+                className="w-full"
                 onClick={() => setShowDeleteDialog(true)}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Queue
-                </Button>
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Queue
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -591,7 +608,10 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                 'All jobs in this queue will be permanently deleted',
                 'This includes pending, processing, and completed jobs',
               ]
-            : ['Queue configuration will be deleted', 'Queue must be empty to delete without deleting jobs']
+            : [
+                'Queue configuration will be deleted',
+                'Queue must be empty to delete without deleting jobs',
+              ]
         }
       />
     </div>
