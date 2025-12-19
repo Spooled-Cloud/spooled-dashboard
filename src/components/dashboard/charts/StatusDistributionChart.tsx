@@ -81,7 +81,7 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
 
   const CustomLabel = (props: PieLabelRenderProps) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-    
+
     // All these values can be undefined in PieLabelRenderProps, so we need to guard
     if (
       typeof cx !== 'number' ||
