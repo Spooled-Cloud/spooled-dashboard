@@ -20,8 +20,8 @@ describe('apiKeysAPI', () => {
 
       expect(key).toHaveProperty('id');
       expect(key).toHaveProperty('name');
-      expect(key).toHaveProperty('key_prefix');
-      expect(key).toHaveProperty('permissions');
+      expect(key).toHaveProperty('queues');
+      expect(key).toHaveProperty('is_active');
     });
   });
 
@@ -29,7 +29,7 @@ describe('apiKeysAPI', () => {
     it('should create a new API key', async () => {
       const response = await apiKeysAPI.create({
         name: 'Test Key',
-        permissions: ['jobs:read', 'jobs:write'],
+        queues: ['*'],
       });
 
       expect(response).toHaveProperty('id');

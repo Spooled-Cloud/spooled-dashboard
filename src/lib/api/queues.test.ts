@@ -124,11 +124,12 @@ describe('queuesAPI', () => {
   });
 
   describe('purge', () => {
-    it('should purge all jobs from a queue', async () => {
-      const result = await queuesAPI.purge('default');
-      expect(result).toBeDefined();
-      expect(result.deleted).toBeDefined();
-      expect(typeof result.deleted).toBe('number');
+    it('should reject because queue purge is not available', async () => {
+      // Queue purge endpoint doesn't exist in backend
+      // Use jobsAPI.purgeDeadLetter() instead
+      await expect(queuesAPI.purge('default')).rejects.toThrow(
+        'Queue purge not available. Use Jobs > Dead Letter Queue > Purge instead.'
+      );
     });
   });
 });

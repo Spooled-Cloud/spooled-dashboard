@@ -35,9 +35,8 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/jobs',
     CREATE: '/api/v1/jobs',
     GET: (id: string) => `/api/v1/jobs/${id}`,
-    DELETE: (id: string) => `/api/v1/jobs/${id}`,
+    DELETE: (id: string) => `/api/v1/jobs/${id}`, // Also used for cancel
     RETRY: (id: string) => `/api/v1/jobs/${id}/retry`,
-    CANCEL: (id: string) => `/api/v1/jobs/${id}/cancel`,
     PRIORITY: (id: string) => `/api/v1/jobs/${id}/priority`,
     STATS: '/api/v1/jobs/stats',
     STATUS: '/api/v1/jobs/status',
@@ -50,14 +49,14 @@ export const API_ENDPOINTS = {
   // Queues
   QUEUES: {
     LIST: '/api/v1/queues',
-    CREATE: '/api/v1/queues',
+    CREATE: (name: string) => `/api/v1/queues/${name}/config`,
     GET: (name: string) => `/api/v1/queues/${name}`,
     UPDATE: (name: string) => `/api/v1/queues/${name}/config`,
     DELETE: (name: string) => `/api/v1/queues/${name}`,
     STATS: (name: string) => `/api/v1/queues/${name}/stats`,
     PAUSE: (name: string) => `/api/v1/queues/${name}/pause`,
     RESUME: (name: string) => `/api/v1/queues/${name}/resume`,
-    PURGE: (name: string) => `/api/v1/queues/${name}/purge`,
+    // Note: Queue purge not available. Use Jobs DLQ purge instead.
   },
 
   // Workers

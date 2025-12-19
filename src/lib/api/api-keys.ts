@@ -32,7 +32,11 @@ export function getKeyDisplayPrefix(key: APIKey): string {
 
 export interface CreateAPIKeyRequest {
   name: string;
-  permissions: string[];
+  /** Allowed queues; omit/empty => all queues. Supports wildcard '*' */
+  queues?: string[];
+  /** Optional override rate limit (1-10000) */
+  rate_limit?: number;
+  /** ISO datetime string */
   expires_at?: string;
 }
 
@@ -40,8 +44,6 @@ export interface CreateAPIKeyResponse {
   id: string;
   name: string;
   key: string; // Full key, only shown once!
-  key_prefix: string;
-  permissions: string[];
   expires_at?: string;
   created_at: string;
 }
@@ -95,24 +97,5 @@ export const apiKeysAPI = {
   },
 };
 
-/**
- * Available API key permissions
- */
-export const API_KEY_PERMISSIONS = [
-  { value: 'jobs:read', label: 'Jobs: Read', description: 'View jobs and job details' },
-  { value: 'jobs:write', label: 'Jobs: Write', description: 'Create and update jobs' },
-  { value: 'jobs:delete', label: 'Jobs: Delete', description: 'Cancel and delete jobs' },
-  { value: 'queues:read', label: 'Queues: Read', description: 'View queues and queue stats' },
-  { value: 'queues:write', label: 'Queues: Write', description: 'Create and update queues' },
-  { value: 'queues:admin', label: 'Queues: Admin', description: 'Pause, resume, purge queues' },
-  { value: 'workers:read', label: 'Workers: Read', description: 'View worker status' },
-  { value: 'workers:write', label: 'Workers: Write', description: 'Register and manage workers' },
-  { value: 'schedules:read', label: 'Schedules: Read', description: 'View schedules' },
-  {
-    value: 'schedules:write',
-    label: 'Schedules: Write',
-    description: 'Create and manage schedules',
-  },
-  { value: 'webhooks:read', label: 'Webhooks: Read', description: 'View webhooks' },
-  { value: 'webhooks:write', label: 'Webhooks: Write', description: 'Create and manage webhooks' },
-] as const;
+// Note: backend does not support fine-grained "permissions" for API keys.
+// Authorization is queue-scoped via `queues` and optionally `rate_limit`.

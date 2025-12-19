@@ -81,24 +81,23 @@ describe('API_ENDPOINTS', () => {
       expect(API_ENDPOINTS.JOBS.GET('job-123')).toBe('/api/v1/jobs/job-123');
       expect(API_ENDPOINTS.JOBS.DELETE('job-123')).toBe('/api/v1/jobs/job-123');
       expect(API_ENDPOINTS.JOBS.RETRY('job-123')).toBe('/api/v1/jobs/job-123/retry');
-      expect(API_ENDPOINTS.JOBS.CANCEL('job-123')).toBe('/api/v1/jobs/job-123/cancel');
     });
   });
 
   describe('QUEUES', () => {
     it('should have static endpoints', () => {
       expect(API_ENDPOINTS.QUEUES.LIST).toBe('/api/v1/queues');
-      expect(API_ENDPOINTS.QUEUES.CREATE).toBe('/api/v1/queues');
     });
 
     it('should have dynamic endpoints', () => {
+      expect(API_ENDPOINTS.QUEUES.CREATE('emails')).toBe('/api/v1/queues/emails/config');
       expect(API_ENDPOINTS.QUEUES.GET('emails')).toBe('/api/v1/queues/emails');
       expect(API_ENDPOINTS.QUEUES.UPDATE('emails')).toBe('/api/v1/queues/emails/config');
       expect(API_ENDPOINTS.QUEUES.DELETE('emails')).toBe('/api/v1/queues/emails');
       expect(API_ENDPOINTS.QUEUES.STATS('emails')).toBe('/api/v1/queues/emails/stats');
       expect(API_ENDPOINTS.QUEUES.PAUSE('emails')).toBe('/api/v1/queues/emails/pause');
       expect(API_ENDPOINTS.QUEUES.RESUME('emails')).toBe('/api/v1/queues/emails/resume');
-      expect(API_ENDPOINTS.QUEUES.PURGE('emails')).toBe('/api/v1/queues/emails/purge');
+      // Note: Queue purge not available in backend. Use Jobs DLQ purge instead.
     });
   });
 

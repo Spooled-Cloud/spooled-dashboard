@@ -59,12 +59,12 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
 
   const createMutation = useMutation({
     mutationFn: (data: CreateJobRequest) => jobsAPI.create(data),
-    onSuccess: (job) => {
-      toast.success('Job created', { description: `Job ID: ${job.id.slice(0, 8)}...` });
+    onSuccess: (result) => {
+      toast.success('Job created', { description: `Job ID: ${result.id.slice(0, 8)}...` });
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
       setOpen(false);
       resetForm();
-      onSuccess?.(job.id);
+      onSuccess?.(result.id);
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : 'Failed to create job');

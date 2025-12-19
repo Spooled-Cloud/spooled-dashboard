@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiKeysAPI, API_KEY_PERMISSIONS } from '@/lib/api/api-keys';
+import { apiKeysAPI } from '@/lib/api/api-keys';
 import type { CreateAPIKeyRequest, CreateAPIKeyResponse } from '@/lib/api/api-keys';
 import { queryKeys } from '@/lib/query-client';
 import {
@@ -34,7 +34,8 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
 
   // Form state
   const [name, setName] = useState('');
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [queuesText, setQueuesText] = useState('*');
+  const [rateLimit, setRateLimit] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
 
   const createMutation = useMutation({
@@ -52,7 +53,8 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
 
   const resetForm = () => {
     setName('');
-    setSelectedPermissions([]);
+    setQueuesText('*');
+    setRateLimit('');
     setExpiresAt('');
     setError(null);
     setCreatedKey(null);
@@ -73,32 +75,34 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
       setError('API key name is required');
       return;
     }
-    if (selectedPermissions.length === 0) {
-      setError('Select at least one permission');
-      return;
+    // queuesText can be empty (means all queues). If provided, validate basic format.
+    const rawQueues = queuesText
+      .split(',')
+      .map((q) => q.trim())
+      .filter(Boolean);
+    const queues = rawQueues.length > 0 ? rawQueues : undefined;
+
+    // Optional rate limit validation (backend: 1..10000)
+    const parsedRateLimit = rateLimit.trim() ? Number(rateLimit.trim()) : undefined;
+    if (parsedRateLimit !== undefined) {
+      if (!Number.isFinite(parsedRateLimit) || !Number.isInteger(parsedRateLimit)) {
+        setError('Rate limit must be an integer');
+        return;
+      }
+      if (parsedRateLimit < 1 || parsedRateLimit > 10000) {
+        setError('Rate limit must be between 1 and 10000');
+        return;
+      }
     }
 
     const request: CreateAPIKeyRequest = {
       name: name.trim(),
-      permissions: selectedPermissions,
+      queues,
+      rate_limit: parsedRateLimit,
       expires_at: expiresAt || undefined,
     };
 
     createMutation.mutate(request);
-  };
-
-  const togglePermission = (permission: string) => {
-    setSelectedPermissions((prev) =>
-      prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission]
-    );
-  };
-
-  const selectAllPermissions = () => {
-    setSelectedPermissions(API_KEY_PERMISSIONS.map((p) => p.value));
-  };
-
-  const clearPermissions = () => {
-    setSelectedPermissions([]);
   };
 
   const handleCopyKey = () => {
@@ -168,7 +172,7 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
               </div>
               <div>
                 <p className="text-muted-foreground">Key Prefix</p>
-                <p className="font-mono">{createdKey.key_prefix}...</p>
+                <p className="font-mono">{createdKey.key.slice(0, 8)}...</p>
               </div>
             </div>
           </div>
@@ -242,56 +246,31 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
               </p>
             </div>
 
-            {/* Permissions */}
+            {/* Queues */}
             <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label>Permissions *</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={selectAllPermissions}
-                  >
-                    Select All
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={clearPermissions}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </div>
-              <Card>
-                <CardContent className="grid grid-cols-1 gap-2 p-3">
-                  {API_KEY_PERMISSIONS.map((permission) => (
-                    <label
-                      key={permission.value}
-                      className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedPermissions.includes(permission.value)}
-                        onChange={() => togglePermission(permission.value)}
-                        className="mt-1 h-4 w-4 rounded border-gray-300"
-                      />
-                      <div>
-                        <p className="text-sm font-medium">{permission.label}</p>
-                        <p className="text-xs text-muted-foreground">{permission.description}</p>
-                      </div>
-                    </label>
-                  ))}
-                </CardContent>
-              </Card>
+              <Label htmlFor="queues">Queues (optional)</Label>
+              <Input
+                id="queues"
+                placeholder="* (all queues) or comma-separated, e.g. printer, emails"
+                value={queuesText}
+                onChange={(e) => setQueuesText(e.target.value)}
+              />
               <p className="text-xs text-muted-foreground">
-                Selected: {selectedPermissions.length} permission
-                {selectedPermissions.length !== 1 ? 's' : ''}
+                Leave empty for all queues. Use <span className="font-mono">*</span> for wildcard.
               </p>
+            </div>
+
+            {/* Rate limit */}
+            <div className="grid gap-2">
+              <Label htmlFor="rateLimit">Rate limit (optional)</Label>
+              <Input
+                id="rateLimit"
+                inputMode="numeric"
+                placeholder="e.g. 1000"
+                value={rateLimit}
+                onChange={(e) => setRateLimit(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Override rate limit for this key (1-10000)</p>
             </div>
           </div>
 

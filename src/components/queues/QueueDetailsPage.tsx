@@ -504,7 +504,7 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                   </TooltipTrigger>
                   {!getRuntimeConfig().enableQueuePurge && (
                     <TooltipContent>
-                      <p>Queue purge is not supported yet</p>
+                      <p>Use Jobs → Dead Letter Queue → Purge instead</p>
                     </TooltipContent>
                   )}
                 </Tooltip>

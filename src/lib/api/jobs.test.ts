@@ -54,8 +54,7 @@ describe('jobsAPI', () => {
 
       expect(newJob).toBeDefined();
       expect(newJob.id).toBeDefined();
-      expect(newJob.job_type).toBe('test_job');
-      expect(newJob.status).toBe('pending');
+      expect(typeof newJob.created).toBe('boolean');
     });
   });
 
@@ -64,15 +63,15 @@ describe('jobsAPI', () => {
       const result = await jobsAPI.retry('job-3');
       expect(result).toBeDefined();
       expect(result.status).toBe('pending');
-      expect(result.attempt).toBe(0);
+      // Backend increments retry_count on retry
+      expect(result.attempt).toBeGreaterThan(0);
     });
   });
 
   describe('cancel', () => {
     it('should cancel a pending job', async () => {
-      const result = await jobsAPI.cancel('job-2');
-      expect(result).toBeDefined();
-      expect(result.status).toBe('cancelled');
+      // cancel uses DELETE endpoint which returns void
+      await expect(jobsAPI.cancel('job-2')).resolves.toBeUndefined();
     });
   });
 

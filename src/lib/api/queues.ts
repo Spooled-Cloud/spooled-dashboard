@@ -170,8 +170,8 @@ export const queuesAPI = {
   },
 
   /**
-   * POST /api/v1/queues
-   * Create a new queue
+   * PUT /api/v1/queues/{name}/config
+   * Create a new queue (uses upsert endpoint)
    */
   create: async (data: CreateQueueRequest): Promise<Queue> => {
     const backendData = {
@@ -186,8 +186,8 @@ export const queuesAPI = {
         max_retry_delay_ms: data.max_retry_delay_ms ?? 60000,
       },
     };
-    const response = await apiClient.post<BackendQueueConfig>(
-      API_ENDPOINTS.QUEUES.CREATE,
+    const response = await apiClient.put<BackendQueueConfig>(
+      API_ENDPOINTS.QUEUES.CREATE(data.name),
       backendData
     );
     return transformQueueConfig(response);
@@ -280,10 +280,13 @@ export const queuesAPI = {
   },
 
   /**
-   * POST /api/v1/queues/{name}/purge
-   * Delete all jobs in a queue
+   * Purge queue jobs
+   * Note: This endpoint doesn't exist in backend.
+   * To purge dead-letter queue jobs, use jobsAPI.purgeDeadLetter() instead.
    */
-  purge: (name: string): Promise<{ deleted: number }> => {
-    return apiClient.post<{ deleted: number }>(API_ENDPOINTS.QUEUES.PURGE(name));
+  purge: (_name: string): Promise<{ deleted: number }> => {
+    return Promise.reject(
+      new Error('Queue purge not available. Use Jobs > Dead Letter Queue > Purge instead.')
+    );
   },
 };
