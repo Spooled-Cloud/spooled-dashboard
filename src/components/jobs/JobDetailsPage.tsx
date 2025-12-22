@@ -224,7 +224,10 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
     return null; // Hide if no dependencies
   }
 
-  if (data.depends_on.length === 0 && data.depended_by.length === 0) {
+  const dependencies = data.dependencies ?? [];
+  const dependents = data.dependents ?? [];
+
+  if (dependencies.length === 0 && dependents.length === 0) {
     return null;
   }
 
@@ -237,37 +240,39 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {data.depends_on.length > 0 && (
+        {dependencies.length > 0 && (
           <div>
             <p className="mb-2 text-sm text-muted-foreground">
-              Depends on ({data.depends_on.length})
+              Depends on ({dependencies.length})
             </p>
             <div className="flex flex-wrap gap-1">
-              {data.depends_on.map((id) => (
+              {dependencies.map((dep) => (
                 <a
-                  key={id}
-                  href={`/jobs/${id}`}
-                  className="inline-flex items-center rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
+                  key={dep.job_id}
+                  href={`/jobs/${dep.job_id}`}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
                 >
-                  {formatJobId(id, 8)}
+                  {formatJobId(dep.job_id, 8)}
+                  <JobStatusBadge status={dep.status as Job['status']} size="sm" />
                 </a>
               ))}
             </div>
           </div>
         )}
-        {data.depended_by.length > 0 && (
+        {dependents.length > 0 && (
           <div>
             <p className="mb-2 text-sm text-muted-foreground">
-              Dependents ({data.depended_by.length})
+              Dependents ({dependents.length})
             </p>
             <div className="flex flex-wrap gap-1">
-              {data.depended_by.map((id) => (
+              {dependents.map((dep) => (
                 <a
-                  key={id}
-                  href={`/jobs/${id}`}
-                  className="inline-flex items-center rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
+                  key={dep.job_id}
+                  href={`/jobs/${dep.job_id}`}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
                 >
-                  {formatJobId(id, 8)}
+                  {formatJobId(dep.job_id, 8)}
+                  <JobStatusBadge status={dep.status as Job['status']} size="sm" />
                 </a>
               ))}
             </div>
@@ -275,7 +280,7 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
         )}
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">All dependencies met:</span>
-          {data.all_dependencies_met ? (
+          {data.dependencies_met ? (
             <Badge variant="outline" className="border-emerald-500/50 text-emerald-600">
               <CheckCircle className="mr-1 h-3 w-3" />
               Yes

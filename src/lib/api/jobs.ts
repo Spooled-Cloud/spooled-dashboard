@@ -169,11 +169,17 @@ export interface BatchJobStatus {
   completed_at?: string;
 }
 
+export interface DependencyInfo {
+  job_id: string;
+  queue_name: string;
+  status: string;
+}
+
 export interface JobDependencies {
   job_id: string;
-  depends_on: string[];
-  depended_by: string[];
-  all_dependencies_met: boolean;
+  dependencies: DependencyInfo[];
+  dependents: DependencyInfo[];
+  dependencies_met: boolean;
 }
 
 export interface RetryDlqRequest {
