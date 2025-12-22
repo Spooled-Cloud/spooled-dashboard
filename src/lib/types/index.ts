@@ -217,6 +217,28 @@ export interface Worker {
 
 export type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+/**
+ * Workflow summary returned by the list endpoint.
+ * Contains job counts, not full job objects.
+ */
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  description?: string;
+  status: WorkflowStatus;
+  total_jobs: number;
+  completed_jobs: number;
+  failed_jobs: number;
+  progress_percent: number;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  metadata?: Record<string, string>;
+}
+
+/**
+ * Full workflow with jobs array, returned by the detail endpoint.
+ */
 export interface Workflow {
   id: string;
   organization_id: string;

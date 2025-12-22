@@ -20,9 +20,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateWorkflowDialog } from './CreateWorkflowDialog';
-import type { Workflow } from '@/lib/types';
+import type { WorkflowSummary } from '@/lib/types';
 
-function WorkflowStatusBadge({ status }: { status: Workflow['status'] }) {
+function WorkflowStatusBadge({ status }: { status: WorkflowSummary['status'] }) {
   const info = getWorkflowStatusInfo(status);
 
   const Icon =
@@ -42,9 +42,13 @@ function WorkflowStatusBadge({ status }: { status: Workflow['status'] }) {
   );
 }
 
-function WorkflowProgress({ jobs }: { jobs: Workflow['jobs'] | undefined }) {
-  // Guard against undefined jobs array
-  if (!jobs || jobs.length === 0) {
+function WorkflowProgress({ workflow }: { workflow: WorkflowSummary }) {
+  const total = workflow.total_jobs ?? 0;
+  const completed = workflow.completed_jobs ?? 0;
+  const failed = workflow.failed_jobs ?? 0;
+  const progressPercent = workflow.progress_percent ?? 0;
+
+  if (total === 0) {
     return (
       <div className="w-full">
         <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
@@ -56,14 +60,9 @@ function WorkflowProgress({ jobs }: { jobs: Workflow['jobs'] | undefined }) {
     );
   }
 
-  const total = jobs.length;
-  const completed = jobs.filter((j) => j.status === 'completed').length;
-  const failed = jobs.filter((j) => j.status === 'failed').length;
-  const processing = jobs.filter((j) => j.status === 'processing').length;
-
   const successPercent = (completed / total) * 100;
   const failedPercent = (failed / total) * 100;
-  const processingPercent = (processing / total) * 100;
+  const pendingPercent = 100 - successPercent - failedPercent;
 
   return (
     <div className="w-full">
@@ -71,7 +70,7 @@ function WorkflowProgress({ jobs }: { jobs: Workflow['jobs'] | undefined }) {
         <span>
           {completed} of {total} jobs completed
         </span>
-        <span>{Math.round(successPercent)}%</span>
+        <span>{Math.round(progressPercent)}%</span>
       </div>
       <div className="flex h-2 w-full overflow-hidden rounded-full bg-gray-200">
         <div
@@ -80,7 +79,7 @@ function WorkflowProgress({ jobs }: { jobs: Workflow['jobs'] | undefined }) {
         />
         <div
           className="h-full bg-blue-500 transition-all"
-          style={{ width: `${processingPercent}%` }}
+          style={{ width: `${pendingPercent > 0 ? pendingPercent : 0}%` }}
         />
         <div className="h-full bg-red-500 transition-all" style={{ width: `${failedPercent}%` }} />
       </div>
@@ -127,13 +126,13 @@ function WorkflowsListContent() {
     },
   });
 
-  const handleCancel = (workflow: Workflow) => {
+  const handleCancel = (workflow: WorkflowSummary) => {
     if (confirm(`Cancel workflow "${workflow.name}"? All pending jobs will be cancelled.`)) {
       cancelMutation.mutate(workflow.id);
     }
   };
 
-  const handleRetry = (workflow: Workflow) => {
+  const handleRetry = (workflow: WorkflowSummary) => {
     if (confirm(`Retry failed jobs in workflow "${workflow.name}"?`)) {
       retryMutation.mutate(workflow.id);
     }
@@ -218,13 +217,13 @@ function WorkflowsListContent() {
                       )}
 
                       <div className="mb-4 max-w-md">
-                        <WorkflowProgress jobs={workflow.jobs} />
+                        <WorkflowProgress workflow={workflow} />
                       </div>
 
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <GitBranch className="h-3 w-3" />
-                          {workflow.jobs?.length ?? 0} jobs
+                          {workflow.total_jobs ?? 0} jobs
                         </span>
                         <span>Created {formatRelativeTime(workflow.created_at)}</span>
                         {workflow.started_at && (

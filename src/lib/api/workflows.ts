@@ -4,7 +4,13 @@
 
 import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
-import type { Workflow, WorkflowStatus, WorkflowDependency, Job } from '@/lib/types';
+import type {
+  Workflow,
+  WorkflowSummary,
+  WorkflowStatus,
+  WorkflowDependency,
+  Job,
+} from '@/lib/types';
 
 export interface WorkflowJob {
   key: string; // Unique key for this job (used for dependency references)
@@ -39,10 +45,10 @@ export interface WorkflowWithDetails extends Workflow {
 export const workflowsAPI = {
   /**
    * GET /api/v1/workflows
-   * List all workflows
+   * List all workflows (returns summaries with job counts, not full job arrays)
    */
-  list: (): Promise<Workflow[]> => {
-    return apiClient.get<Workflow[]>(API_ENDPOINTS.WORKFLOWS.LIST);
+  list: (): Promise<WorkflowSummary[]> => {
+    return apiClient.get<WorkflowSummary[]>(API_ENDPOINTS.WORKFLOWS.LIST);
   },
 
   /**
