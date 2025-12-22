@@ -242,9 +242,7 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
       <CardContent className="space-y-4">
         {dependencies.length > 0 && (
           <div>
-            <p className="mb-2 text-sm text-muted-foreground">
-              Depends on ({dependencies.length})
-            </p>
+            <p className="mb-2 text-sm text-muted-foreground">Depends on ({dependencies.length})</p>
             <div className="flex flex-wrap gap-1">
               {dependencies.map((dep) => (
                 <a
@@ -261,9 +259,7 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
         )}
         {dependents.length > 0 && (
           <div>
-            <p className="mb-2 text-sm text-muted-foreground">
-              Dependents ({dependents.length})
-            </p>
+            <p className="mb-2 text-sm text-muted-foreground">Dependents ({dependents.length})</p>
             <div className="flex flex-wrap gap-1">
               {dependents.map((dep) => (
                 <a
