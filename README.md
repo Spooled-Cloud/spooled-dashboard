@@ -9,18 +9,18 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 
 ## Features
 
-- **📊 Real-time Dashboard** - Live KPIs, job statistics, and system health
-- **📋 Jobs Management** - Create, monitor, retry, cancel jobs; set priority levels
-- **📦 Queue Management** - Configure queues, pause/resume, view stats, set rate limits
-- **👷 Worker Monitoring** - Track worker status, performance, and job distribution
-- **🔄 Workflows** - Create DAG workflows with job dependencies (visual dependency graph)
-- **📅 Schedules** - Cron-based recurring jobs with timezone support (daily reports, cleanups, renewals)
-- **🔑 API Keys** - Manage programmatic access with queue restrictions and rate limits
-- **🔔 Outgoing Webhooks** - Configure HTTP notifications from Spooled to your URLs (Slack, Discord, custom endpoints)
-- **🌐 WebSocket** - Live updates across the dashboard (job status, queue stats, worker activity)
-- **📈 Usage Tracking** - Monitor plan limits, API usage, and resource consumption
-- **💀 Dead-Letter Queue** - Review failed jobs, inspect errors, bulk retry or purge
-- **👤 Admin Portal** - Create organizations, manage plans, reset usage counters
+- **Real-time Dashboard** - Live KPIs, job statistics, and system health
+- **Jobs Management** - Create, monitor, retry, cancel jobs; set priority levels
+- **Queue Management** - Configure queues, pause/resume, view stats, set rate limits
+- **Worker Monitoring** - Track worker status, performance, and job distribution
+- **Workflows** - Create DAG workflows with job dependencies (visual dependency graph)
+- **Schedules** - Cron-based recurring jobs with timezone support (daily reports, cleanups, renewals)
+- **API Keys** - Manage programmatic access with queue restrictions and rate limits
+- **Outgoing Webhooks** - Configure HTTP notifications from Spooled to your URLs (Slack, Discord, custom endpoints)
+- **WebSocket** - Live updates across the dashboard (job status, queue stats, worker activity)
+- **Usage Tracking** - Monitor plan limits, API usage, and resource consumption
+- **Dead-Letter Queue** - Review failed jobs, inspect errors, bulk retry or purge
+- **Admin Portal** - Create organizations, manage plans, reset usage counters
 
 ## Official SDKs
 
