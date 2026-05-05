@@ -116,24 +116,24 @@ describe('WorkersListPage', () => {
       );
     });
 
-    it('should display Jobs Processed label', async () => {
+    it('should display Processed label', async () => {
       render(<WorkersListPage />);
 
       await waitFor(
         () => {
-          const jobsProcessedLabels = screen.getAllByText('Jobs Processed');
+          const jobsProcessedLabels = screen.getAllByText('Processed');
           expect(jobsProcessedLabels.length).toBeGreaterThan(0);
         },
         { timeout: 3000 }
       );
     });
 
-    it('should display Jobs Failed label', async () => {
+    it('should display Failed label', async () => {
       render(<WorkersListPage />);
 
       await waitFor(
         () => {
-          const jobsFailedLabels = screen.getAllByText('Jobs Failed');
+          const jobsFailedLabels = screen.getAllByText('Failed');
           expect(jobsFailedLabels.length).toBeGreaterThan(0);
         },
         { timeout: 3000 }

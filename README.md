@@ -3,9 +3,9 @@
 A modern, real-time dashboard for managing job queues, workflows, and workers in the Spooled Cloud system.
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)
-![Astro](https://img.shields.io/badge/Astro-4.16-purple)
-![React](https://img.shields.io/badge/React-18.3-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+![Astro](https://img.shields.io/badge/Astro-5.18-purple)
+![React](https://img.shields.io/badge/React-19.2-blue)
 
 ## Features
 

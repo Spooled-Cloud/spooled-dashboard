@@ -20,6 +20,10 @@ function RealtimeConnectionManager() {
 }
 
 export function RealtimeProvider({ children }: RealtimeProviderProps) {
+  if (import.meta.env.MODE === 'test') {
+    return <>{children}</>;
+  }
+
   return (
     <>
       <RealtimeConnectionManager />

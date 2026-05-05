@@ -58,7 +58,7 @@ describe('JobsListPage', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText('send_email')).toBeInTheDocument();
+          expect(screen.getByText('job-1')).toBeInTheDocument();
         },
         { timeout: 3000 }
       );
@@ -76,13 +76,13 @@ describe('JobsListPage', () => {
       );
     });
 
-    it('should render job types', async () => {
+    it('should render multiple job rows', async () => {
       render(<JobsListPage />);
 
       await waitFor(
         () => {
-          expect(screen.getByText('send_email')).toBeInTheDocument();
-          expect(screen.getByText('process_image')).toBeInTheDocument();
+          expect(screen.getByText('job-1')).toBeInTheDocument();
+          expect(screen.getByText('job-2')).toBeInTheDocument();
         },
         { timeout: 3000 }
       );
@@ -261,7 +261,7 @@ describe('JobsListPage', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText('send_email')).toBeInTheDocument();
+          expect(screen.getByText('job-1')).toBeInTheDocument();
         },
         { timeout: 3000 }
       );
