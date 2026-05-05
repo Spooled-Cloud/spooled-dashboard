@@ -214,6 +214,15 @@ if (typeof window !== 'undefined') {
     if (state.accessToken && state.expiresAt) {
       if (Date.now() > state.expiresAt) {
         useAuthStore.getState().clearAuth();
+        return;
+      }
+
+      // We have a valid token. If user/organization context wasn't restored
+      // (older login before this code shipped, prior fetch failed, or storage
+      // was partially cleared), fetch it now so pages like /settings/organization
+      // don't get stuck on "No organization selected".
+      if (!state.user || !state.currentOrganization) {
+        useAuthStore.getState().fetchCurrentUser();
       }
     }
   });

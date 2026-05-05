@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -218,8 +218,20 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
 
 function OrganizationSettingsContent() {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useAuthStore();
+  const currentOrganization = useAuthStore((s) => s.currentOrganization);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const fetchCurrentUser = useAuthStore((s) => s.fetchCurrentUser);
   const orgId = currentOrganization?.id;
+
+  // If we have a valid session but the organization context wasn't restored
+  // (e.g. older login persisted before this code shipped, or the original
+  // fetchCurrentUser call failed silently), reload it instead of showing a
+  // dead-end "No organization selected" screen.
+  useEffect(() => {
+    if (accessToken && !currentOrganization) {
+      fetchCurrentUser();
+    }
+  }, [accessToken, currentOrganization, fetchCurrentUser]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
@@ -273,6 +285,20 @@ function OrganizationSettingsContent() {
   };
 
   if (!orgId) {
+    // Authenticated but org context not yet loaded — show a loading state while
+    // the effect above refetches it. If the user has no token at all, AuthGuard
+    // will already have redirected to login, so we should never render the
+    // "no organization" copy in normal flows.
+    if (accessToken) {
+      return (
+        <div className="space-y-4 p-8">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      );
+    }
+
     return (
       <div className="p-8 text-center text-muted-foreground">
         <Building className="mx-auto mb-3 h-12 w-12 opacity-50" />
