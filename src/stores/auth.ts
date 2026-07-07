@@ -159,7 +159,13 @@ export const useAuthStore = create<AuthState>()(
       // Logout
       logout: async () => {
         try {
-          await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+          // Send the refresh token too so the backend can blacklist it —
+          // otherwise the session survives logout via /auth/refresh.
+          const { refreshToken } = get();
+          await apiClient.post(
+            API_ENDPOINTS.AUTH.LOGOUT,
+            refreshToken ? { refresh_token: refreshToken } : undefined
+          );
         } catch {
           // Silently ignore logout errors - we clear local state regardless
         } finally {
