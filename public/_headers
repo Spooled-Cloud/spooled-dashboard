@@ -1,0 +1,13 @@
+# Security headers for all routes (static hosting, e.g. Cloudflare Pages).
+# The dashboard build is fully static (no on-demand routes), so headers must
+# come from the hosting layer; if serving via the node adapter instead, front
+# it with a proxy that sets these same headers.
+# CSP is deliberately conservative: it locks framing, plugins and <base>
+# rewrites without a script-src, so bundled scripts keep working.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), microphone=()
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
