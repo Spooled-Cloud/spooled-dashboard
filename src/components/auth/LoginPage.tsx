@@ -34,13 +34,24 @@ export function LoginPage() {
       setAuth(response);
 
       // Check if there's a redirect path stored from before login.
-      // Only same-origin paths are allowed: "//host" is a protocol-relative
-      // URL and would navigate off-site (open redirect), so require a single
-      // leading slash.
+      // Only same-origin destinations are allowed. Resolve against our own
+      // origin and keep the value only if it stays same-origin — this rejects
+      // absolute URLs ("https://evil.com"), protocol-relative ("//evil.com")
+      // and backslash-normalized ("/\\evil.com") open redirects that a simple
+      // leading-slash check would let through.
       const stored = sessionStorage.getItem('redirect_after_login');
       sessionStorage.removeItem('redirect_after_login');
-      const redirectPath =
-        stored && stored.startsWith('/') && !stored.startsWith('//') ? stored : null;
+      let redirectPath: string | null = null;
+      if (stored) {
+        try {
+          const url = new URL(stored, window.location.origin);
+          if (url.origin === window.location.origin) {
+            redirectPath = url.pathname + url.search + url.hash;
+          }
+        } catch {
+          redirectPath = null;
+        }
+      }
 
       // Small delay to ensure state is persisted before navigation
       setTimeout(() => {
