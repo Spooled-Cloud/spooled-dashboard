@@ -26,12 +26,12 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 
 This dashboard connects to the Spooled Backend. For programmatic access, use one of the official SDKs:
 
-| SDK | Package | Status |
-|-----|---------|--------|
-| **Node.js** | `@spooled/sdk` | ✅ Production Ready |
-| **Python** | `spooled` | ✅ Production Ready |
-| **Go** | `github.com/spooled-cloud/spooled-sdk-go` | ✅ Production Ready |
-| **PHP** | `spooled-cloud/spooled` | ✅ Production Ready |
+| SDK         | Package                                   | Status              |
+| ----------- | ----------------------------------------- | ------------------- |
+| **Node.js** | `@spooled/sdk`                            | ✅ Production Ready |
+| **Python**  | `spooled`                                 | ✅ Production Ready |
+| **Go**      | `github.com/spooled-cloud/spooled-sdk-go` | ✅ Production Ready |
+| **PHP**     | `spooled-cloud/spooled`                   | ✅ Production Ready |
 
 See the [SDKs documentation](https://github.com/spooled-cloud/spooled-backend/blob/main/docs/guides/sdks.md) for installation and usage guides.
 
@@ -55,8 +55,8 @@ For 5 copy/paste “real life” setups (Stripe → jobs, GitHub Actions → job
 
 ### Prerequisites
 
-- Node.js 20+
-- npm or yarn
+- Node.js 20.19.0 or newer
+- npm (the repository uses `package-lock.json`)
 - Spooled Backend running (see [spooled-backend](https://github.com/spooled-cloud/spooled-backend))
 
 ### Installation
@@ -154,21 +154,23 @@ src/
 # Build the image
 docker build -t spooled-dashboard .
 
-# Run the container
-docker run -p 4321:4321 \
-  -e PUBLIC_API_URL=https://api.spooled.cloud \
-  -e PUBLIC_WS_URL=wss://api.spooled.cloud \
-  spooled-dashboard
+# Run the container. The current browser bundle uses build-time/static API and
+# WebSocket defaults; runtime PUBLIC_* overrides are not yet wired at startup.
+docker run -p 4321:4321 spooled-dashboard
 ```
 
 ### Using Docker Compose
 
 ```bash
-# Production
-docker-compose up -d dashboard
+# Production image and production Compose settings. First copy `.env.example`
+# to `.env`, set `CLOUDFLARE_TUNNEL_TOKEN`, and review docs/DEPLOYMENT.md.
+docker compose -f docker-compose.prod.yml up -d
 
-# Development (with hot reload)
-docker-compose --profile dev up dashboard-dev
+# Local container build (serves the production Node build; no hot reload)
+docker compose up -d --build dashboard
+
+# For hot reload, use the Node.js development command instead:
+npm run dev
 ```
 
 ### Pull from GitHub Container Registry
@@ -179,37 +181,38 @@ docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 
 ## Pages Overview
 
-| Route | Description |
-|-------|-------------|
-| `/` | Login page |
-| `/onboarding` | New organization registration |
-| `/dashboard` | Main dashboard with KPIs |
-| `/jobs` | Jobs list and management |
-| `/jobs/[id]` | Job details |
-| `/jobs/dlq` | Dead-letter queue |
-| `/queues` | Queues list and management |
-| `/queues/[name]` | Queue details |
-| `/workers` | Workers list |
-| `/workers/[id]` | Worker details |
-| `/workflows` | Workflows list |
-| `/workflows/[id]` | Workflow details with dependency graph |
-| `/schedules` | Schedules list |
-| `/schedules/[id]` | Schedule details |
-| `/settings` | Settings navigation |
-| `/settings/profile` | User profile |
-| `/settings/organization` | Organization settings (with usage) |
-| `/settings/api-keys` | API keys management |
-| `/settings/webhooks` | Webhooks configuration |
+| Route                    | Description                            |
+| ------------------------ | -------------------------------------- |
+| `/`                      | Login page                             |
+| `/onboarding`            | New organization registration          |
+| `/dashboard`             | Main dashboard with KPIs               |
+| `/jobs`                  | Jobs list and management               |
+| `/jobs/[id]`             | Job details                            |
+| `/jobs/dlq`              | Dead-letter queue                      |
+| `/queues`                | Queues list and management             |
+| `/queues/[name]`         | Queue details                          |
+| `/workers`               | Workers list                           |
+| `/workers/[id]`          | Worker details                         |
+| `/workflows`             | Workflows list                         |
+| `/workflows/[id]`        | Workflow details with dependency graph |
+| `/schedules`             | Schedules list                         |
+| `/schedules/[id]`        | Schedule details                       |
+| `/settings`              | Settings navigation                    |
+| `/settings/profile`      | User profile                           |
+| `/settings/organization` | Organization settings (with usage)     |
+| `/settings/api-keys`     | API keys management                    |
+| `/settings/billing`      | Subscription status and billing portal |
+| `/settings/webhooks`     | Webhooks configuration                 |
 
 ### Admin Routes (requires admin key)
 
-| Route | Description |
-|-------|-------------|
-| `/admin/login` | Admin key login |
-| `/admin` | Admin dashboard with platform stats |
-| `/admin/organizations` | List all organizations |
+| Route                       | Description                                 |
+| --------------------------- | ------------------------------------------- |
+| `/admin/login`              | Admin key login                             |
+| `/admin`                    | Admin dashboard with platform stats         |
+| `/admin/organizations`      | List all organizations                      |
 | `/admin/organizations/[id]` | Organization details, API keys, usage reset |
-| `/admin/plans` | View all plan tiers with limits |
+| `/admin/plans`              | View all plan tiers with limits             |
 
 ## Authentication
 
@@ -217,8 +220,8 @@ The dashboard uses API key-based authentication:
 
 1. Create organization via onboarding at `/onboarding` (or with admin key)
 2. Login with API key at `/` to exchange for JWT tokens
-3. Access token stored in memory (Zustand)
-4. Refresh token handles automatic token renewal
+3. The short-lived access token is persisted in `localStorage` by Zustand
+4. The refresh token remains memory-only and can renew the access token during the current page session
 5. Protected routes redirect to login if unauthenticated
 
 ### Admin Portal
@@ -262,7 +265,7 @@ npm run test:coverage
 npm run test:ui
 ```
 
-Current coverage: **84%** (419 tests)
+Current baseline (2026-07-12): **619 passing tests across 42 test files**. Run `npm run test:coverage` for the current coverage report rather than relying on a checked-in percentage.
 
 ## Documentation
 
@@ -270,7 +273,6 @@ Current coverage: **84%** (419 tests)
 - [API Integration](docs/API_INTEGRATION.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
 - [Security](docs/SECURITY.md)
-- [Architecture](ARCHITECTURE.md)
 
 ## Contributing
 

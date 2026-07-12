@@ -22,6 +22,8 @@ const result = await apiClient.post('/api/v1/jobs', { queue_name: 'emails', payl
 
 // With query params
 const jobs = await apiClient.get('/api/v1/jobs', { status: 'pending' });
+
+// The client also sends X-Organization-ID when an organization is selected.
 ```
 
 ## API Modules
@@ -65,10 +67,11 @@ function JobsList() {
 
 JWT authentication is automatic:
 
-1. Login stores tokens in Zustand
-2. API client injects token in headers
-3. 401 responses trigger token refresh
-4. Failed refresh redirects to login
+1. Login stores both tokens in Zustand state.
+2. Zustand persistence stores the short-lived access token in `localStorage`; the refresh token remains memory-only.
+3. The API client injects the bearer token and selected organization header.
+4. A `401` triggers one refresh attempt while the in-memory refresh token is available.
+5. Failed refresh clears auth state and redirects to login.
 
 ```typescript
 import { useAuthStore } from '@/stores/auth';
@@ -85,9 +88,15 @@ try {
   await jobsAPI.create(data);
 } catch (error) {
   if (error instanceof APIError) {
-    if (error.isUnauthorized()) { /* 401 */ }
-    if (error.isNotFound()) { /* 404 */ }
-    if (error.isValidationError()) { /* 422 */ }
+    if (error.isUnauthorized()) {
+      /* 401 */
+    }
+    if (error.isNotFound()) {
+      /* 404 */
+    }
+    if (error.isValidationError()) {
+      /* 422 */
+    }
   }
 }
 ```
@@ -105,11 +114,11 @@ toast.error('Failed to create job');
 
 For programmatic access from your backend applications, use one of the official SDKs instead of the dashboard's internal API client:
 
-| SDK | Installation | Docs |
-|-----|--------------|------|
-| **Node.js** | `npm install @spooled/sdk` | [npm](https://www.npmjs.com/package/@spooled/sdk) |
-| **Python** | `pip install spooled` | [PyPI](https://pypi.org/project/spooled/) |
-| **Go** | `go get github.com/spooled-cloud/spooled-sdk-go` | [pkg.go.dev](https://pkg.go.dev/github.com/spooled-cloud/spooled-sdk-go) |
-| **PHP** | `composer require spooled-cloud/spooled` | [Packagist](https://packagist.org/packages/spooled-cloud/spooled) |
+| SDK         | Installation                                     | Docs                                                                     |
+| ----------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| **Node.js** | `npm install @spooled/sdk`                       | [npm](https://www.npmjs.com/package/@spooled/sdk)                        |
+| **Python**  | `pip install spooled`                            | [PyPI](https://pypi.org/project/spooled/)                                |
+| **Go**      | `go get github.com/spooled-cloud/spooled-sdk-go` | [pkg.go.dev](https://pkg.go.dev/github.com/spooled-cloud/spooled-sdk-go) |
+| **PHP**     | `composer require spooled-cloud/spooled`         | [Packagist](https://packagist.org/packages/spooled-cloud/spooled)        |
 
 The dashboard's internal API client (`@/lib/api/*`) is designed specifically for the dashboard UI and includes React Query integration, auth state management, and UI-specific error handling.

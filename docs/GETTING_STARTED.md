@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 20.19.0 or newer
 - npm
 - Spooled Backend running (see [spooled-backend](https://github.com/spooled-cloud/spooled-backend))
 
@@ -30,7 +30,7 @@ PUBLIC_API_URL=http://localhost:8080
 PUBLIC_WS_URL=ws://localhost:8080
 ```
 
-For the admin portal to work, ensure the backend has `ADMIN_API_KEY` configured.
+For the admin portal to work, ensure the backend has `ADMIN_API_KEY` configured. The dashboard itself does not need this key as an environment variable; an authorized operator enters it on `/admin/login`.
 
 ## Development
 
@@ -57,14 +57,14 @@ If you have access to the `ADMIN_API_KEY`:
 
 ## Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run preview` | Preview production build |
-| `npm run test` | Run tests |
-| `npm run lint` | Lint code |
-| `npm run format` | Format code |
+| Script               | Description              |
+| -------------------- | ------------------------ |
+| `npm run dev`        | Start development server |
+| `npm run build`      | Build for production     |
+| `npm run preview`    | Preview production build |
+| `npm run test`       | Run tests                |
+| `npm run lint`       | Lint code                |
+| `npm run format`     | Format code              |
 | `npm run type-check` | TypeScript type checking |
 
 ## Project Structure
@@ -105,6 +105,6 @@ For programmatic access to Spooled from your applications, use one of the offici
 - **Go**: `go get github.com/spooled-cloud/spooled-sdk-go`
 - **PHP**: `composer require spooled-cloud/spooled`
 
-All SDKs are production-ready with full type safety, worker runtime, gRPC support, and comprehensive error handling.
+SDK capabilities differ by language and release. Use the linked SDK documentation and each package's release notes for the current client, worker, and transport support.
 
 See the [SDKs documentation](https://github.com/spooled-cloud/spooled-backend/blob/main/docs/guides/sdks.md) for detailed guides.

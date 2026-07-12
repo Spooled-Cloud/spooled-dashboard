@@ -1,184 +1,107 @@
 # Security Configuration
 
-This document outlines security best practices and configurations for deploying the Spooled Dashboard in production.
+This document describes the dashboard's current client-side security model and deployment hardening. It does not replace backend security controls.
 
-## Security Headers
+## Authentication and token storage
 
-Configure these security headers in your reverse proxy (Nginx, Caddy, Cloudflare, etc.):
+The dashboard exchanges an API key or email verification code for JWTs.
 
-### Required Headers
+- The short-lived access token and its expiry are persisted by Zustand in `localStorage` under `auth-storage` so a page reload keeps the session.
+- The refresh token is memory-only and is deliberately excluded from persisted state.
+- Authenticated API requests include `Authorization: Bearer <access-token>` and, when available, `X-Organization-ID`.
+- A `401` triggers one refresh attempt while the in-memory refresh token is available.
+- Failed refresh, explicit logout, or detected expiry clears local auth state and redirects to the login page.
+- Logout sends the refresh token to the backend for revocation before clearing local state.
+
+Because an access token is stored in `localStorage`, preventing script injection is critical. Do not describe the access token as memory-only.
+
+## HTTPS
+
+Use HTTPS for the dashboard and API in production, and use `wss://` for WebSocket traffic. Redirect plaintext HTTP at the ingress, reverse proxy, or CDN.
+
+## Security headers
+
+Set headers at the edge or reverse proxy. Start with a report-only CSP and validate the real production traffic before enforcing it; the allowed `connect-src` origins must include the configured API, WebSocket, and Sentry endpoints.
+
+Example baseline:
 
 ```nginx
-# Nginx configuration example
-add_header X-Frame-Options "SAMEORIGIN" always;
 add_header X-Content-Type-Options "nosniff" always;
-add_header X-XSS-Protection "1; mode=block" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Strict-Transport-Security "max-age=31536000" always;
 ```
 
-### Content Security Policy (CSP)
+Add `includeSubDomains` only when every current and future subdomain is guaranteed to support HTTPS for the full max-age; an HTTP-only subdomain becomes inaccessible to conforming browsers.
+
+`X-XSS-Protection` is obsolete in modern browsers and is intentionally omitted. Choose framing policy explicitly: `Content-Security-Policy: frame-ancestors 'none'` is stricter than `X-Frame-Options: SAMEORIGIN`; do not set a permissive framing policy by habit.
+
+A deployment-specific CSP might begin as:
 
 ```nginx
-add_header Content-Security-Policy "
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://browser.sentry-cdn.com;
-  style-src 'self' 'unsafe-inline';
-  img-src 'self' data: https:;
-  font-src 'self';
-  connect-src 'self' https://api.spooled.cloud wss://api.spooled.cloud https://*.sentry.io;
-  frame-ancestors 'self';
-  base-uri 'self';
-  form-action 'self';
-" always;
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.spooled.cloud wss://api.spooled.cloud https://*.sentry.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
 ```
 
-### HTTPS Configuration
+Astro and the current UI use inline scripts/styles, so removing `'unsafe-inline'` requires nonce/hash work in product code. Do not copy the example unchanged when deploying against different origins.
 
-Always use HTTPS in production:
+## Public runtime configuration
 
-```nginx
-# Force HTTPS redirect
-server {
-    listen 80;
-    server_name dashboard.spooled.cloud;
-    return 301 https://$server_name$request_uri;
-}
+`GET /api/config` exposes `PUBLIC_*` settings to the browser. Treat every value returned there as public.
 
-# HTTPS server
-server {
-    listen 443 ssl http2;
-    server_name dashboard.spooled.cloud;
-    
-    # TLS configuration
-    ssl_certificate /etc/ssl/certs/dashboard.crt;
-    ssl_certificate_key /etc/ssl/private/dashboard.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers off;
-    
-    # HSTS (6 months)
-    add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
-}
-```
+- Never put API keys, `ADMIN_API_KEY`, Stripe secret keys, or other credentials in `PUBLIC_*` variables.
+- `PUBLIC_SENTRY_DSN` is a public client DSN, not an authentication secret.
+- Restrict privileged operations in the backend; hiding a dashboard route or feature flag is not authorization.
 
-## Authentication Security
+## Kubernetes hardening
 
-### JWT Token Handling
-
-- Access tokens are stored in memory (Zustand store), not localStorage
-- Tokens are never logged or exposed in URLs
-- Token refresh happens automatically before expiration
-- Logout clears all tokens from memory
-
-### API Security
-
-- All API requests include authentication headers
-- 401 responses trigger automatic token refresh
-- Failed refresh triggers logout and redirect to login
-
-## Kubernetes Security
-
-The provided Kubernetes manifests include:
-
-### Pod Security
+The checked-in Deployment runs as UID/GID `1001` and includes:
 
 ```yaml
 securityContext:
   runAsNonRoot: true
   runAsUser: 1001
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL
+  runAsGroup: 1001
+
+containers:
+  - securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
 ```
 
-### Network Policies
+A writable `emptyDir` is mounted at `/tmp`. The base manifests do not currently include a `NetworkPolicy`; add one only after mapping ingress, DNS, and egress needs. Remember that API requests originate in users' browsers, not from the dashboard pod.
 
-Consider adding network policies to restrict traffic:
+The optional `spooled-dashboard-secrets` Secret contains Sentry settings, but the current Sentry implementation reads build-time `import.meta.env`; injecting these values only at container runtime does not configure the browser bundle. Prefer an external secret controller for actual secrets and never commit a populated `k8s/base/secrets.yaml`, but remember that a browser Sentry DSN is public configuration rather than a server credential.
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: spooled-dashboard
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: spooled-dashboard
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: ingress-nginx
-      ports:
-        - port: 4321
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: spooled-backend
-      ports:
-        - port: 3000
-    - to:  # Allow DNS
-        - namespaceSelector: {}
-      ports:
-        - port: 53
-          protocol: UDP
+## Sentry
+
+Sentry is disabled unless `PUBLIC_SENTRY_DSN` is present when the browser bundle is built. Runtime-only container or Kubernetes environment changes do not currently reconfigure it. The browser integration enables performance sampling and session replay; the implementation configures replay masking/blocking, but server-side Sentry privacy and retention settings must still be reviewed.
+
+Before enabling Sentry:
+
+1. configure project-level PII scrubbing and retention
+2. verify no access tokens, API keys, payloads, or sensitive organization data are captured
+3. restrict allowed domains/rate limits for the public DSN
+4. set `PUBLIC_SENTRY_ENVIRONMENT` and, optionally, `PUBLIC_SENTRY_RELEASE`
+
+## Dependency and image scanning
+
+CI does not currently run `npm audit`. It does run a Trivy filesystem scan for HIGH and CRITICAL findings, but the scan is informational because the workflow uses `exit-code: 0`.
+
+For a release gate, run and review:
+
+```bash
+npm audit --audit-level=high
+npm run lint
+npm run type-check
+npm run test
+npm run build
 ```
 
-## Secrets Management
+Scan the published container as part of the deployment process if policy requires a blocking image scan.
 
-### Best Practices
+## Reporting security issues
 
-1. **Never commit secrets** to version control
-2. Use Kubernetes Secrets or external secrets management:
-   - AWS Secrets Manager
-   - HashiCorp Vault
-   - Azure Key Vault
-   - Google Secret Manager
-
-3. **Rotate secrets regularly**:
-   - API keys: every 90 days
-   - Sentry DSN: when compromised
-
-### Environment Variables
-
-Sensitive variables that should be in secrets:
-
-| Variable | Description |
-|----------|-------------|
-| `PUBLIC_SENTRY_DSN` | Sentry error tracking DSN |
-
-## Error Tracking Security (Sentry)
-
-When using Sentry:
-
-1. **Data scrubbing** is enabled by default
-2. **Session replay** masks all text and blocks media
-3. **PII filtering** should be configured in Sentry dashboard
-4. Consider setting up **inbound data filters**
-
-## Vulnerability Scanning
-
-The CI pipeline includes Trivy security scanning:
-
-```yaml
-- name: Run Trivy vulnerability scanner
-  uses: aquasecurity/trivy-action@master
-  with:
-    scan-type: 'fs'
-    severity: 'CRITICAL,HIGH'
-```
-
-## Reporting Security Issues
-
-If you discover a security vulnerability:
-
-1. **Do not** open a public issue
-2. Email security@spooled.cloud with details
-3. Allow 90 days for a fix before public disclosure
+Do not open a public issue for a suspected vulnerability. Email `security@spooled.cloud` with reproduction details and allow the maintainers time to investigate before disclosure.
