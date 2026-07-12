@@ -76,7 +76,7 @@ Published images are available from GitHub Container Registry:
 docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 ```
 
-`main` publishes `latest` and a commit-SHA tag. A pushed `v*` Git tag publishes that version tag and refreshes `latest`.
+`main` publishes `latest` and a commit-SHA tag. A pushed `v*` Git tag publishes that version tag and refreshes `latest` only after the repository checks and production build pass. The tag workflow also requires the tag without its `v` prefix to match `package.json`, top-level `package-lock.json.version`, and `package-lock.json.packages[""].version`.
 
 ## Kubernetes
 
@@ -156,20 +156,69 @@ The Dockerfile health check uses `/api/config`. The current Compose and Kubernet
 `.github/workflows/ci.yml` currently performs:
 
 1. format check, ESLint, Astro type checking, and Vitest
-2. production build and `dist/` artifact upload
-3. a non-blocking Trivy filesystem scan (`exit-code: 0`)
-4. multi-architecture GHCR publishing on `main`
-5. versioned GHCR publishing for `v*` tags
+2. a tag-only consistency check across all release version fields
+3. production build and `dist/` artifact upload
+4. a non-blocking Trivy filesystem scan (`exit-code: 0`)
+5. multi-architecture GHCR publishing on `main`
+6. versioned GHCR publishing for `v*` tags only after checks and the build pass
 
-A tag does not deploy the image to a host or Kubernetes cluster; it only builds and publishes the image.
+Main-branch publishing remains independent of the tag-only version assertion. A tag does not deploy the image to a host or Kubernetes cluster; it only builds and publishes the image.
 
-Choose an unused release version explicitly and use the same value in both commands; `v0.1.60` is an example next tag:
+### Release and deployment evidence checklist
+
+This checklist is advisory evidence tracking. Items may be marked `N/A`, or an exception may be recorded with an owner and rationale; completing it is not release or deployment authorization. A mismatch among values that identify the **same artifact** is not an advisory exception: it is a release error and must be corrected before image publication.
+
+#### Select and synchronize the release
+
+- [ ] Record `RELEASE_VERSION`, `RELEASE_TAG=v${RELEASE_VERSION}`, the intended branch, and release commit; confirm the tag is unused and the tree is clean and synced.
+- [ ] Set `package.json.version` to `RELEASE_VERSION`.
+- [ ] Regenerate `package-lock.json` and confirm both root metadata fields match: top-level `version` and `packages[""].version`.
+- [ ] Search documentation, deployment examples, and release labels for stale versions.
+- [ ] Confirm `RELEASE_TAG` without `v` and all three manifest/lock values are identical. CI enforces this on tag pushes.
+
+#### Validate and publish
+
+- [ ] Run `npm run format:check`, `npm run lint`, `npm run type-check`, `npm run test`, and `npm run build`; record the local commands and CI run.
+- [ ] Confirm no secrets, populated `.env` files, or generated local artifacts are staged.
+- [ ] Create the tag on the validated commit and confirm `git rev-parse "${RELEASE_TAG}^{}"` resolves to that commit.
+- [ ] Record the successful release workflow and the immutable multi-architecture GHCR digest for `ghcr.io/spooled-cloud/spooled-dashboard:${RELEASE_TAG}`.
+- [ ] Confirm tag, source commit, image tag, and image digest identify the same artifact. Do not use `latest` as release identity.
+
+Example preparation for the next release (`v0.1.60` is illustrative; select an unused value):
 
 ```bash
+npm version 0.1.60 --no-git-tag-version
+npm run format:check
+npm run lint
+npm run type-check
+npm run test
+npm run build
+git add package.json package-lock.json
+git commit -m "chore(release): v0.1.60"
 RELEASE_TAG=v0.1.60
 git tag "${RELEASE_TAG}"
 git push origin "${RELEASE_TAG}"
 ```
+
+#### Deploy separately
+
+- [ ] Record the target environment, operator/provider deployment ID, deployment time, selected immutable tag or digest, and previous rollback digest.
+- [ ] Confirm the host or Kubernetes workload resolves to the recorded digest. Publishing a tag/image is not deployment proof.
+- [ ] Record rollout status and deployment history from the actual target.
+
+#### Verify live production
+
+- [ ] Verify deployment-provider or cluster provenance connects the live workload to the intended commit and image digest.
+- [ ] Check `/` and `/api/config` as application-health/configuration checks, not as version proof.
+- [ ] Verify at least one release-specific live behavior or content marker in a clean browser session.
+- [ ] Confirm the browser-visible API/WebSocket configuration and relevant security headers match the target environment.
+- [ ] Record observation time and keep source, tag, artifact, deployment, and live-production claims separate.
+- [ ] Record unresolved checks as explicit exceptions; do not describe an unproven deployment as live.
+
+#### Close out
+
+- [ ] Confirm rollback can select the previous immutable digest or tag.
+- [ ] Update dated operational documentation only from recorded deployment and live evidence.
 
 ## Rollback
 
