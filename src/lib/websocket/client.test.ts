@@ -200,7 +200,7 @@ describe('WebSocket Client', () => {
 
   describe('Connection Lifecycle', () => {
     it('should create WebSocket connection when token is set', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
 
       expect(MockWebSocket.instances.length).toBe(1);
       expect(client.getState()).toBe('connecting');
@@ -208,7 +208,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should include token in URL when set', async () => {
-      const _client = await connectClient('my-token-123');
+      const client = await connectClient('my-token-123');
 
       const ws = MockWebSocket.getLatestInstance();
       expect(ws?.url).toContain('token=my-token-123');
@@ -225,7 +225,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should update state to live when connection opens', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       expect(client.isConnected()).toBe(true);
@@ -234,7 +234,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should not create duplicate connections if already connected', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.connect();
@@ -243,14 +243,14 @@ describe('WebSocket Client', () => {
     });
 
     it('should not create connection if already connecting', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       client.connect();
 
       expect(MockWebSocket.instances.length).toBe(1);
     });
 
     it('should disconnect and update state', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.disconnect();
@@ -261,7 +261,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should redact token in getRedactedUrl()', async () => {
-      const _client = await connectClient('secret-token-value');
+      const client = await connectClient('secret-token-value');
 
       const ws = MockWebSocket.getLatestInstance();
       expect(ws?.url).toContain('secret-token-value');
@@ -272,7 +272,7 @@ describe('WebSocket Client', () => {
 
   describe('Connection Listeners', () => {
     it('should call onConnect listeners when connection opens', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const callback = vi.fn();
 
       client.onConnect(callback);
@@ -282,7 +282,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should call onDisconnect listeners when connection closes', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const callback = vi.fn();
 
       client.onDisconnect(callback);
@@ -293,7 +293,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should notify state listeners on connection state changes', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const states: string[] = [];
 
       client.onStateChange((state) => states.push(state));
@@ -305,7 +305,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should allow unsubscribing from connection events', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const callback = vi.fn();
 
       const unsubscribe = client.onConnect(callback);
@@ -318,7 +318,7 @@ describe('WebSocket Client', () => {
 
   describe('Message Handling', () => {
     it('should normalize backend events for global listeners', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const callback = vi.fn();
 
       client.onEvent(callback);
@@ -329,7 +329,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should dispatch normalized events to channel subscribers', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const channelCallback = vi.fn();
 
       client.subscribe('jobs', channelCallback);
@@ -340,7 +340,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should not dispatch messages to wrong channel subscribers', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const jobsCallback = vi.fn();
       const queuesCallback = vi.fn();
 
@@ -354,7 +354,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should not dispatch Ping events to listeners', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const globalCallback = vi.fn();
       const channelCallback = vi.fn();
 
@@ -373,7 +373,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should handle invalid JSON gracefully', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       const ws = MockWebSocket.getLatestInstance();
@@ -385,7 +385,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should ignore malformed messages without type', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       const callback = vi.fn();
 
       client.onEvent(callback);
@@ -398,7 +398,7 @@ describe('WebSocket Client', () => {
 
   describe('Subscription Management', () => {
     it('should send Subscribe with null filters for aggregate jobs channel', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.subscribe('jobs', vi.fn());
@@ -412,7 +412,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should send Subscribe with queue filter for queue channels', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.subscribe('queue:emails', vi.fn());
@@ -426,7 +426,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should send Subscribe with job_id filter for job channels', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.subscribe('job:uuid-123', vi.fn());
@@ -440,7 +440,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should not send duplicate Subscribe for same channel', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.subscribe('jobs', vi.fn());
@@ -455,7 +455,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should send Unsubscribe when last subscriber leaves', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       const unsub = client.subscribe('jobs', vi.fn());
@@ -470,7 +470,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should not send Unsubscribe if other subscribers remain', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       const unsub1 = client.subscribe('jobs', vi.fn());
@@ -485,7 +485,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should re-subscribe to all channels on reconnect', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
 
       client.subscribe('jobs', vi.fn());
       client.subscribe('queue:emails', vi.fn());
@@ -512,7 +512,7 @@ describe('WebSocket Client', () => {
 
   describe('Heartbeat Mechanism', () => {
     it('should start sending Ping commands after connection', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       vi.advanceTimersByTime(30000);
@@ -526,7 +526,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should send multiple heartbeats over time', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       vi.advanceTimersByTime(90000);
@@ -539,7 +539,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should stop heartbeat on disconnect', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       client.disconnect();
@@ -551,7 +551,7 @@ describe('WebSocket Client', () => {
 
   describe('Reconnection Logic', () => {
     it('should attempt to reconnect after unexpected disconnect', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
       MockWebSocket.getLatestInstance()?.simulateClose(1006, 'Connection lost');
 
@@ -562,7 +562,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should not reconnect after manual disconnect', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
       client.disconnect();
 
@@ -573,7 +573,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should use exponential backoff for reconnection', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       MockWebSocket.getLatestInstance()?.simulateClose(1006, 'Lost');
@@ -590,7 +590,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should stop reconnecting after max attempts and enter degraded state', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       expect(MockWebSocket.instances.length).toBe(1);
@@ -610,7 +610,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should reset reconnect attempts after successful connection', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       MockWebSocket.getLatestInstance()?.simulateClose(1006, 'Lost');
@@ -624,7 +624,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should set auth_failed on auth close codes', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
       MockWebSocket.getLatestInstance()?.simulateClose(4401, 'Unauthorized');
 
@@ -635,7 +635,7 @@ describe('WebSocket Client', () => {
 
   describe('Token Updates', () => {
     it('should reconnect with new token when token is updated while connected', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       expect(MockWebSocket.instances.length).toBe(1);
@@ -659,7 +659,7 @@ describe('WebSocket Client', () => {
 
   describe('Error Handling', () => {
     it('should handle WebSocket errors gracefully', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
 
       expect(() => {
         MockWebSocket.getLatestInstance()?.simulateError();
@@ -674,18 +674,18 @@ describe('WebSocket Client', () => {
     });
 
     it('should return connecting during connection', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       expect(client.getState()).toBe('connecting');
     });
 
     it('should return open when connected', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
       expect(client.getState()).toBe('open');
     });
 
     it('should return closed after disconnect', async () => {
-      const _client = await connectClient();
+      const client = await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
       client.disconnect();
       expect(client.getState()).toBe('closed');
