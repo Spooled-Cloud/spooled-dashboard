@@ -12,6 +12,13 @@ const { title, description } = Astro.props;
 ---
 
 <BaseLayout title={title} description={description} noindex={true}>
+  <a
+    href="#main-content"
+    class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-border focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+  >
+    Skip to main content
+  </a>
+
   <div class="flex h-[100dvh] overflow-hidden">
     <Sidebar client:load />
 
@@ -19,6 +26,8 @@ const { title, description } = Astro.props;
       <Header client:load />
 
       <main
+        id="main-content"
+        tabindex="-1"
         class="console-surface safe-area-x flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-6"
       >
         <div class="mx-auto w-full max-w-7xl">

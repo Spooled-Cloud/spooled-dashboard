@@ -20,36 +20,30 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('should display Profile link', async () => {
+  it('should display grouped sections', async () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Profile')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Organization' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Access' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Session & profile' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
     });
   });
 
-  it('should display Organization section and link', async () => {
+  it('should display Session link', async () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      // There are multiple "Organization" elements - check for both
-      const orgElements = screen.getAllByText('Organization');
-      expect(orgElements.length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('Session')).toBeInTheDocument();
     });
   });
 
-  it('should display API Keys link', async () => {
+  it('should display API Keys and Webhooks links', async () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
       expect(screen.getByText('API Keys')).toBeInTheDocument();
-    });
-  });
-
-  it('should display Webhooks link', async () => {
-    render(<SettingsPage />);
-
-    await waitFor(() => {
       expect(screen.getByText('Webhooks')).toBeInTheDocument();
     });
   });
@@ -58,11 +52,12 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      // Check that links are present and have correct hrefs
-      const profileLink = screen.getByRole('link', { name: /profile/i });
-      expect(profileLink).toHaveAttribute('href', '/settings/profile');
+      const sessionLink = screen.getByRole('link', { name: /session/i });
+      expect(sessionLink).toHaveAttribute('href', '/settings/profile');
 
-      const orgLink = screen.getByRole('link', { name: /organization/i });
+      const orgLink = screen.getByRole('link', {
+        name: /name, slug, members, and webhook signing token/i,
+      });
       expect(orgLink).toHaveAttribute('href', '/settings/organization');
 
       const apiKeysLink = screen.getByRole('link', { name: /api keys/i });
@@ -70,15 +65,9 @@ describe('SettingsPage', () => {
 
       const webhooksLink = screen.getByRole('link', { name: /webhooks/i });
       expect(webhooksLink).toHaveAttribute('href', '/settings/webhooks');
-    });
-  });
 
-  it('should show "Coming Soon" for Security Settings', async () => {
-    render(<SettingsPage />);
-
-    await waitFor(() => {
-      const comingSoonElements = screen.getAllByText('Coming Soon');
-      expect(comingSoonElements.length).toBeGreaterThan(0);
+      const billingLink = screen.getByRole('link', { name: /billing/i });
+      expect(billingLink).toHaveAttribute('href', '/settings/billing');
     });
   });
 });
