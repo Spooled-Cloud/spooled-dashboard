@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 /**
  * Authenticated shell + settings route smoke.
  * Requires SPOOLED_E2E_BASE_URL + SPOOLED_E2E_API_KEY.
+ *
+ * Single login per worker — production auth is rate-limited under parallel logins.
  */
 const apiKey = process.env.SPOOLED_E2E_API_KEY;
 const liveBase = process.env.SPOOLED_E2E_BASE_URL;
@@ -22,8 +24,10 @@ async function login(page: import('@playwright/test').Page) {
     .or(page.locator('input[type="password"]').first())
     .first()
     .fill(apiKey!);
-  await page.getByRole('button', { name: /^Sign In$/i }).click();
-  await expect(page.getByRole('heading', { name: 'Sign In' })).toHaveCount(0, { timeout: 30_000 });
+  const signIn = page.getByRole('button', { name: /^Sign In$/i });
+  await expect(signIn).toBeEnabled({ timeout: 10_000 });
+  await signIn.click();
+  await expect(page.getByRole('heading', { name: 'Sign In' })).toHaveCount(0, { timeout: 45_000 });
   await expect(page).toHaveURL(/\/(dashboard|jobs|queues)/, { timeout: 30_000 });
   await page.waitForFunction(() => {
     try {
@@ -58,8 +62,10 @@ async function accessToken(page: import('@playwright/test').Page): Promise<strin
 
 test.describe('live shell surfaces', () => {
   test.skip(!apiKey || !liveBase, 'Requires SPOOLED_E2E_BASE_URL and SPOOLED_E2E_API_KEY');
+  test.describe.configure({ mode: 'serial' });
 
-  test('settings hub and session/billing pages render', async ({ page }) => {
+  test('settings, filters, workers/dlq, and realtime job list', async ({ page, request }) => {
+    test.setTimeout(180_000);
     await login(page);
 
     await gotoApp(page, '/settings');
@@ -79,22 +85,11 @@ test.describe('live shell surfaces', () => {
     await gotoApp(page, '/workers');
     await expect(page.getByRole('heading', { level: 1, name: /Workers/i })).toBeVisible();
     await gotoApp(page, '/jobs/dlq');
-    await expect(page.getByRole('heading', { level: 1, name: /Dead Letter|DLQ/i })).toBeVisible();
-  });
+    await expect(page.getByRole('heading', { level: 1, name: /Dead.?Letter|DLQ/i })).toBeVisible();
 
-  test('jobs URL status filter applies from query string', async ({ page }) => {
-    await login(page);
     await gotoApp(page, '/jobs?status=failed');
-    // Requires dashboard build with JobsListPage URL sync (≥0.1.61)
-    const statusSelect = page.locator('select').first();
-    await expect(statusSelect).toHaveValue('failed', { timeout: 15_000 });
-  });
+    await expect(page.locator('select').first()).toHaveValue('failed', { timeout: 15_000 });
 
-  test('API-created job appears on jobs list via realtime invalidation', async ({
-    page,
-    request,
-  }) => {
-    await login(page);
     const token = await accessToken(page);
     const suffix = Date.now().toString(36);
     const qName = `e2ertq${suffix}`;
@@ -136,7 +131,6 @@ test.describe('live shell surfaces', () => {
     expect(created.id).toBeTruthy();
     const shortId = created.id!.slice(0, 8);
 
-    // Poll interval is 10s — appear within 8s implies WS invalidation (or faster refetch)
     await expect(
       page.getByText(shortId).or(page.getByText(qName)).or(page.getByText(jobType)).first()
     ).toBeVisible({ timeout: 8_000 });
