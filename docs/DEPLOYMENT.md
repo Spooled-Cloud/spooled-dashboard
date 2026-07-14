@@ -63,7 +63,7 @@ On the production host the stack is managed from a durable path (not `/tmp`):
 
 - Directory: `/opt/spooled/dashboard`
 - Compose file: `docker-compose.prod.yml`
-- Image pin: `.env.image` with immutable digest `ghcr.io/spooled-cloud/spooled-dashboard:v0.1.61@sha256:1a4331f02556200e1076b6d366ad785591dfa27d1171fa5527d49b3c517e9c9e`
+- Image pin: `.env.image` with immutable digest `ghcr.io/spooled-cloud/spooled-dashboard:v0.1.62@sha256:5659074a8cb78b03da2505b090d03e4d0fe4bc1c6753bd34b6e8d95039ec19b6`
 - Secrets: `.env` mode `600` (includes tunnel token). Never commit or paste this file.
 - Recreate: `cd /opt/spooled/dashboard && sudo docker compose -p spooled-dashboard --env-file .env -f docker-compose.prod.yml up -d`
 - Health probe: explicit IPv4 `127.0.0.1:4321/api/config` (container must report `healthy`)
