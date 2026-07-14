@@ -82,19 +82,15 @@ test.describe('live ops flows', () => {
     await gotoApp(page, '/jobs');
     await page.getByRole('button', { name: 'Create Job' }).first().click();
 
-    // Prefer selecting queue by typing into visible inputs/selects
-    const dialog = page.getByRole('dialog');
+    const dialog = page.getByRole('dialog', { name: /Create New Job/i });
     await expect(dialog).toBeVisible();
-    const inputs = dialog.locator('input, textarea, select');
-    const count = await inputs.count();
-    if (count > 0) {
-      // First field often queue name
-      await inputs.nth(0).fill(qName);
-    }
-    const textarea = dialog.locator('textarea').first();
-    if (await textarea.isVisible().catch(() => false)) {
-      await textarea.fill(JSON.stringify({ e2e: true }));
-    }
+
+    // Radix Select — open Queue combobox and pick the queue we just created
+    await dialog.getByRole('combobox', { name: /Queue/i }).click();
+    await page.getByRole('option', { name: qName }).click();
+
+    await dialog.getByLabel(/Job Type/i).fill('e2e_smoke');
+    await dialog.getByLabel(/Payload \(JSON\)/i).fill(JSON.stringify({ e2e: true }));
 
     await dialog.getByRole('button', { name: /^Create Job$/ }).click();
     await expect(
