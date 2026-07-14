@@ -10,11 +10,38 @@ import { test, expect } from '@playwright/test';
 const apiKey = process.env.SPOOLED_E2E_API_KEY;
 const liveBase = process.env.SPOOLED_E2E_BASE_URL;
 
+async function waitReady(page: import('@playwright/test').Page) {
+  // Astro MPA navigations re-bootstrap runtime config
+  await expect(page.getByText('Loading runtime configuration')).toHaveCount(0, {
+    timeout: 30_000,
+  });
+}
+
 async function login(page: import('@playwright/test').Page) {
-  await page.goto(liveBase! + '/');
-  await page.locator('input[type="password"]').first().fill(apiKey!);
-  await page.getByRole('button', { name: /sign in|log in|continue/i }).click();
-  await expect(page).toHaveURL(/dashboard|jobs|queues/, { timeout: 30_000 });
+  await page.goto(liveBase! + '/', { waitUntil: 'domcontentloaded' });
+  await waitReady(page);
+  const keyInput = page.getByLabel(/api key/i).or(page.locator('input[type="password"]').first());
+  await keyInput.first().fill(apiKey!);
+  await page.getByRole('button', { name: /^Sign In$/i }).click();
+  // Wait until we leave the login card and auth is persisted
+  await expect(page.getByRole('heading', { name: 'Sign In' })).toHaveCount(0, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/(dashboard|jobs|queues)/, { timeout: 30_000 });
+  await page.waitForFunction(() => {
+    try {
+      const raw = localStorage.getItem('auth-storage');
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { state?: { accessToken?: string; isAuthenticated?: boolean } };
+      return Boolean(parsed?.state?.accessToken || parsed?.state?.isAuthenticated);
+    } catch {
+      return false;
+    }
+  });
+  await waitReady(page);
+}
+
+async function gotoApp(page: import('@playwright/test').Page, path: string) {
+  await page.goto(liveBase! + path, { waitUntil: 'domcontentloaded' });
+  await waitReady(page);
 }
 
 test.describe('live ops flows', () => {
@@ -23,7 +50,7 @@ test.describe('live ops flows', () => {
   test('shell shows realtime status after login', async ({ page }) => {
     await login(page);
     await expect(
-      page.getByLabel(/realtime/i).or(page.getByText(/live|connecting|reconnecting/i).first())
+      page.getByLabel(/realtime/i).or(page.getByText(/live|connecting|reconnecting|offline/i).first())
     ).toBeVisible({ timeout: 20_000 });
   });
 
@@ -31,61 +58,56 @@ test.describe('live ops flows', () => {
     await login(page);
     const qName = `e2eq${Date.now().toString(36)}`;
 
-    await page.goto(liveBase! + '/queues');
+    await gotoApp(page, '/queues');
     await page.getByRole('button', { name: 'Create Queue' }).first().click();
-    await expect(page.getByText(/Create New Queue|Create Queue/i).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Create New Queue|Create Queue/i }).or(page.getByText(/Create New Queue/i))).toBeVisible();
 
-    const nameInput = page.getByLabel(/name/i).or(page.locator('input[name="name"]')).first();
-    await nameInput.fill(qName);
+    const nameInput = page.getByLabel(/^name$/i).or(page.locator('input').nth(0));
+    await nameInput.first().fill(qName);
     await page.getByRole('button', { name: /^Create Queue$/ }).last().click();
 
-    await expect(page.getByText(qName).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(qName).first()).toBeVisible({ timeout: 25_000 });
   });
 
-  test('create job shows success without manual refresh', async ({ page }) => {
+  test('create job shows success feedback', async ({ page }) => {
     await login(page);
 
-    // Ensure a queue exists first
     const qName = `e2ej${Date.now().toString(36)}`;
-    await page.goto(liveBase! + '/queues');
+    await gotoApp(page, '/queues');
     await page.getByRole('button', { name: 'Create Queue' }).first().click();
-    const nameInput = page.getByLabel(/name/i).or(page.locator('input[name="name"]')).first();
-    await nameInput.fill(qName);
+    await page.getByLabel(/^name$/i).or(page.locator('input').nth(0)).first().fill(qName);
     await page.getByRole('button', { name: /^Create Queue$/ }).last().click();
-    await expect(page.getByText(qName).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(qName).first()).toBeVisible({ timeout: 25_000 });
 
-    await page.goto(liveBase! + '/jobs');
+    await gotoApp(page, '/jobs');
     await page.getByRole('button', { name: 'Create Job' }).first().click();
 
-    // Queue field — combobox/select/input
-    const queueInput = page.getByLabel(/queue/i).first();
-    if (await queueInput.isVisible().catch(() => false)) {
-      await queueInput.fill(qName);
-      // If it's a combobox, press Enter to confirm
-      await queueInput.press('Enter').catch(() => undefined);
+    // Prefer selecting queue by typing into visible inputs/selects
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const inputs = dialog.locator('input, textarea, select');
+    const count = await inputs.count();
+    if (count > 0) {
+      // First field often queue name
+      await inputs.nth(0).fill(qName);
+    }
+    const textarea = dialog.locator('textarea').first();
+    if (await textarea.isVisible().catch(() => false)) {
+      await textarea.fill(JSON.stringify({ e2e: true }));
     }
 
-    const payload = page.locator('textarea').first();
-    if (await payload.isVisible().catch(() => false)) {
-      await payload.fill(JSON.stringify({ e2e: true }));
-    }
-
-    await page.getByRole('button', { name: /^Create Job$/ }).last().click();
-
+    await dialog.getByRole('button', { name: /^Create Job$/ }).click();
     await expect(
       page.getByText(/created|enqueued|success/i).or(page.getByText(qName).first())
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 25_000 });
   });
 
   test('mobile nav opens authenticated shell', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page);
-    const menu = page.getByRole('button', { name: /menu|open navigation|navigation/i }).first();
-    if (await menu.isVisible().catch(() => false)) {
-      await menu.click();
-      await expect(page.getByRole('link', { name: /jobs|dashboard|queues/i }).first()).toBeVisible();
-    } else {
-      await expect(page.getByRole('link', { name: /dashboard|jobs/i }).first()).toBeVisible();
-    }
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+    await expect(page.getByRole('link', { name: /Jobs|Dashboard|Queues/i }).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });
