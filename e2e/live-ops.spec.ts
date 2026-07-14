@@ -30,7 +30,9 @@ async function login(page: import('@playwright/test').Page) {
     try {
       const raw = localStorage.getItem('auth-storage');
       if (!raw) return false;
-      const parsed = JSON.parse(raw) as { state?: { accessToken?: string; isAuthenticated?: boolean } };
+      const parsed = JSON.parse(raw) as {
+        state?: { accessToken?: string; isAuthenticated?: boolean };
+      };
       return Boolean(parsed?.state?.accessToken || parsed?.state?.isAuthenticated);
     } catch {
       return false;
@@ -58,11 +60,18 @@ test.describe('live ops flows', () => {
 
     await gotoApp(page, '/queues');
     await page.getByRole('button', { name: 'Create Queue' }).first().click();
-    await expect(page.getByRole('heading', { name: /Create New Queue|Create Queue/i }).or(page.getByText(/Create New Queue/i))).toBeVisible();
+    await expect(
+      page
+        .getByRole('heading', { name: /Create New Queue|Create Queue/i })
+        .or(page.getByText(/Create New Queue/i))
+    ).toBeVisible();
 
     const nameInput = page.getByLabel(/^name$/i).or(page.locator('input').nth(0));
     await nameInput.first().fill(qName);
-    await page.getByRole('button', { name: /^Create Queue$/ }).last().click();
+    await page
+      .getByRole('button', { name: /^Create Queue$/ })
+      .last()
+      .click();
 
     await expect(page.getByText(qName).first()).toBeVisible({ timeout: 25_000 });
   });
@@ -73,8 +82,15 @@ test.describe('live ops flows', () => {
     const qName = `e2ej${Date.now().toString(36)}`;
     await gotoApp(page, '/queues');
     await page.getByRole('button', { name: 'Create Queue' }).first().click();
-    await page.getByLabel(/^name$/i).or(page.locator('input').nth(0)).first().fill(qName);
-    await page.getByRole('button', { name: /^Create Queue$/ }).last().click();
+    await page
+      .getByLabel(/^name$/i)
+      .or(page.locator('input').nth(0))
+      .first()
+      .fill(qName);
+    await page
+      .getByRole('button', { name: /^Create Queue$/ })
+      .last()
+      .click();
     await expect(page.getByText(qName).first()).toBeVisible({ timeout: 25_000 });
 
     await gotoApp(page, '/jobs');

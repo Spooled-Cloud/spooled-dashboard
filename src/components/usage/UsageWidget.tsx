@@ -226,7 +226,7 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
 
         {/* Upgrade Prompt */}
         {showUpgrade && isFree && (
-          <div className="rounded-lg border border-border bg-muted/40 p-4">
+          <div className="bg-muted/40 rounded-lg border border-border p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="font-medium">Need higher limits?</p>
