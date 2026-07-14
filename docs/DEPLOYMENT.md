@@ -49,7 +49,7 @@ docker compose up -d --build
 
 `docker-compose.prod.yml` runs the published dashboard image and a `cloudflared` sidecar. It requires `CLOUDFLARE_TUNNEL_TOKEN` and does not publish the dashboard port to the host.
 
-The dashboard stack has no busybox/alpine one-shot init containers. Backend self-hosting (API + DB + Redis + gRPC TLS + Prometheus/Grafana) is documented in `spooled-backend` — see that repo’s `docker-compose.prod.yml` and `docs/guides/deployment.md` (**Zero-touch init**): TLS and metrics bootstrap automatically so Portainer **Pull and redeploy** stays clean. On the shared Spooled host, backend durable WD is `/opt/spooled/backend`; after backend Pull, if Portainer wiped `/data/compose/71/<sha>/`, run `heal-portainer-stack-files` (see `spooled-backend/docs/guides/production-host-portainer.md`).
+The dashboard stack has no busybox/alpine one-shot init containers. Backend self-hosting is documented in `spooled-backend` (`docker-compose.prod.yml`, `docs/guides/deployment.md` **Zero-touch init**, and `docs/guides/production-host-portainer.md`).
 
 ```bash
 cp .env.example .env
@@ -59,21 +59,11 @@ docker compose -f docker-compose.prod.yml up -d
 
 Configure the tunnel route to send the public hostname to `http://dashboard:4321`.
 
-#### Current production host layout (2026-07-14)
+#### Production Compose notes
 
-On the production host the stack is managed from a durable path (not `/tmp` and not ephemeral Portainer Git dirs under `/data/compose/71/<sha>/`):
+Use a dedicated Compose project name (for example `spooled-dashboard`). Keep secrets in a host `.env` (mode `600`) or Portainer stack env — never commit them. Prefer an immutable image tag/digest for dashboard rollbacks; `main` also publishes `latest`.
 
-- Directory: `/opt/spooled/dashboard`
-- Compose project name: **`spooled-dashboard`** only (never other host projects)
-- Compose file: `docker-compose.prod.yml`
-- Image pin: `.env.image` with immutable digest `ghcr.io/spooled-cloud/spooled-dashboard:v0.1.63@sha256:2c0478df9585f1bbd6a328354c78f5672414435b974bb0d46ceff4644d969192`
-- Secrets: `.env` mode `600` (includes tunnel token). Never commit or paste this file.
-- Recreate: `cd /opt/spooled/dashboard && sudo docker compose -p spooled-dashboard --env-file .env --env-file .env.image -f docker-compose.prod.yml up -d`
-- Health probe: explicit IPv4 `127.0.0.1:4321/api/config` (container must report `healthy`)
-
-**Isolation on the shared host:** do not stop/rm/compose against `authentik`, `outlinewiki`, `spooled-backend`, `spooled-example-spriteforge`, or any non-`spooled-dashboard` project. Prefer digest pins over `:latest`. Backend durable path is separate: `/opt/spooled/backend` (see `spooled-backend/docs/guides/production-host-portainer.md`).
-
-Portainer Agent is present on the host; if a Portainer UI stack entry exists, point it at **`/opt/spooled/dashboard`** (Web editor or bind/relative path), not an ephemeral Git sha folder. Do not redeploy from `/tmp`.
+On shared Docker hosts, do not stop or remove unrelated stacks. Health checks should probe `http://127.0.0.1:4321/api/config` (explicit IPv4). If using Portainer, prefer a stable bind path or Web editor over ephemeral Git checkout directories that some Portainer installs delete after deploy. See also `spooled-backend/docs/guides/production-host-portainer.md` for Git-stack behavior.
 
 ## Docker without Compose
 
