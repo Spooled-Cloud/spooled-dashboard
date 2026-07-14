@@ -27,7 +27,14 @@ const SECURITY_HEADERS: Record<string, string> = {
   ].join('; '),
 };
 
-export const onRequest = defineMiddleware(async (_context, next) => {
+export const onRequest = defineMiddleware(async (context, next) => {
+  const forwardedProto = context.request.headers.get('x-forwarded-proto');
+  if (forwardedProto === 'http') {
+    const url = new URL(context.request.url);
+    url.protocol = 'https:';
+    return Response.redirect(url.toString(), 301);
+  }
+
   const response = await next();
 
   // Clone headers so we can mutate even if the response is immutable
