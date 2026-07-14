@@ -247,10 +247,22 @@ export function CreateOrganizationDialog({ onSuccess }: CreateOrganizationDialog
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 break-all rounded bg-background px-3 py-2 font-mono text-xs">
-                      {result.api_key.key}
+                    <code
+                      className="flex-1 break-all rounded bg-background px-3 py-2 font-mono text-xs"
+                      data-testid="admin-created-api-key"
+                    >
+                      {typeof result.api_key?.key === 'string'
+                        ? result.api_key.key
+                        : 'Missing one-time key — create a key from the organization detail page.'}
                     </code>
-                    <Button variant="outline" size="icon" onClick={handleCopyKey}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCopyKey}
+                      disabled={typeof result.api_key?.key !== 'string'}
+                      aria-label="Copy API key"
+                    >
+                      {' '}
                       {copied ? (
                         <Check className="h-4 w-4 text-green-600" />
                       ) : (

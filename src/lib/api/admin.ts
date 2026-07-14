@@ -135,6 +135,37 @@ export interface CreateOrgResponse {
   };
 }
 
+/**
+ * Validate admin create-org response.
+ * Backend returns `api_key` as an object with a one-time `key` string — never a bare string.
+ */
+export function parseCreateOrgResponse(raw: unknown): CreateOrgResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid create-organization response');
+  }
+  const body = raw as Record<string, unknown>;
+  const organization = body.organization;
+  const apiKey = body.api_key;
+
+  if (!organization || typeof organization !== 'object') {
+    throw new Error('Create-organization response missing organization');
+  }
+  if (!apiKey || typeof apiKey !== 'object') {
+    throw new Error(
+      'Create-organization response missing api_key object (expected { id, key, name, created_at })'
+    );
+  }
+  const keyObj = apiKey as Record<string, unknown>;
+  if (typeof keyObj.key !== 'string' || keyObj.key.length < 10) {
+    throw new Error('Create-organization response api_key.key missing or invalid');
+  }
+  if (typeof keyObj.id !== 'string' || typeof keyObj.name !== 'string') {
+    throw new Error('Create-organization response api_key incomplete');
+  }
+
+  return body as CreateOrgResponse;
+}
+
 export interface CreateApiKeyRequest {
   name: string;
   queues?: string[];
@@ -344,10 +375,11 @@ export const adminAPI = {
    * Create a new organization (admin-only)
    */
   async createOrganization(data: CreateOrgRequest): Promise<CreateOrgResponse> {
-    return adminFetch<CreateOrgResponse>('/api/v1/admin/organizations', {
+    const raw = await adminFetch<unknown>('/api/v1/admin/organizations', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    return parseCreateOrgResponse(raw);
   },
 
   /**

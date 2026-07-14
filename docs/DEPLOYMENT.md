@@ -57,6 +57,19 @@ docker compose -f docker-compose.prod.yml up -d
 
 Configure the tunnel route to send the public hostname to `http://dashboard:4321`.
 
+#### Current production host layout (2026-07-14)
+
+On the production host the stack is managed from a durable path (not `/tmp`):
+
+- Directory: `/opt/spooled/dashboard`
+- Compose file: `docker-compose.prod.yml`
+- Image pin: `.env.image` with immutable digest `ghcr.io/spooled-cloud/spooled-dashboard:v0.1.60@sha256:ea749e79c2f4fb758b794c759ac41145ed4dacb61637d53779e04c56cdab5f6e`
+- Secrets: `.env` mode `600` (includes tunnel token). Never commit or paste this file.
+- Recreate: `cd /opt/spooled/dashboard && sudo docker compose -p spooled-dashboard --env-file .env -f docker-compose.prod.yml up -d`
+- Health probe: explicit IPv4 `127.0.0.1:4321/api/config` (container must report `healthy`)
+
+Portainer Agent is present on the host; if a Portainer UI stack entry exists, point it at this directory / image digest so the UI matches the live containers. Do not redeploy from an ephemeral `/tmp` path.
+
 ## Docker without Compose
 
 ```bash
