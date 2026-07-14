@@ -49,6 +49,8 @@ docker compose up -d --build
 
 `docker-compose.prod.yml` runs the published dashboard image and a `cloudflared` sidecar. It requires `CLOUDFLARE_TUNNEL_TOKEN` and does not publish the dashboard port to the host.
 
+The dashboard stack has no busybox/alpine one-shot init containers. Backend self-hosting (API + DB + Redis + gRPC TLS + Prometheus/Grafana) is documented in `spooled-backend` — see that repo’s `docker-compose.prod.yml` and `docs/guides/deployment.md` (**Zero-touch init**): TLS and metrics bootstrap automatically so Portainer **Pull and redeploy** stays clean.
+
 ```bash
 cp .env.example .env
 # Set CLOUDFLARE_TUNNEL_TOKEN and any runtime overrides.
