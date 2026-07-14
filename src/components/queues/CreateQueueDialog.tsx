@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateQueueRequest } from '@/lib/types';
+import { APIError } from '@/lib/api/client';
 
 interface CreateQueueDialogProps {
   trigger?: React.ReactNode;
@@ -50,6 +51,12 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
       onSuccess?.(queue.name);
     },
     onError: (err) => {
+      if (err instanceof APIError && err.isQuotaExceeded()) {
+        setError(
+          `${err.message} Compare plans at spooled.cloud/pricing, then manage billing in Settings.`
+        );
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to create queue');
     },
   });

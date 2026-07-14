@@ -28,6 +28,9 @@ export class APIError extends Error {
       error?: string;
       message?: string;
       details?: Record<string, unknown>;
+      resource?: string;
+      current?: number;
+      limit?: number;
     } | null = null;
     try {
       body = await response.json();
@@ -42,11 +45,16 @@ export class APIError extends Error {
         : undefined) ||
       'UNKNOWN_ERROR';
 
+    const details: Record<string, unknown> = { ...(body?.details || {}) };
+    if (body?.resource !== undefined) details.resource = body.resource;
+    if (body?.current !== undefined) details.current = body.current;
+    if (body?.limit !== undefined) details.limit = body.limit;
+
     return new APIError(
       response.status,
       code,
       body?.message || `HTTP Error: ${response.status}`,
-      body?.details
+      Object.keys(details).length > 0 ? details : undefined
     );
   }
 
@@ -72,6 +80,16 @@ export class APIError extends Error {
 
   isRateLimited(): boolean {
     return this.status === HTTP_STATUS.TOO_MANY_REQUESTS;
+  }
+
+  isQuotaExceeded(): boolean {
+    return (
+      this.code === 'QUOTA_EXCEEDED' ||
+      this.code === 'LIMIT_EXCEEDED' ||
+      (this.status === HTTP_STATUS.TOO_MANY_REQUESTS &&
+        typeof this.message === 'string' &&
+        /limit reached/i.test(this.message))
+    );
   }
 
   isServerError(): boolean {

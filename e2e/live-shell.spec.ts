@@ -92,24 +92,41 @@ test.describe('live shell surfaces', () => {
 
     const token = await accessToken(page);
     const suffix = Date.now().toString(36);
-    const qName = `e2ertq${suffix}`;
+    let qName = `e2ertq${suffix}`;
     const jobType = `e2ert_${suffix}`;
 
-    const queueRes = await request.put(
-      `${apiBase}/api/v1/queues/${encodeURIComponent(qName)}/config`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        data: {
-          queue_name: qName,
-          max_retries: 3,
-          default_timeout: 300,
-        },
+    const listRes = await request.get(`${apiBase}/api/v1/queues`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(listRes.ok()).toBeTruthy();
+    const listed = (await listRes.json()) as Array<{ queue_name?: string; name?: string }>;
+    const existing = listed
+      .map((q) => q.queue_name || q.name)
+      .filter((name): name is string => Boolean(name));
+
+    if (existing.length >= 2) {
+      // Free plan caps queues at 2 — reuse one created earlier in the suite/org
+      qName = existing[0]!;
+    } else {
+      const queueRes = await request.put(
+        `${apiBase}/api/v1/queues/${encodeURIComponent(qName)}/config`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          data: {
+            queue_name: qName,
+            max_retries: 3,
+            default_timeout: 300,
+          },
+        }
+      );
+      if (!queueRes.ok()) {
+        const body = await queueRes.text();
+        throw new Error(`queue create failed ${queueRes.status()}: ${body.slice(0, 200)}`);
       }
-    );
-    expect(queueRes.ok()).toBeTruthy();
+    }
 
     await gotoApp(page, '/jobs');
     await expect(page.getByLabel(/realtime/i).first()).toBeVisible({ timeout: 20_000 });
@@ -126,7 +143,10 @@ test.describe('live shell surfaces', () => {
         max_retries: 3,
       },
     });
-    expect(jobRes.ok()).toBeTruthy();
+    if (!jobRes.ok()) {
+      const body = await jobRes.text();
+      throw new Error(`job create failed ${jobRes.status()}: ${body.slice(0, 200)}`);
+    }
     const created = (await jobRes.json()) as { id?: string };
     expect(created.id).toBeTruthy();
     const shortId = created.id!.slice(0, 8);

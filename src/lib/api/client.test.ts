@@ -84,6 +84,23 @@ describe('APIError', () => {
       expect(error.isRateLimited()).toBe(true);
     });
 
+    it('isQuotaExceeded detects QUOTA_EXCEEDED payloads', async () => {
+      const response = new Response(
+        JSON.stringify({
+          error: 'limit_exceeded',
+          code: 'QUOTA_EXCEEDED',
+          message: 'queues limit reached (2/2). Upgrade to starter for higher limits.',
+          resource: 'queues',
+          current: 2,
+          limit: 2,
+        }),
+        { status: 429 }
+      );
+      const error = await APIError.fromResponse(response);
+      expect(error.isQuotaExceeded()).toBe(true);
+      expect(error.details).toMatchObject({ resource: 'queues', current: 2, limit: 2 });
+    });
+
     it('isServerError returns true for 500+', () => {
       expect(new APIError(500, 'ERROR', 'Error').isServerError()).toBe(true);
       expect(new APIError(502, 'ERROR', 'Error').isServerError()).toBe(true);

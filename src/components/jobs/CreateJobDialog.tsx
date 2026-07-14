@@ -27,6 +27,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateJobRequest, BackoffType } from '@/lib/types';
+import { APIError } from '@/lib/api/client';
 
 interface CreateJobDialogProps {
   trigger?: React.ReactNode;
@@ -67,6 +68,12 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
       onSuccess?.(result.id);
     },
     onError: (err) => {
+      if (err instanceof APIError && err.isQuotaExceeded()) {
+        setError(
+          `${err.message} Compare plans at spooled.cloud/pricing, then manage billing in Settings.`
+        );
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to create job');
     },
   });
