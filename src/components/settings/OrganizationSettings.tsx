@@ -266,7 +266,7 @@ function OrganizationSettingsContent() {
   const handleEdit = () => {
     if (org) {
       setName(org.name);
-      setDescription('');
+      setDescription(org.description ?? '');
       setIsEditing(true);
     }
   };
@@ -312,7 +312,9 @@ function OrganizationSettingsContent() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Organization Settings</h1>
-        <p className="text-muted-foreground">Manage your organization details and members</p>
+        <p className="text-muted-foreground">
+          Organization details and members (member list is read-only)
+        </p>
       </div>
 
       {/* Organization Details */}
@@ -351,9 +353,10 @@ function OrganizationSettingsContent() {
           ) : org ? (
             <>
               <div className="grid gap-2">
-                <Label>Organization Name</Label>
+                <Label htmlFor="org-name">Organization Name</Label>
                 {isEditing ? (
                   <Input
+                    id="org-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Organization name"
@@ -364,15 +367,20 @@ function OrganizationSettingsContent() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Description</Label>
+                <Label htmlFor="org-description">Description</Label>
                 {isEditing ? (
                   <Textarea
+                    id="org-description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Optional description"
                     className="min-h-[80px]"
                   />
-                ) : null}
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {org.description?.trim() ? org.description : 'No description set'}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 border-t pt-4">
@@ -412,7 +420,9 @@ function OrganizationSettingsContent() {
                 <Users className="h-5 w-5" />
                 Members
               </CardTitle>
-              <CardDescription>People who have access to this organization</CardDescription>
+              <CardDescription>
+                People with access (view only — invites not available here)
+              </CardDescription>
             </div>
           </div>
         </CardHeader>

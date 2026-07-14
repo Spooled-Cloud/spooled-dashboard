@@ -1,4 +1,5 @@
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
+import { FeatureGate } from '@/components/providers/FeatureGate';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -415,7 +416,9 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
 export function WorkflowDetailsPage({ workflowId }: WorkflowDetailsPageProps) {
   return (
     <ProtectedPage>
-      <WorkflowDetailsContent workflowId={workflowId} />
+      <FeatureGate feature="workflows">
+        <WorkflowDetailsContent workflowId={workflowId} />
+      </FeatureGate>
     </ProtectedPage>
   );
 }

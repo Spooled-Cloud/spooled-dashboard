@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
+import { FeatureGate } from '@/components/providers/FeatureGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -455,7 +456,9 @@ function ScheduleDetailsContent({ scheduleId }: ScheduleDetailsContentProps) {
 export function ScheduleDetailsPage({ scheduleId }: { scheduleId: string }) {
   return (
     <ProtectedPage>
-      <ScheduleDetailsContent scheduleId={scheduleId} />
+      <FeatureGate feature="schedules">
+        <ScheduleDetailsContent scheduleId={scheduleId} />
+      </FeatureGate>
     </ProtectedPage>
   );
 }

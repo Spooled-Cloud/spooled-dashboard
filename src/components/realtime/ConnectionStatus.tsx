@@ -16,7 +16,7 @@ function formatSyncAge(iso: string | null): string | null {
 }
 
 export function ConnectionStatus() {
-  const { isConnected, state, lastEventAt } = useWebSocketConnection();
+  const { isConnected, state, lastEventAt, retry } = useWebSocketConnection();
 
   const statusConfig =
     state === 'live' || isConnected
@@ -26,6 +26,7 @@ export function ConnectionStatus() {
           pingClass: 'bg-status-completed/75',
           textClass: 'text-status-completed-foreground',
           showPing: true,
+          showRetry: false,
         }
       : state === 'connecting' || state === 'reconnecting'
         ? {
@@ -34,6 +35,7 @@ export function ConnectionStatus() {
             pingClass: 'bg-status-retrying/75',
             textClass: 'text-status-retrying-foreground',
             showPing: true,
+            showRetry: false,
           }
         : state === 'degraded'
           ? {
@@ -42,6 +44,7 @@ export function ConnectionStatus() {
               pingClass: '',
               textClass: 'text-status-warning-foreground',
               showPing: false,
+              showRetry: true,
             }
           : state === 'auth_failed'
             ? {
@@ -50,6 +53,7 @@ export function ConnectionStatus() {
                 pingClass: '',
                 textClass: 'text-status-failed-foreground',
                 showPing: false,
+                showRetry: false,
               }
             : {
                 label: state === 'offline' ? 'Offline' : 'Stopped',
@@ -57,6 +61,7 @@ export function ConnectionStatus() {
                 pingClass: '',
                 textClass: 'text-status-offline-foreground',
                 showPing: false,
+                showRetry: state === 'offline' || state === 'stopped',
               };
 
   const syncAge = formatSyncAge(lastEventAt);
@@ -81,6 +86,15 @@ export function ConnectionStatus() {
       <span className="hidden sm:inline">{statusConfig.label}</span>
       {syncAge && (state === 'live' || isConnected) ? (
         <span className="hidden text-muted-foreground md:inline">· {syncAge}</span>
+      ) : null}
+      {statusConfig.showRetry ? (
+        <button
+          type="button"
+          onClick={() => retry()}
+          className="hidden rounded px-1.5 py-0.5 text-[11px] font-semibold underline-offset-2 hover:underline sm:inline"
+        >
+          Retry
+        </button>
       ) : null}
     </div>
   );

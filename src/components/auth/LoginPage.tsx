@@ -115,7 +115,7 @@ export function LoginPage() {
 
   return (
     <div className="to-muted/30 flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-background p-6">
-      <div className="w-full max-w-md space-y-8">
+      <main id="main-content" tabIndex={-1} className="w-full max-w-md space-y-8">
         {/* Logo and Title */}
         <div className="text-center">
           <div className="mx-auto mb-6">
@@ -310,7 +310,7 @@ export function LoginPage() {
             Real-time job monitoring • Queue management • Worker oversight • Workflow orchestration
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

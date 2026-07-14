@@ -75,11 +75,14 @@ Portainer Agent is present on the host; if a Portainer UI stack entry exists, po
 ```bash
 docker build -t spooled-dashboard:latest .
 
-# The current browser bundle uses build-time/static API and WebSocket defaults;
-# runtime PUBLIC_* overrides are not yet wired at startup.
+# Runtime PUBLIC_* values are served by GET /api/config and loaded by
+# RuntimeConfigBootstrap on every page. Rebuild is still required for client
+# bundle changes; env alone updates API/WS URLs and feature flags.
 docker run -d \
   --name spooled-dashboard \
   -p 4321:4321 \
+  -e PUBLIC_API_URL=https://api.spooled.cloud \
+  -e PUBLIC_WS_URL=wss://api.spooled.cloud \
   spooled-dashboard:latest
 ```
 

@@ -48,7 +48,7 @@ const settingsNavigationConfig: NavItemConfig[] = [
   { label: 'Webhooks', href: '/settings/webhooks', Icon: Webhook },
   { label: 'Organization', href: '/settings/organization', Icon: Building },
   { label: 'Billing', href: '/settings/billing', Icon: CreditCard },
-  { label: 'Profile', href: '/settings/profile', Icon: User },
+  { label: 'Session', href: '/settings/profile', Icon: User },
 ];
 
 function isNavItemActive(currentPath: string, navHref: string): boolean {

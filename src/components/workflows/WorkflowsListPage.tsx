@@ -1,4 +1,5 @@
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
+import { FeatureGate } from '@/components/providers/FeatureGate';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -278,7 +279,9 @@ function WorkflowsListContent() {
 export function WorkflowsListPage() {
   return (
     <ProtectedPage>
-      <WorkflowsListContent />
+      <FeatureGate feature="workflows">
+        <WorkflowsListContent />
+      </FeatureGate>
     </ProtectedPage>
   );
 }

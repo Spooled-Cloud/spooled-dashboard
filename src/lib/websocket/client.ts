@@ -302,6 +302,28 @@ class WebSocketClient {
     }
   }
 
+  /**
+   * Manual retry after degraded/offline. Resets backoff and reconnects.
+   */
+  retryConnection(): void {
+    if (!this.accessToken) {
+      this.setState('auth_failed');
+      return;
+    }
+    this.reconnectAttempts = 0;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    if (this.ws) {
+      this.isManualClose = true;
+      this.ws.close();
+      this.ws = null;
+      this.isManualClose = false;
+    }
+    this.connect();
+  }
+
   disconnect(): void {
     this.isManualClose = true;
     this.stopHeartbeat();

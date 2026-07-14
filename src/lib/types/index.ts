@@ -293,6 +293,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  description?: string;
   plan_tier: string;
   billing_email?: string;
   settings: Record<string, unknown>;

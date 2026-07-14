@@ -1,4 +1,5 @@
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
+import { FeatureGate } from '@/components/providers/FeatureGate';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -301,7 +302,9 @@ function SchedulesListContent() {
 export function SchedulesListPage() {
   return (
     <ProtectedPage>
-      <SchedulesListContent />
+      <FeatureGate feature="schedules">
+        <SchedulesListContent />
+      </FeatureGate>
     </ProtectedPage>
   );
 }

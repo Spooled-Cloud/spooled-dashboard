@@ -102,7 +102,7 @@ function SettingsContent() {
           href="/settings/billing"
           icon={<CreditCard className="h-4 w-4" />}
           title="Billing"
-          description="Current plan, usage limits, and Stripe customer portal"
+          description="Current plan and Stripe customer portal"
         />
       </SettingsGroup>
     </div>

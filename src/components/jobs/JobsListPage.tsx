@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,10 +36,52 @@ interface JobFilters {
   search?: string;
 }
 
+const JOB_STATUSES: JobStatus[] = [
+  'pending',
+  'scheduled',
+  'processing',
+  'completed',
+  'failed',
+  'cancelled',
+  'deadletter',
+];
+
+function parseFiltersFromUrl(): JobFilters {
+  if (typeof window === 'undefined') return {};
+  const params = new URLSearchParams(window.location.search);
+  const statusParam = params.get('status');
+  const status =
+    statusParam && (JOB_STATUSES as string[]).includes(statusParam)
+      ? (statusParam as JobStatus)
+      : undefined;
+  return {
+    status,
+    queue: params.get('queue') || undefined,
+    job_type: params.get('job_type') || undefined,
+    search: params.get('search') || params.get('q') || undefined,
+  };
+}
+
+function syncFiltersToUrl(filters: JobFilters) {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.queue) params.set('queue', filters.queue);
+  if (filters.job_type) params.set('job_type', filters.job_type);
+  if (filters.search) params.set('search', filters.search);
+  const qs = params.toString();
+  const next = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+  window.history.replaceState({}, '', next);
+}
+
 function JobsListContent() {
-  const [filters, setFilters] = useState<JobFilters>({});
+  const [filters, setFilters] = useState<JobFilters>(() => parseFiltersFromUrl());
   const [page, setPage] = useState(1);
   const pageSize = 25;
+
+  useEffect(() => {
+    syncFiltersToUrl(filters);
+  }, [filters]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: queryKeys.jobs.list({ ...filters, page, per_page: pageSize }),

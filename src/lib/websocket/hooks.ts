@@ -59,7 +59,11 @@ export function useWebSocketConnection() {
     wsClient.disconnect();
   }, []);
 
-  return { isConnected, state, lastEventAt, connect, disconnect };
+  const retry = useCallback(() => {
+    wsClient.retryConnection();
+  }, []);
+
+  return { isConnected, state, lastEventAt, connect, disconnect, retry };
 }
 
 /**
@@ -139,10 +143,13 @@ export function useWebSocketQueryInvalidation() {
         case 'workflow.started':
         case 'workflow.completed':
         case 'workflow.failed':
+          // Reserved: backend realtime.rs does not emit workflow events yet.
+          // Keep invalidation so a future event type lights up list refresh.
           queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
           break;
 
         case 'schedule.triggered':
+          // Reserved: backend does not emit schedule events on the WS stream yet.
           queryClient.invalidateQueries({ queryKey: queryKeys.schedules.all });
           break;
       }

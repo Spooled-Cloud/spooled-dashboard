@@ -12,13 +12,6 @@ const { title, description } = Astro.props;
 ---
 
 <BaseLayout title={title} description={description} noindex={true}>
-  <a
-    href="#main-content"
-    class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-border focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
-  >
-    Skip to main content
-  </a>
-
   <div class="flex h-[100dvh] overflow-hidden">
     <Sidebar client:load />
 

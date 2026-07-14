@@ -64,7 +64,23 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
   }
 
   if (error || !usage) {
-    return null; // Silently fail - usage widget is not critical
+    return compact ? null : (
+      <Card>
+        <CardHeader>
+          <CardTitle>Usage & Limits</CardTitle>
+          <CardDescription>Could not load usage for this organization</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error || 'Usage data unavailable'}</AlertDescription>
+          </Alert>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => void loadUsage()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   // Compact version for header/sidebar
@@ -210,27 +226,25 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
 
         {/* Upgrade Prompt */}
         {showUpgrade && isFree && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-            <div className="flex items-center justify-between">
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="font-medium text-amber-600 dark:text-amber-400">
-                  Unlock more with Starter
-                </p>
+                <p className="font-medium">Need higher limits?</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  10x more jobs, workflows, and dedicated support
+                  Compare plans on the public pricing page, then manage billing in Settings.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-amber-500 text-amber-600 hover:bg-amber-50"
-                asChild
-              >
-                <a href="/settings/billing">
-                  Upgrade
-                  <ArrowUpRight className="ml-1 h-4 w-4" />
-                </a>
-              </Button>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <Button variant="outline" size="sm" asChild>
+                  <a href="https://spooled.cloud/pricing" target="_blank" rel="noreferrer">
+                    Pricing
+                    <ArrowUpRight className="ml-1 h-4 w-4" />
+                  </a>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/settings/billing">Billing</a>
+                </Button>
+              </div>
             </div>
           </div>
         )}

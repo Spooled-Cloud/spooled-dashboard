@@ -76,7 +76,7 @@ export function Header() {
           <DropdownMenuItem asChild>
             <a href="/settings/profile" className="cursor-pointer">
               <User className="mr-2 h-4 w-4" />
-              Profile
+              Session
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
