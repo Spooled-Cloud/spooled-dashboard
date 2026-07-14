@@ -382,6 +382,24 @@ export const mockWebhooks = [
   },
 ];
 
+export const mockBillingStatusFree = {
+  plan_tier: 'free',
+  stripe_subscription_id: null,
+  stripe_subscription_status: null,
+  stripe_current_period_end: null,
+  stripe_cancel_at_period_end: null,
+  has_stripe_customer: false,
+};
+
+export const mockBillingStatusWithCustomer = {
+  plan_tier: 'starter',
+  stripe_subscription_id: 'sub_test_123',
+  stripe_subscription_status: 'active',
+  stripe_current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  stripe_cancel_at_period_end: false,
+  has_stripe_customer: true,
+};
+
 // Handlers
 export const handlers = [
   // Auth
@@ -1063,6 +1081,15 @@ export const handlers = [
   // Auth logout
   http.post(`${API_BASE}/api/v1/auth/logout`, () => {
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Billing
+  http.get(`${API_BASE}/api/v1/billing/status`, () => {
+    return HttpResponse.json(mockBillingStatusFree);
+  }),
+
+  http.post(`${API_BASE}/api/v1/billing/portal`, async () => {
+    return HttpResponse.json({ url: 'https://billing.stripe.com/session/test' });
   }),
 
   // Organizations

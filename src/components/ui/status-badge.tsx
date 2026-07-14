@@ -25,63 +25,63 @@ interface StatusConfig {
 const statusConfigs: Record<StatusVariant, StatusConfig> = {
   pending: {
     label: 'Pending',
-    className: 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    className: 'border-status-pending/50 bg-status-pending/10 text-status-pending-foreground',
     icon: Clock,
   },
   scheduled: {
     label: 'Scheduled',
-    className: 'border-blue-500/50 bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    className: 'border-status-scheduled/50 bg-status-scheduled/10 text-status-scheduled-foreground',
     icon: Calendar,
   },
   processing: {
     label: 'Processing',
-    className: 'border-blue-500 bg-blue-500 text-white',
+    className: 'border-status-processing bg-status-processing text-status-processing-foreground',
     icon: Loader2,
     animate: true,
   },
   completed: {
     label: 'Completed',
-    className: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    className: 'border-status-completed/50 bg-status-completed/10 text-status-completed-foreground',
     icon: CheckCircle2,
   },
   failed: {
     label: 'Failed',
-    className: 'border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400',
+    className: 'border-status-failed/50 bg-status-failed/10 text-status-failed-foreground',
     icon: XCircle,
   },
   cancelled: {
     label: 'Cancelled',
-    className: 'border-gray-500/50 bg-gray-500/10 text-gray-600 dark:text-gray-400',
+    className: 'border-status-canceled/50 bg-status-canceled/10 text-status-canceled-foreground',
     icon: Ban,
   },
   deadletter: {
     label: 'Dead Letter',
-    className: 'border-red-600/50 bg-red-600/20 text-red-700 dark:text-red-300',
+    className: 'border-status-failed/50 bg-status-failed/20 text-status-failed-foreground',
     icon: AlertTriangle,
   },
   paused: {
     label: 'Paused',
-    className: 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    className: 'border-status-paused/50 bg-status-paused/10 text-status-paused-foreground',
     icon: Pause,
   },
   active: {
     label: 'Active',
-    className: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    className: 'border-status-completed/50 bg-status-completed/10 text-status-completed-foreground',
     icon: CheckCircle2,
   },
   inactive: {
     label: 'Inactive',
-    className: 'border-gray-500/50 bg-gray-500/10 text-gray-600 dark:text-gray-400',
+    className: 'border-status-offline/50 bg-status-offline/10 text-status-offline-foreground',
     icon: Pause,
   },
   healthy: {
     label: 'Healthy',
-    className: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    className: 'border-status-completed/50 bg-status-completed/10 text-status-completed-foreground',
     icon: CheckCircle2,
   },
   unhealthy: {
     label: 'Unhealthy',
-    className: 'border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400',
+    className: 'border-status-degraded/50 bg-status-degraded/10 text-status-degraded-foreground',
     icon: AlertTriangle,
   },
 };

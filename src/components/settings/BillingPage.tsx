@@ -19,30 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Plan limits - must match spooled-frontend/src/lib/plans.ts
-const PLAN_FEATURES = {
-  starter: {
-    name: 'Starter',
-    description: 'For growing teams and apps',
-    features: ['10,000 jobs/day', '10 queues', '5 workers', '14 day retention', '5 workflows'],
-  },
-  pro: {
-    name: 'Pro',
-    description: 'For production workloads',
-    features: ['100,000 jobs/day', '50 queues', '25 workers', '30 day retention', '25 workflows'],
-  },
-  enterprise: {
-    name: 'Enterprise',
-    description: 'For scale and compliance',
-    features: [
-      'Unlimited jobs',
-      'Unlimited queues',
-      'Unlimited workers',
-      '90 day retention',
-      '24/7 support + SLA',
-    ],
-  },
-};
+const PRICING_URL = 'https://spooled.cloud/pricing';
 
 function PlanBadge({ planTier }: { planTier: string }) {
   const isPaid = planTier !== 'free';
@@ -61,14 +38,14 @@ function PlanBadge({ planTier }: { planTier: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string | null }) {
+function SubscriptionStatusBadge({ status }: { status: string | null }) {
   const info = getSubscriptionStatusInfo(status);
 
   const colorClasses = {
-    default: 'border-muted-foreground bg-muted text-muted-foreground',
-    success: 'border-green-500 bg-green-500/10 text-green-700 dark:text-green-400',
-    warning: 'border-yellow-500 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
-    destructive: 'border-red-500 bg-red-500/10 text-red-700 dark:text-red-400',
+    default: 'border-status-unknown/50 bg-status-unknown/10 text-status-unknown-foreground',
+    success: 'border-status-completed/50 bg-status-completed/10 text-status-completed-foreground',
+    warning: 'border-status-warning/50 bg-status-warning/10 text-status-warning-foreground',
+    destructive: 'border-status-failed/50 bg-status-failed/10 text-status-failed-foreground',
   };
 
   const icons = {
@@ -86,8 +63,23 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
+function getPlanSummary(billing: {
+  plan_tier: string;
+  has_stripe_customer: boolean;
+  stripe_subscription_status: string | null;
+}): string {
+  if (!billing.has_stripe_customer) {
+    if (billing.plan_tier === 'free') {
+      return 'This organization is on the free plan. No Stripe billing account is linked yet.';
+    }
+    return `Plan tier is ${getPlanDisplayName(billing.plan_tier)}. Billing details will appear here after a Stripe account is linked.`;
+  }
+
+  return getSubscriptionStatusInfo(billing.stripe_subscription_status).description;
+}
+
 function BillingContent() {
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
   const {
     data: billing,
@@ -104,23 +96,29 @@ function BillingContent() {
       return billingAPI.createPortalSession(returnUrl);
     },
     onSuccess: (data) => {
-      setIsRedirecting(true);
-      window.location.href = data.url;
+      const opened = window.open(data.url, '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        toast.error('Popup blocked', {
+          description: 'Allow popups for this site to open the Stripe billing portal.',
+        });
+      }
+      setIsOpeningPortal(false);
     },
-    onError: (error) => {
+    onError: (portalError) => {
+      setIsOpeningPortal(false);
       toast.error('Failed to open billing portal', {
-        description: error instanceof Error ? error.message : 'An error occurred',
+        description: portalError instanceof Error ? portalError.message : 'An error occurred',
       });
     },
   });
 
   const handleManageBilling = () => {
+    setIsOpeningPortal(true);
     portalMutation.mutate();
   };
 
-  const handleUpgrade = () => {
-    // Redirect to the main site's pricing page
-    window.open('https://spooled.cloud/pricing', '_blank');
+  const handleViewPricing = () => {
+    window.open(PRICING_URL, '_blank', 'noopener,noreferrer');
   };
 
   if (error) {
@@ -135,9 +133,10 @@ function BillingContent() {
     );
   }
 
-  const statusInfo = getSubscriptionStatusInfo(billing?.stripe_subscription_status ?? null);
   const isPaidPlan = billing?.plan_tier && billing.plan_tier !== 'free';
+  const hasStripeCustomer = billing?.has_stripe_customer ?? false;
   const hasSubscription = billing?.stripe_subscription_id;
+  const planSummary = billing ? getPlanSummary(billing) : '';
 
   return (
     <div className="space-y-6">
@@ -166,12 +165,14 @@ function BillingContent() {
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <PlanBadge planTier={billing.plan_tier} />
-                {hasSubscription && <StatusBadge status={billing.stripe_subscription_status} />}
+                {hasSubscription && (
+                  <SubscriptionStatusBadge status={billing.stripe_subscription_status} />
+                )}
               </div>
 
-              <p className="text-sm text-muted-foreground">{statusInfo.description}</p>
+              <p className="text-sm text-muted-foreground">{planSummary}</p>
 
-              {billing.stripe_current_period_end && (
+              {hasStripeCustomer && billing.stripe_current_period_end && (
                 <div className="bg-muted/50 rounded-lg border p-4">
                   <div className="grid gap-2 text-sm">
                     <div className="flex justify-between">
@@ -191,8 +192,8 @@ function BillingContent() {
                       </span>
                     </div>
                     {billing.stripe_cancel_at_period_end && (
-                      <div className="mt-2 flex items-center gap-2 rounded-md bg-yellow-500/10 p-2 text-yellow-700 dark:text-yellow-400">
-                        <AlertCircle className="h-4 w-4" />
+                      <div className="border-status-warning/50 bg-status-warning/10 mt-2 flex items-center gap-2 rounded-md border p-2 text-status-warning-foreground">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
                         <span className="text-sm">
                           Your subscription will cancel at the end of this billing period
                         </span>
@@ -202,21 +203,30 @@ function BillingContent() {
                 </div>
               )}
 
+              {!hasStripeCustomer && (
+                <div className="border-muted-foreground/30 bg-muted/30 rounded-lg border border-dashed p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Subscribe through spooled.cloud to link a Stripe billing account. Plan limits
+                    and pricing are listed on the public pricing page.
+                  </p>
+                </div>
+              )}
+
               {!isPaidPlan && (
                 <div className="border-primary/30 bg-primary/5 rounded-lg border-2 border-dashed p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
                       <div>
-                        <p className="font-medium">Upgrade to unlock more features</p>
+                        <p className="font-medium">Need higher limits?</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Get higher limits, longer retention, and advanced features.
+                          Compare plans and subscribe on spooled.cloud.
                         </p>
                       </div>
                     </div>
-                    <Button onClick={handleUpgrade} size="sm">
+                    <Button onClick={handleViewPricing} size="sm" variant="outline">
                       <ExternalLink className="mr-2 h-4 w-4" />
-                      View Plans
+                      View pricing
                     </Button>
                   </div>
                 </div>
@@ -234,18 +244,19 @@ function BillingContent() {
             Manage Subscription
           </CardTitle>
           <CardDescription>
-            {billing?.has_stripe_customer
-              ? 'Update payment methods, view invoices, and manage your subscription'
-              : 'Subscribe to a plan to unlock billing management'}
+            {hasStripeCustomer
+              ? 'Open the Stripe billing portal in a new tab to manage payment methods and invoices'
+              : 'Billing management becomes available after a Stripe account is linked'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-10 w-40" />
-          ) : billing?.has_stripe_customer ? (
+          ) : hasStripeCustomer ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Click below to open the Stripe billing portal where you can:
+                You will leave this dashboard and open Stripe&apos;s secure billing portal in a new
+                tab where you can:
               </p>
               <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
                 <li>Update your payment method</li>
@@ -255,17 +266,17 @@ function BillingContent() {
               </ul>
               <Button
                 onClick={handleManageBilling}
-                disabled={portalMutation.isPending || isRedirecting}
+                disabled={portalMutation.isPending || isOpeningPortal}
               >
-                {portalMutation.isPending || isRedirecting ? (
+                {portalMutation.isPending || isOpeningPortal ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isRedirecting ? 'Redirecting...' : 'Opening...'}
+                    Opening Stripe portal...
                   </>
                 ) : (
                   <>
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    Open Billing Portal
+                    Open Stripe billing portal (new tab)
                   </>
                 )}
               </Button>
@@ -273,82 +284,37 @@ function BillingContent() {
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                You don't have an active subscription yet. Upgrade your plan to access billing
-                management.
+                This organization does not have a linked Stripe billing account yet. Subscribe on
+                spooled.cloud to create one, then return here to manage invoices and payment
+                methods.
               </p>
-              <Button onClick={handleUpgrade}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Upgrade Plan
+              <Button onClick={handleViewPricing} variant="outline">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View pricing on spooled.cloud
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Plan Comparison */}
+      {/* Pricing CTA — no in-dashboard plan prices or feature matrices */}
       {!isPaidPlan && (
         <Card>
           <CardHeader>
-            <CardTitle>Compare Plans</CardTitle>
-            <CardDescription>Find the right plan for your needs</CardDescription>
+            <CardTitle>Plans & pricing</CardTitle>
+            <CardDescription>
+              Current plan limits and prices are published on spooled.cloud
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              {/* Starter */}
-              <div className="rounded-lg border p-4">
-                <h3 className="font-semibold">{PLAN_FEATURES.starter.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {PLAN_FEATURES.starter.description}
-                </p>
-                <ul className="mt-4 space-y-2 text-sm">
-                  {PLAN_FEATURES.starter.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Pro */}
-              <div className="rounded-lg border-2 border-primary p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <h3 className="font-semibold">{PLAN_FEATURES.pro.name}</h3>
-                  <Badge className="bg-primary text-primary-foreground">Popular</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">{PLAN_FEATURES.pro.description}</p>
-                <ul className="mt-4 space-y-2 text-sm">
-                  {PLAN_FEATURES.pro.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Enterprise */}
-              <div className="rounded-lg border p-4">
-                <h3 className="font-semibold">{PLAN_FEATURES.enterprise.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {PLAN_FEATURES.enterprise.description}
-                </p>
-                <ul className="mt-4 space-y-2 text-sm">
-                  {PLAN_FEATURES.enterprise.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-center">
-              <Button onClick={handleUpgrade} size="lg">
-                <ExternalLink className="mr-2 h-4 w-4" />
-                View Pricing & Upgrade
-              </Button>
-            </div>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              We do not show plan prices here because billing checkout happens on spooled.cloud.
+              Visit the pricing page for up-to-date tiers, limits, and subscription options.
+            </p>
+            <Button onClick={handleViewPricing} size="lg">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View pricing on spooled.cloud
+            </Button>
           </CardContent>
         </Card>
       )}
