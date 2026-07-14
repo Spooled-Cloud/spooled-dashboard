@@ -199,7 +199,7 @@ function WorkflowsListContent() {
           ) : (
             <div className="divide-y">
               {workflows.map((workflow) => (
-                <div key={workflow.id} className="p-6 transition-colors hover:bg-muted/30">
+                <div key={workflow.id} className="hover:bg-muted/30 p-6 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="mb-2 flex items-center gap-3">

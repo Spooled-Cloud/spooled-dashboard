@@ -236,7 +236,7 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+              <div className="bg-muted/50 flex items-center justify-between rounded-lg p-3">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-amber-600" />
                   <span className="text-sm">Pending</span>

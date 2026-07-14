@@ -53,8 +53,8 @@ export function DataTableHeader({ children, className, sticky = true }: DataTabl
   return (
     <thead
       className={cn(
-        'border-b bg-muted/50 [&_tr]:border-b',
-        sticky && 'sticky top-0 z-10 bg-muted/95 backdrop-blur-sm',
+        'bg-muted/50 border-b [&_tr]:border-b',
+        sticky && 'bg-muted/95 sticky top-0 z-10 backdrop-blur-sm',
         className
       )}
     >

@@ -130,7 +130,7 @@ export function QuickStatusLookup() {
           {results && results.length > 0 && (
             <div className="space-y-3">
               {/* Summary */}
-              <div className="flex flex-wrap gap-2 rounded-lg bg-muted/50 p-3">
+              <div className="bg-muted/50 flex flex-wrap gap-2 rounded-lg p-3">
                 <span className="text-sm font-medium">Summary:</span>
                 {Object.entries(statusSummary).map(([status, count]) => (
                   <Badge key={status} variant="outline" className="text-xs">
@@ -142,7 +142,7 @@ export function QuickStatusLookup() {
               {/* Results Table */}
               <div className="max-h-64 overflow-y-auto rounded-lg border">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 border-b bg-muted/80 backdrop-blur-sm">
+                  <thead className="bg-muted/80 sticky top-0 border-b backdrop-blur-sm">
                     <tr>
                       <th className="p-2 text-left font-medium">Job ID</th>
                       <th className="p-2 text-left font-medium">Status</th>
@@ -190,7 +190,7 @@ export function QuickStatusLookup() {
           )}
 
           {results && results.length === 0 && (
-            <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/50 p-6 text-muted-foreground">
+            <div className="bg-muted/50 flex items-center justify-center gap-2 rounded-lg p-6 text-muted-foreground">
               <AlertCircle className="h-5 w-5" />
               <span>No matching jobs found</span>
             </div>

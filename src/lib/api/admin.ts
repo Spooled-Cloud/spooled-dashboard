@@ -5,7 +5,7 @@
  * The admin key is stored in sessionStorage after login.
  */
 
-import { API_BASE_URL } from '@/lib/constants/api';
+import { getApiUrl } from '@/lib/constants/api';
 
 // ============================================================================
 // Types
@@ -233,7 +233,7 @@ async function adminFetch<T>(endpoint: string, options: RequestInit = {}): Promi
     throw new AdminAPIError('Admin key not set', 401, 'missing_admin_key');
   }
 
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${getApiUrl()}${endpoint}`;
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -269,7 +269,7 @@ export const adminAPI = {
    * Verify admin key is valid by making a test request
    */
   async verifyKey(key: string): Promise<boolean> {
-    const url = `${API_BASE_URL}/api/v1/admin/stats`;
+    const url = `${getApiUrl()}/api/v1/admin/stats`;
     try {
       const response = await fetch(url, {
         headers: {

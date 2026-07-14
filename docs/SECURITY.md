@@ -9,7 +9,7 @@ The dashboard exchanges an API key or email verification code for JWTs.
 - The short-lived access token and its expiry are persisted by Zustand in `localStorage` under `auth-storage` so a page reload keeps the session.
 - The refresh token is memory-only and is deliberately excluded from persisted state.
 - Authenticated API requests include `Authorization: Bearer <access-token>` and, when available, `X-Organization-ID`.
-- A `401` triggers one refresh attempt while the in-memory refresh token is available.
+- A `401` triggers a shared single-flight refresh attempt while the in-memory refresh token is available (concurrent failures do not stampede refresh).
 - Failed refresh, explicit logout, or detected expiry clears local auth state and redirects to the login page.
 - Logout sends the refresh token to the backend for revocation before clearing local state.
 
@@ -21,9 +21,21 @@ Use HTTPS for the dashboard and API in production, and use `wss://` for WebSocke
 
 ## Security headers
 
-Set headers at the edge or reverse proxy. Start with a report-only CSP and validate the real production traffic before enforcing it; the allowed `connect-src` origins must include the configured API, WebSocket, and Sentry endpoints.
+The Astro Node standalone server applies security headers via `src/middleware.ts` on every response (including HTML and `/api/config`):
 
-Example baseline:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy` (camera/microphone/geolocation/payment/usb disabled)
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Strict-Transport-Security` (when not already set by the edge)
+- `Content-Security-Policy-Report-Only` (report-only while Astro/React still need `'unsafe-inline'`)
+
+`public/_headers` only applies to Cloudflare Pages static hosting and is **not** the production path for this Node+Tunnel deployment. Prefer verifying live response headers on `https://dashboard.spooled.cloud`.
+
+You may still set headers at the edge or reverse proxy. Start with report-only CSP and validate production traffic before enforcing; `connect-src` must include the configured API, WebSocket, and Sentry endpoints.
+
+Example nginx baseline (supplemental):
 
 ```nginx
 add_header X-Content-Type-Options "nosniff" always;
@@ -46,7 +58,7 @@ Astro and the current UI use inline scripts/styles, so removing `'unsafe-inline'
 
 ## Public runtime configuration
 
-`GET /api/config` exposes `PUBLIC_*` settings to the browser. Treat every value returned there as public.
+`GET /api/config` exposes `PUBLIC_*` settings plus non-secret build identity (`version`, `commit`) to the browser. Treat every value returned there as public. The client loads this endpoint via `loadRuntimeConfig()` before API/WebSocket/Sentry use.
 
 - Never put API keys, `ADMIN_API_KEY`, Stripe secret keys, or other credentials in `PUBLIC_*` variables.
 - `PUBLIC_SENTRY_DSN` is a public client DSN, not an authentication secret.

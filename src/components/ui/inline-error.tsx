@@ -45,7 +45,7 @@ export function InlineError({
     >
       <div
         className={cn(
-          'mb-3 flex items-center justify-center rounded-full bg-destructive/10',
+          'bg-destructive/10 mb-3 flex items-center justify-center rounded-full',
           compact ? 'h-10 w-10' : 'h-14 w-14'
         )}
       >

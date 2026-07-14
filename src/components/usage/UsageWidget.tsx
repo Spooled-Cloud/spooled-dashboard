@@ -259,7 +259,7 @@ function UsageBar({ label, icon, usage, isFree }: UsageBarProps) {
             Upgrade to unlock
           </Badge>
         </div>
-        <Progress value={0} className="h-2 bg-muted/50" />
+        <Progress value={0} className="bg-muted/50 h-2" />
       </div>
     );
   }

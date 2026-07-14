@@ -79,7 +79,7 @@ export function DangerConfirmDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+          <div className="bg-destructive/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
           <AlertDialogTitle className="text-center">{title}</AlertDialogTitle>
@@ -87,7 +87,7 @@ export function DangerConfirmDialog({
         </AlertDialogHeader>
 
         {warnings && warnings.length > 0 && (
-          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+          <div className="border-destructive/20 bg-destructive/5 rounded-lg border p-3">
             <ul className="space-y-1 text-sm text-destructive">
               {warnings.map((warning, index) => (
                 <li key={index} className="flex items-start gap-2">

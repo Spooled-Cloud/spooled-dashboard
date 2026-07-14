@@ -39,7 +39,14 @@ services:
       PUBLIC_ENABLE_ANALYTICS: ${PUBLIC_ENABLE_ANALYTICS:-false}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4321/"]
+      # Explicit IPv4 + /api/config (Alpine wget localhost may hit IPv6 ::1 → connection refused)
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:4321/api/config', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

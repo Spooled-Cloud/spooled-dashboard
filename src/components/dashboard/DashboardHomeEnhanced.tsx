@@ -1,5 +1,11 @@
 /**
- * Enhanced Dashboard with Operations Control Center
+ * Dashboard Home — Operational Command Center
+ *
+ * Incident-oriented layout: abnormal signals (paused queues, backlog
+ * concentration, unhealthy workers, DLQ, elevated failure rate) surface
+ * first. Everything else is organized as flat, ruled bands rather than a
+ * grid of equal-weight KPI cards, with explicit time windows/units so
+ * "right now" is never confused with a windowed total.
  */
 
 import React from 'react';
@@ -8,8 +14,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useDashboard } from '@/lib/hooks/useDashboard';
-import { formatNumber, formatPercentage, formatRelativeTime } from '@/lib/utils/format';
+import { formatNumber, formatRelativeTime, formatDuration } from '@/lib/utils/format';
+import { cn } from '@/lib/utils/cn';
 import { getRuntimeConfig } from '@/lib/config/runtime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI } from '@/lib/api/queues';
@@ -18,12 +26,10 @@ import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
 import {
   Briefcase,
-  Server,
   Layers,
-  CheckCircle,
-  TrendingUp,
-  TrendingDown,
+  CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Activity,
   Plus,
   Play,
@@ -38,6 +44,7 @@ import {
   Webhook,
   ExternalLink,
   Skull,
+  Database,
 } from 'lucide-react';
 import { StatusDistributionChart } from './charts/StatusDistributionChart';
 import { TrendsSection } from './TrendsSection';
@@ -48,179 +55,251 @@ import { CreateScheduleDialog } from '@/components/schedules/CreateScheduleDialo
 import { CreateWorkflowDialog } from '@/components/workflows/CreateWorkflowDialog';
 import { CreateApiKeyDialog } from '@/components/settings/CreateApiKeyDialog';
 import { CreateWebhookDialog } from '@/components/settings/CreateWebhookDialog';
-import type { Job } from '@/lib/types';
+import type { Job, DashboardData } from '@/lib/types';
 
-interface KPICardProps {
-  title: string;
-  value: string | number;
-  change?: number;
-  icon: React.ReactNode;
-  trend?: 'up' | 'down';
-  isLoading?: boolean;
-  linkTo?: string;
+/** Re-render periodically so relative "last updated" text stays fresh. */
+function useTick(intervalMs: number) {
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
 }
 
-function KPICard({ title, value, change, icon, trend, isLoading, linkTo }: KPICardProps) {
+// ============================================================================
+// Incident signals — computed from live backend fields only
+// ============================================================================
+
+type SignalSeverity = 'critical' | 'warning';
+
+interface Signal {
+  id: string;
+  severity: SignalSeverity;
+  message: string;
+  href: string;
+}
+
+function computeSignals(data: DashboardData | undefined): Signal[] {
+  if (!data) return [];
+  const signals: Signal[] = [];
+
+  const deadletter = data.jobs?.deadletter ?? 0;
+  if (deadletter > 0) {
+    signals.push({
+      id: 'dlq',
+      severity: 'critical',
+      message: `${formatNumber(deadletter)} job${deadletter === 1 ? '' : 's'} stuck in the dead-letter queue`,
+      href: '/jobs/dlq',
+    });
+  }
+
+  const unhealthyWorkers = data.workers?.unhealthy ?? 0;
+  if (unhealthyWorkers > 0) {
+    signals.push({
+      id: 'workers',
+      severity: 'critical',
+      message: `${unhealthyWorkers} worker${unhealthyWorkers === 1 ? '' : 's'} unhealthy`,
+      href: '/workers',
+    });
+  }
+
+  const pausedQueues = (data.queues ?? []).filter((q) => q.paused);
+  if (pausedQueues.length > 0) {
+    const names = pausedQueues
+      .slice(0, 3)
+      .map((q) => q.name)
+      .join(', ');
+    signals.push({
+      id: 'paused-queues',
+      severity: 'warning',
+      message: `${pausedQueues.length} queue${pausedQueues.length === 1 ? '' : 's'} paused (${names}${pausedQueues.length > 3 ? '…' : ''})`,
+      href: '/queues',
+    });
+  }
+
+  const completed24h = data.jobs?.completed_24h ?? 0;
+  const failed24h = data.jobs?.failed_24h ?? 0;
+  const totalProcessed24h = completed24h + failed24h;
+  const failureRate = totalProcessed24h > 0 ? (failed24h / totalProcessed24h) * 100 : 0;
+  if (totalProcessed24h >= 10 && failureRate >= 5) {
+    signals.push({
+      id: 'failure-rate',
+      severity: failureRate >= 15 ? 'critical' : 'warning',
+      message: `${failureRate.toFixed(1)}% failure rate over 24h (${formatNumber(failed24h)} of ${formatNumber(totalProcessed24h)})`,
+      href: '/jobs?status=failed',
+    });
+  }
+
+  const totalPending = data.jobs?.pending ?? 0;
+  const busiestQueue = [...(data.queues ?? [])].sort(
+    (a, b) => b.pending + b.processing - (a.pending + a.processing)
+  )[0];
+  if (busiestQueue && totalPending >= 20 && busiestQueue.pending / totalPending >= 0.6) {
+    signals.push({
+      id: 'backlog',
+      severity: 'warning',
+      message: `Backlog concentrated in "${busiestQueue.name}" (${formatNumber(busiestQueue.pending)} pending)`,
+      href: `/jobs?queue=${busiestQueue.name}&status=pending`,
+    });
+  }
+
+  return signals;
+}
+
+function IncidentBand({ signals, isLoading }: { signals: Signal[]; isLoading: boolean }) {
   if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-8 w-24" />
-            </div>
-            <Skeleton className="h-12 w-12 rounded-full" />
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <Skeleton className="h-12 w-full" />;
   }
 
-  const content = (
-    <CardContent className="p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <h3 className="text-2xl font-bold">{value}</h3>
-            {change !== undefined && (
-              <div
-                className={`flex items-center text-xs font-medium ${
-                  trend === 'up'
-                    ? 'text-success'
-                    : trend === 'down'
-                      ? 'text-destructive'
-                      : 'text-muted-foreground'
-                }`}
-              >
-                {trend === 'up' ? (
-                  <TrendingUp className="mr-1 h-3 w-3" />
-                ) : (
-                  <TrendingDown className="mr-1 h-3 w-3" />
-                )}
-                {change > 0 ? '+' : ''}
-                {change}%
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          {icon}
-        </div>
+  if (signals.length === 0) {
+    return (
+      <div className="border-status-completed/30 bg-status-completed/5 flex items-center gap-2 rounded-sm border px-4 py-3 text-sm">
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-status-completed" />
+        <span className="font-medium text-status-completed-foreground">All systems normal</span>
+        <span className="text-muted-foreground">— no active incidents detected</span>
       </div>
-    </CardContent>
-  );
-
-  if (linkTo) {
-    return (
-      <a href={linkTo}>
-        <Card className="cursor-pointer transition-colors hover:border-primary/50">{content}</Card>
-      </a>
     );
   }
 
-  return <Card>{content}</Card>;
+  return (
+    <div
+      className="divide-y divide-border overflow-hidden rounded-sm border border-border"
+      role="alert"
+    >
+      {signals.map((signal) => (
+        <a
+          key={signal.id}
+          href={signal.href}
+          className={cn(
+            'hover:bg-muted/40 flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors',
+            signal.severity === 'critical' ? 'bg-status-failed/5' : 'bg-status-warning/5'
+          )}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <AlertTriangle
+              className={cn(
+                'h-4 w-4 shrink-0',
+                signal.severity === 'critical' ? 'text-status-failed' : 'text-status-warning'
+              )}
+            />
+            <span
+              className={cn(
+                'truncate font-medium',
+                signal.severity === 'critical'
+                  ? 'text-status-failed-foreground'
+                  : 'text-status-warning-foreground'
+              )}
+            >
+              {signal.message}
+            </span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </a>
+      ))}
+    </div>
+  );
 }
 
-/**
- * Quick Actions Card - Common operations at a glance
- */
-function QuickActionsCard() {
+// ============================================================================
+// Compact quick actions — de-emphasized icon strip (dialogs unchanged)
+// ============================================================================
+
+function QuickActionsStrip() {
   const config = getRuntimeConfig();
 
   const actions = [
     {
-      icon: <Briefcase className="h-4 w-4" />,
+      key: 'job',
       label: 'Create Job',
-      dialog: (
-        <CreateJobDialog trigger={<ActionButton icon={<Briefcase />} label="Create Job" />} />
+      icon: <Briefcase className="h-4 w-4" />,
+      node: (
+        <CreateJobDialog trigger={<QuickActionButton icon={<Briefcase />} label="Create Job" />} />
       ),
       enabled: true,
     },
     {
-      icon: <Layers className="h-4 w-4" />,
+      key: 'queue',
       label: 'Create Queue',
-      dialog: (
-        <CreateQueueDialog trigger={<ActionButton icon={<Layers />} label="Create Queue" />} />
+      icon: <Layers className="h-4 w-4" />,
+      node: (
+        <CreateQueueDialog trigger={<QuickActionButton icon={<Layers />} label="Create Queue" />} />
       ),
       enabled: true,
     },
     {
-      icon: <Calendar className="h-4 w-4" />,
+      key: 'schedule',
       label: 'Create Schedule',
-      dialog: config.enableSchedules ? (
+      icon: <Calendar className="h-4 w-4" />,
+      node: config.enableSchedules ? (
         <CreateScheduleDialog
-          trigger={<ActionButton icon={<Calendar />} label="Create Schedule" />}
+          trigger={<QuickActionButton icon={<Calendar />} label="Create Schedule" />}
         />
       ) : null,
       enabled: config.enableSchedules,
-      tooltip: !config.enableSchedules ? 'Schedules are disabled' : undefined,
+      disabledReason: 'Schedules are disabled',
     },
     {
-      icon: <GitBranch className="h-4 w-4" />,
+      key: 'workflow',
       label: 'Create Workflow',
-      dialog: config.enableWorkflows ? (
+      icon: <GitBranch className="h-4 w-4" />,
+      node: config.enableWorkflows ? (
         <CreateWorkflowDialog
-          trigger={<ActionButton icon={<GitBranch />} label="Create Workflow" />}
+          trigger={<QuickActionButton icon={<GitBranch />} label="Create Workflow" />}
         />
       ) : null,
       enabled: config.enableWorkflows,
-      tooltip: !config.enableWorkflows ? 'Workflows are disabled' : undefined,
+      disabledReason: 'Workflows are disabled',
     },
     {
-      icon: <Key className="h-4 w-4" />,
+      key: 'api-key',
       label: 'Create API Key',
-      dialog: (
-        <CreateApiKeyDialog trigger={<ActionButton icon={<Key />} label="Create API Key" />} />
+      icon: <Key className="h-4 w-4" />,
+      node: (
+        <CreateApiKeyDialog trigger={<QuickActionButton icon={<Key />} label="Create API Key" />} />
       ),
       enabled: true,
     },
     {
-      icon: <Webhook className="h-4 w-4" />,
+      key: 'webhook',
       label: 'Create Webhook',
-      dialog: (
-        <CreateWebhookDialog trigger={<ActionButton icon={<Webhook />} label="Create Webhook" />} />
+      icon: <Webhook className="h-4 w-4" />,
+      node: (
+        <CreateWebhookDialog
+          trigger={<QuickActionButton icon={<Webhook />} label="Create Webhook" />}
+        />
       ),
       enabled: true,
     },
   ];
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Quick Actions</CardTitle>
-        <CardDescription>Create new resources</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <TooltipProvider>
-            {actions.map((action) => (
-              <div key={action.label}>
-                {action.enabled ? (
-                  action.dialog
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <ActionButton icon={action.icon} label={action.label} disabled />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{action.tooltip}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            ))}
-          </TooltipProvider>
-        </div>
-      </CardContent>
-    </Card>
+    <TooltipProvider>
+      <div className="flex shrink-0 items-center gap-1">
+        {actions.map((action) =>
+          action.enabled ? (
+            <Tooltip key={action.key}>
+              <TooltipTrigger asChild>
+                <span>{action.node}</span>
+              </TooltipTrigger>
+              <TooltipContent>{action.label}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Tooltip key={action.key}>
+              <TooltipTrigger asChild>
+                <span>
+                  <QuickActionButton icon={action.icon} label={action.label} disabled />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{action.disabledReason}</TooltipContent>
+            </Tooltip>
+          )
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
 
-const ActionButton = React.forwardRef<
+const QuickActionButton = React.forwardRef<
   HTMLButtonElement,
   {
     icon: React.ReactNode;
@@ -232,204 +311,92 @@ const ActionButton = React.forwardRef<
     <Button
       ref={ref}
       variant="outline"
-      size="sm"
-      className="h-auto w-full flex-col gap-1 py-3"
+      size="icon"
+      className="h-8 w-8"
       disabled={disabled}
+      aria-label={label}
       {...props}
     >
-      <span className="flex h-5 w-5 items-center justify-center">{icon}</span>
-      <span className="text-xs">{label}</span>
+      <span className="flex h-4 w-4 items-center justify-center">{icon}</span>
     </Button>
   );
 });
-ActionButton.displayName = 'ActionButton';
+QuickActionButton.displayName = 'QuickActionButton';
 
-/**
- * Queues Control Table - Manage queues with pause/resume
- */
-function QueuesControlCard() {
-  const queryClient = useQueryClient();
-  const { data: dashboardData, isLoading } = useDashboard();
+// ============================================================================
+// Stat rows — flat label/value rules instead of nested cards
+// ============================================================================
 
-  const pauseMutation = useMutation({
-    mutationFn: ({ name, reason }: { name: string; reason?: string }) =>
-      queuesAPI.pause(name, reason),
-    onSuccess: (_, { name }) => {
-      toast.success('Queue paused', { description: name });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.queues.all });
-    },
-    onError: (error) => {
-      toast.error('Failed to pause queue', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    },
-  });
+interface StatRowProps {
+  label: string;
+  value: string;
+  caption?: string;
+  href?: string;
+  tone?: 'default' | 'failed' | 'warning' | 'completed';
+  isLoading?: boolean;
+}
 
-  const resumeMutation = useMutation({
-    mutationFn: (name: string) => queuesAPI.resume(name),
-    onSuccess: (_, name) => {
-      toast.success('Queue resumed', { description: name });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.queues.all });
-    },
-    onError: (error) => {
-      toast.error('Failed to resume queue', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    },
-  });
-
-  const queues = dashboardData?.queue_summaries || [];
-
-  // Sort by backlog (pending + processing)
-  const sortedQueues = [...queues].sort((a, b) => {
-    const backlogA = (a.pending || 0) + (a.processing || 0);
-    const backlogB = (b.pending || 0) + (b.processing || 0);
-    return backlogB - backlogA;
-  });
-
-  const topQueues = sortedQueues.slice(0, 5);
+function StatRow({ label, value, caption, href, tone = 'default', isLoading }: StatRowProps) {
+  const toneClass =
+    tone === 'failed'
+      ? 'text-status-failed-foreground'
+      : tone === 'warning'
+        ? 'text-status-warning-foreground'
+        : tone === 'completed'
+          ? 'text-status-completed-foreground'
+          : 'text-foreground';
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Queue Operations</CardTitle>
-          <CardDescription>Manage queue processing</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-4 w-16" />
+      </div>
     );
   }
 
+  const content = (
+    <div className="flex items-baseline justify-between gap-3 px-4 py-2.5">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <span className="flex items-baseline gap-1.5">
+        <span className={cn('text-base font-semibold tabular-nums', toneClass)}>{value}</span>
+        {caption && <span className="text-xs text-muted-foreground">{caption}</span>}
+      </span>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className="hover:bg-muted/40 block transition-colors">
+        {content}
+      </a>
+    );
+  }
+
+  return content;
+}
+
+function StatPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div>
-          <CardTitle className="text-base">Queue Operations</CardTitle>
-          <CardDescription>Top queues by backlog</CardDescription>
-        </div>
-        <a
-          href="/queues"
-          className="flex items-center text-xs text-muted-foreground hover:text-primary"
-        >
-          View all <ChevronRight className="ml-1 h-3 w-3" />
-        </a>
-      </CardHeader>
-      <CardContent>
-        {topQueues.length === 0 ? (
-          <div className="py-6 text-center">
-            <Layers className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">No queues configured</p>
-            <CreateQueueDialog
-              trigger={
-                <Button variant="outline" size="sm" className="mt-3">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create first queue
-                </Button>
-              }
-            />
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {topQueues.map((queue) => (
-              <div
-                key={queue.name}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <a href={`/queues/${queue.name}`} className="font-medium hover:underline">
-                    {queue.name}
-                  </a>
-                  {queue.paused && (
-                    <Badge variant="outline" className="border-yellow-500 text-yellow-600">
-                      Paused
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    <span>
-                      <span className="text-yellow-600">{queue.pending || 0}</span> pending
-                    </span>
-                    <span>
-                      <span className="text-blue-600">{queue.processing || 0}</span> processing
-                    </span>
-                  </div>
-                  <div className="flex gap-1">
-                    {queue.paused ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => resumeMutation.mutate(queue.name)}
-                              disabled={resumeMutation.isPending}
-                            >
-                              <Play className="h-4 w-4 text-green-600" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Resume queue</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => pauseMutation.mutate({ name: queue.name })}
-                              disabled={pauseMutation.isPending}
-                            >
-                              <Pause className="h-4 w-4 text-yellow-600" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Pause queue</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <a href={`/jobs?queue=${queue.name}`}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </a>
-                        </TooltipTrigger>
-                        <TooltipContent>View jobs</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="rounded-sm border border-border">
+      <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </div>
+      <div className="divide-y divide-border">{children}</div>
+    </div>
   );
 }
 
-/**
- * DLQ Control Card - Dead letter queue management
- */
-function DLQControlCard() {
-  const queryClient = useQueryClient();
-  const { data: dashboardData, isLoading } = useDashboard();
+// ============================================================================
+// Dead-letter queue action bar
+// ============================================================================
 
-  const deadletterCount = dashboardData?.job_statistics?.deadletter || 0;
+function DeadLetterActionBar() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useDashboard();
+  const deadletterCount = data?.jobs?.deadletter ?? 0;
 
   const retryMutation = useMutation({
     mutationFn: () => jobsAPI.retryDeadLetter({ limit: 100 }),
@@ -474,70 +441,238 @@ function DLQControlCard() {
   };
 
   if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <Skeleton className="h-24 w-full" />
-        </CardContent>
-      </Card>
-    );
+    return <Skeleton className="h-12 w-full" />;
   }
 
   return (
-    <Card className={deadletterCount > 0 ? 'border-destructive/50' : undefined}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Skull className="h-5 w-5 text-destructive" />
-          <CardTitle className="text-base">Dead Letter Queue</CardTitle>
-        </div>
-        <CardDescription>Jobs that exhausted all retries</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-3xl font-bold text-destructive">{formatNumber(deadletterCount)}</p>
-            <p className="text-xs text-muted-foreground">Jobs in DLQ</p>
-          </div>
-          {deadletterCount > 0 && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => retryMutation.mutate()}
-                disabled={retryMutation.isPending}
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Retry All
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handlePurge}
-                disabled={purgeMutation.isPending}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Purge
-              </Button>
-            </div>
+    <div
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-3 rounded-sm border px-4 py-2.5',
+        deadletterCount > 0 ? 'border-status-failed/30 bg-status-failed/5' : 'border-border'
+      )}
+    >
+      <div className="flex items-center gap-2 text-sm">
+        <Skull
+          className={cn(
+            'h-4 w-4 shrink-0',
+            deadletterCount > 0 ? 'text-status-failed' : 'text-muted-foreground'
           )}
-        </div>
-        {deadletterCount > 0 && (
-          <a
-            href="/jobs/dlq"
-            className="mt-3 flex items-center text-xs text-muted-foreground hover:text-primary"
+        />
+        <span className="font-medium">Dead-letter queue</span>
+        <span
+          className={cn(
+            'font-semibold tabular-nums',
+            deadletterCount > 0 ? 'text-status-failed-foreground' : 'text-muted-foreground'
+          )}
+        >
+          {formatNumber(deadletterCount)}
+        </span>
+        <a
+          href="/jobs/dlq"
+          className="flex items-center text-xs text-muted-foreground hover:text-primary"
+        >
+          View <ChevronRight className="ml-0.5 h-3 w-3" />
+        </a>
+      </div>
+      {deadletterCount > 0 && (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => retryMutation.mutate()}
+            disabled={retryMutation.isPending}
           >
-            View dead letter queue <ChevronRight className="ml-1 h-3 w-3" />
-          </a>
-        )}
-      </CardContent>
-    </Card>
+            <RotateCcw className="mr-2 h-3.5 w-3.5" />
+            Retry all
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handlePurge}
+            disabled={purgeMutation.isPending}
+          >
+            <Trash2 className="mr-2 h-3.5 w-3.5" />
+            Purge
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
-/**
- * Recent Failures Widget - Show latest failed jobs
- */
-function RecentFailuresWidget() {
+// ============================================================================
+// Queues panel — flat table, sorted by backlog, with pause/resume controls
+// ============================================================================
+
+function QueuesPanel() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useDashboard();
+
+  const pauseMutation = useMutation({
+    mutationFn: ({ name, reason }: { name: string; reason?: string }) =>
+      queuesAPI.pause(name, reason),
+    onSuccess: (_, { name }) => {
+      toast.success('Queue paused', { description: name });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.queues.all });
+    },
+    onError: (error) => {
+      toast.error('Failed to pause queue', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    },
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: (name: string) => queuesAPI.resume(name),
+    onSuccess: (_, name) => {
+      toast.success('Queue resumed', { description: name });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.queues.all });
+    },
+    onError: (error) => {
+      toast.error('Failed to resume queue', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    },
+  });
+
+  const queues = data?.queues ?? [];
+  const sortedQueues = [...queues].sort(
+    (a, b) => b.pending + b.processing - (a.pending + a.processing)
+  );
+  const topQueues = sortedQueues.slice(0, 6);
+
+  return (
+    <div className="rounded-sm border border-border">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Queues — by backlog
+        </span>
+        <a
+          href="/queues"
+          className="flex items-center text-xs text-muted-foreground hover:text-primary"
+        >
+          View all <ChevronRight className="ml-1 h-3 w-3" />
+        </a>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2 p-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : topQueues.length === 0 ? (
+        <EmptyState
+          title="No queues configured"
+          icon={Layers}
+          compact
+          action={
+            <CreateQueueDialog
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create first queue
+                </Button>
+              }
+            />
+          }
+        />
+      ) : (
+        <div className="divide-y divide-border">
+          {topQueues.map((queue) => (
+            <div key={queue.name} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <a
+                  href={`/queues/${queue.name}`}
+                  className="truncate font-medium hover:text-primary hover:underline"
+                >
+                  {queue.name}
+                </a>
+                {queue.paused && (
+                  <Badge
+                    variant="outline"
+                    className="border-status-warning/50 bg-status-warning/10 shrink-0 text-status-warning-foreground"
+                  >
+                    Paused
+                  </Badge>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-4">
+                <div className="flex gap-4 text-xs tabular-nums text-muted-foreground">
+                  <span>
+                    <span className="font-medium text-status-pending-foreground">
+                      {formatNumber(queue.pending)}
+                    </span>{' '}
+                    pending
+                  </span>
+                  <span>
+                    <span className="font-medium text-status-processing-foreground">
+                      {formatNumber(queue.processing)}
+                    </span>{' '}
+                    processing
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <TooltipProvider>
+                    {queue.paused ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => resumeMutation.mutate(queue.name)}
+                            disabled={resumeMutation.isPending}
+                          >
+                            <Play className="h-4 w-4 text-status-completed" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Resume queue</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => pauseMutation.mutate({ name: queue.name })}
+                            disabled={pauseMutation.isPending}
+                          >
+                            <Pause className="h-4 w-4 text-status-warning" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Pause queue</TooltipContent>
+                      </Tooltip>
+                    )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a href={`/jobs?queue=${queue.name}`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent>View jobs</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Recent failures panel
+// ============================================================================
+
+function RecentFailuresPanel() {
   const { data: failedJobs, isLoading } = useQuery({
     queryKey: queryKeys.jobs.list({ status: ['failed', 'deadletter'], per_page: 5 }),
     queryFn: () =>
@@ -565,107 +700,120 @@ function RecentFailuresWidget() {
     },
   });
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Recent Failures</CardTitle>
-          <CardDescription>Latest failed jobs</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   const jobs = failedJobs?.data || [];
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div>
-          <CardTitle className="text-base">Recent Failures</CardTitle>
-          <CardDescription>Latest failed jobs</CardDescription>
-        </div>
+    <div className="rounded-sm border border-border">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Recent failures
+        </span>
         <a
           href="/jobs?status=failed"
           className="flex items-center text-xs text-muted-foreground hover:text-primary"
         >
           View all <ChevronRight className="ml-1 h-3 w-3" />
         </a>
-      </CardHeader>
-      <CardContent>
-        {jobs.length === 0 ? (
-          <div className="py-6 text-center">
-            <CheckCircle className="mx-auto mb-2 h-8 w-8 text-green-500/50" />
-            <p className="text-sm text-muted-foreground">No recent failures</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {jobs.map((job: Job) => (
-              <div key={job.id} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={`/jobs/${job.id}`}
-                      className="truncate font-mono text-sm hover:underline"
-                    >
-                      {job.id.slice(0, 8)}...
-                    </a>
-                    <Badge
-                      variant="outline"
-                      className={
-                        job.status === 'deadletter'
-                          ? 'border-red-700 text-red-700'
-                          : 'border-red-500 text-red-500'
-                      }
-                    >
-                      {job.status}
-                    </Badge>
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {job.job_type} • {job.queue}
-                  </p>
-                </div>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2 p-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : jobs.length === 0 ? (
+        <EmptyState title="No recent failures" icon={CheckCircle2} compact />
+      ) : (
+        <div className="divide-y divide-border">
+          {jobs.map((job: Job) => (
+            <div key={job.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {formatRelativeTime(job.created_at)}
-                  </span>
-                  {job.status === 'failed' && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => retryMutation.mutate(job.id)}
-                            disabled={retryMutation.isPending}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Retry job</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
+                  <a
+                    href={`/jobs/${job.id}`}
+                    className="truncate font-mono text-sm hover:underline"
+                  >
+                    {job.id.slice(0, 8)}...
+                  </a>
+                  <Badge
+                    variant="outline"
+                    className={
+                      job.status === 'deadletter'
+                        ? 'border-status-failed/60 bg-status-failed/10 shrink-0 text-status-failed-foreground'
+                        : 'border-status-failed/40 bg-status-failed/5 shrink-0 text-status-failed-foreground'
+                    }
+                  >
+                    {job.status}
+                  </Badge>
                 </div>
+                <p className="truncate text-xs text-muted-foreground">
+                  {job.job_type} • {job.queue}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                  {formatRelativeTime(job.created_at)}
+                </span>
+                {job.status === 'failed' && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => retryMutation.mutate(job.id)}
+                          disabled={retryMutation.isPending}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Retry job</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
+// ============================================================================
+// Loading skeleton for the whole page
+// ============================================================================
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
 export function DashboardHomeEnhanced() {
-  const { data, isLoading, error, refetch } = useDashboard();
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useDashboard();
+  useTick(15000);
 
   if (error) {
     return (
@@ -684,92 +832,155 @@ export function DashboardHomeEnhanced() {
     );
   }
 
-  const stats = data?.job_statistics;
-  const workerStatus = data?.worker_status;
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  const jobs = data?.jobs;
+  const workers = data?.workers;
+  const queues = data?.queues ?? [];
+  const recentActivity = data?.recent_activity;
+  const system = data?.system;
+  const pausedCount = queues.filter((q) => q.paused).length;
+  const signals = computeSignals(data);
+
+  const freshnessLabel = dataUpdatedAt ? formatRelativeTime(new Date(dataUpdatedAt)) : 'never';
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Real-time overview of your job queue system</p>
+          <h1 className="text-2xl font-bold tracking-tight">Operations</h1>
+          <p className="text-sm text-muted-foreground">
+            Snapshot updated <span className="tabular-nums">{freshnessLabel}</span>
+            {isFetching && ' · refreshing…'}
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <Activity className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <QuickActionsStrip />
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <Activity className={cn('mr-2 h-4 w-4', isFetching && 'animate-pulse')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Total Jobs"
-          value={stats ? formatNumber(stats.total) : '0'}
-          icon={<Briefcase className="h-6 w-6" />}
-          isLoading={isLoading}
-          linkTo="/jobs"
-        />
-        <KPICard
-          title="Active Workers"
-          value={workerStatus ? `${workerStatus.active}/${workerStatus.total}` : '0/0'}
-          icon={<Server className="h-6 w-6" />}
-          isLoading={isLoading}
-          linkTo="/workers"
-        />
-        <KPICard
-          title="Pending Jobs"
-          value={stats ? formatNumber(stats.pending) : '0'}
-          icon={<Layers className="h-6 w-6" />}
-          isLoading={isLoading}
-          linkTo="/jobs?status=pending"
-        />
-        <KPICard
-          title="Success Rate"
-          value={stats ? formatPercentage(stats.success_rate) : '0%'}
-          icon={<CheckCircle className="h-6 w-6" />}
-          isLoading={isLoading}
-        />
+      {/* Incident detection — highest priority, first thing an operator sees */}
+      <IncidentBand signals={signals} isLoading={isLoading} />
+
+      {/* Dead-letter queue — always visible, actionable when non-empty */}
+      <DeadLetterActionBar />
+
+      {/* Current state vs. windowed totals — explicit units, no equal-weight KPI grid */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <StatPanel title="Current state">
+          <StatRow
+            label="Pending"
+            value={jobs ? formatNumber(jobs.pending) : '—'}
+            href="/jobs?status=pending"
+          />
+          <StatRow
+            label="Processing"
+            value={jobs ? formatNumber(jobs.processing) : '—'}
+            href="/jobs?status=processing"
+          />
+          <StatRow
+            label="Workers healthy"
+            value={
+              workers ? `${formatNumber(workers.healthy)} / ${formatNumber(workers.total)}` : '—'
+            }
+            tone={workers && workers.unhealthy > 0 ? 'warning' : 'completed'}
+            href="/workers"
+          />
+          <StatRow
+            label="Queues paused"
+            value={`${pausedCount} / ${queues.length}`}
+            tone={pausedCount > 0 ? 'warning' : 'default'}
+            href="/queues"
+          />
+          <StatRow
+            label="Dead-letter"
+            value={jobs ? formatNumber(jobs.deadletter) : '—'}
+            tone={jobs && jobs.deadletter > 0 ? 'failed' : 'default'}
+            href="/jobs/dlq"
+          />
+        </StatPanel>
+
+        <StatPanel title="Windowed activity">
+          <StatRow
+            label="Created"
+            value={recentActivity ? formatNumber(recentActivity.jobs_created_1h) : '—'}
+            caption="last 1h"
+            href="/jobs"
+          />
+          <StatRow
+            label="Completed"
+            value={recentActivity ? formatNumber(recentActivity.jobs_completed_1h) : '—'}
+            caption="last 1h"
+            tone="completed"
+            href="/jobs?status=completed"
+          />
+          <StatRow
+            label="Failed"
+            value={recentActivity ? formatNumber(recentActivity.jobs_failed_1h) : '—'}
+            caption="last 1h"
+            tone={recentActivity && recentActivity.jobs_failed_1h > 0 ? 'failed' : 'default'}
+            href="/jobs?status=failed"
+          />
+          <StatRow
+            label="Completed"
+            value={jobs ? formatNumber(jobs.completed_24h) : '—'}
+            caption="last 24h"
+            href="/jobs?status=completed"
+          />
+          <StatRow
+            label="Failed"
+            value={jobs ? formatNumber(jobs.failed_24h) : '—'}
+            caption="last 24h"
+            tone={jobs && jobs.failed_24h > 0 ? 'failed' : 'default'}
+            href="/jobs?status=failed"
+          />
+          <StatRow
+            label="Avg wait"
+            value={jobs?.avg_wait_time_ms != null ? formatDuration(jobs.avg_wait_time_ms) : '—'}
+          />
+          <StatRow
+            label="Avg processing"
+            value={
+              jobs?.avg_processing_time_ms != null
+                ? formatDuration(jobs.avg_processing_time_ms)
+                : '—'
+            }
+          />
+        </StatPanel>
       </div>
 
-      {/* Operations Section */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <QuickActionsCard />
-        <DLQControlCard />
-        <RecentFailuresWidget />
-      </div>
+      {/* Queues by backlog */}
+      <QueuesPanel />
 
-      {/* Queue Operations */}
-      <QueuesControlCard />
+      {/* Recent failures */}
+      <RecentFailuresPanel />
 
-      {/* Trends Section */}
+      {/* Trends (client-sampled) */}
       <TrendsSection dashboardData={data} />
 
-      {/* Status Distribution Chart */}
+      {/* Status distribution */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Status Distribution</CardTitle>
-              <CardDescription>Breakdown of job statuses</CardDescription>
-            </div>
-          </div>
+          <CardTitle>Status distribution</CardTitle>
+          <CardDescription>Breakdown of current + 24h job statuses</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
-            {isLoading ? (
-              <div className="flex h-full items-center justify-center">
-                <Skeleton className="h-full w-full" />
-              </div>
-            ) : stats ? (
+            {jobs ? (
               <StatusDistributionChart
                 data={{
-                  pending: stats.pending,
-                  scheduled: 0,
-                  processing: stats.processing,
-                  completed: stats.completed,
-                  failed: stats.failed,
-                  cancelled: stats.cancelled,
-                  deadletter: stats.deadletter,
+                  pending: jobs.pending,
+                  processing: jobs.processing,
+                  completed: jobs.completed_24h,
+                  failed: jobs.failed_24h,
+                  deadletter: jobs.deadletter,
                 }}
               />
             ) : (
@@ -781,153 +992,45 @@ export function DashboardHomeEnhanced() {
         </CardContent>
       </Card>
 
-      {/* System Info */}
-      {data?.system_info && (
-        <Card>
-          <CardHeader>
-            <CardTitle>System Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
-              <div>
-                <span className="text-muted-foreground">Version:</span>{' '}
-                <span className="font-mono">{data.system_info.version}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Uptime:</span>{' '}
-                <span className="font-medium">
-                  {Math.floor(data.system_info.uptime_seconds / 3600)}h{' '}
-                  {Math.floor((data.system_info.uptime_seconds % 3600) / 60)}m
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Environment:</span>{' '}
-                <span className="font-mono">{data.system_info.rust_version}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Diagnostics — compact, not hero */}
+      {system && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-border px-4 py-2 text-xs text-muted-foreground">
+          <Database className="h-3.5 w-3.5" />
+          <span>
+            v<span className="font-mono">{system.version}</span>
+          </span>
+          <span>
+            uptime{' '}
+            <span className="tabular-nums">
+              {Math.floor(system.uptime_seconds / 3600)}h{' '}
+              {Math.floor((system.uptime_seconds % 3600) / 60)}m
+            </span>
+          </span>
+          <span className="font-mono">{system.environment}</span>
+          <span
+            className={cn(
+              system.database_status.toLowerCase() === 'ok' ||
+                system.database_status.toLowerCase() === 'healthy'
+                ? 'text-status-completed-foreground'
+                : 'text-status-warning-foreground'
+            )}
+          >
+            db: {system.database_status}
+          </span>
+          <span
+            className={cn(
+              system.cache_status.toLowerCase() === 'ok' ||
+                system.cache_status.toLowerCase() === 'healthy'
+                ? 'text-status-completed-foreground'
+                : 'text-status-warning-foreground'
+            )}
+          >
+            cache: {system.cache_status}
+          </span>
+        </div>
       )}
 
-      {/* Queue Overview */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle>Queue Overview</CardTitle>
-                <CardDescription>Status of all active queues</CardDescription>
-              </div>
-              <a href="/queues" className="text-sm text-primary hover:underline">
-                View all →
-              </a>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
-                  ))}
-                </div>
-              ) : data?.queue_summaries && data.queue_summaries.length > 0 ? (
-                <div className="space-y-3">
-                  {data.queue_summaries.slice(0, 5).map((queue) => (
-                    <a
-                      key={queue.name}
-                      href={`/queues/${queue.name}`}
-                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:border-primary/50"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{queue.name}</h4>
-                          {queue.paused && (
-                            <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs text-warning">
-                              Paused
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-6 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Pending:</span>{' '}
-                          <span className="font-medium">{queue.pending}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Processing:</span>{' '}
-                          <span className="font-medium">{queue.processing}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Failed:</span>{' '}
-                          <span className="font-medium text-destructive">{queue.failed}</span>
-                        </div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-8 text-center">
-                  <Layers className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-                  <p className="text-muted-foreground">No queues configured</p>
-                  <CreateQueueDialog
-                    trigger={
-                      <Button variant="outline" size="sm" className="mt-3">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Create first queue
-                      </Button>
-                    }
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Last hour summary</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : data?.recent_activity ? (
-              <div className="space-y-3">
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <div className="text-xs text-muted-foreground">Jobs created</div>
-                  <div className="mt-1 text-2xl font-bold">
-                    {formatNumber(data.recent_activity.jobs_created_1h)}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <div className="text-xs text-muted-foreground">Jobs completed</div>
-                  <div className="mt-1 text-2xl font-bold text-success">
-                    {formatNumber(data.recent_activity.jobs_completed_1h)}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <div className="text-xs text-muted-foreground">Jobs failed</div>
-                  <div className="mt-1 text-2xl font-bold text-destructive">
-                    {formatNumber(data.recent_activity.jobs_failed_1h)}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
-                </div>
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                No activity data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Usage & Limits */}
+      {/* Usage & limits */}
       <UsageWidget />
     </div>
   );

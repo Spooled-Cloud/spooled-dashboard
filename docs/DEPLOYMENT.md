@@ -9,7 +9,7 @@ This guide covers the deployment paths that are maintained in this repository.
 - `kubectl` for Kubernetes deployment
 - `kustomize` only when using `kustomize edit`; `kubectl apply -k` has built-in Kustomize support
 
-The dashboard is an Astro application served by the Node adapter. The server exposes `GET /api/config`, but the current browser startup path does not call `loadRuntimeConfig()`. API/WebSocket URLs and feature flags therefore use build-time/static fallbacks, and Sentry reads build-time `import.meta.env` directly. Do not assume changing container runtime variables reconfigures the shipped browser bundle until startup wiring is implemented and tested.
+The dashboard is an Astro application served by the Node adapter (`output: 'server'`). The browser loads runtime configuration via `loadRuntimeConfig()` before authenticated API calls, WebSocket connections, and Sentry initialization (`RuntimeConfigBootstrap`). `GET /api/config` returns public API/WS URLs, feature flags, and build identity (`version`, `commit`). Changing container `PUBLIC_*` variables reconfigures the browser after the next config fetch (short private cache). Do not place secrets in `PUBLIC_*` variables.
 
 ## Runtime configuration
 
@@ -27,9 +27,9 @@ The dashboard is an Astro application served by the Node adapter. The server exp
 | `HOST`                      |       No | `0.0.0.0` in the image      | Node server bind address                                     |
 | `PORT`                      |       No | `4321`                      | Node server port                                             |
 
-These values are returned by `/api/config` and are not secrets. `PUBLIC_SENTRY_DSN` is intentionally public, but server credentials, API keys, and admin keys must never be placed in `PUBLIC_*` variables. The endpoint currently provides configuration data without guaranteeing that the browser consumes it.
+These values are returned by `/api/config` and are not secrets. `PUBLIC_SENTRY_DSN` is intentionally public, but server credentials, API keys, and admin keys must never be placed in `PUBLIC_*` variables. The browser bootstrap loads this endpoint before using API/WebSocket URLs.
 
-When testing future runtime-config wiring behind a CDN, note that `/api/config` allows a five-minute browser cache and a one-hour shared cache.
+`/api/config` uses `Cache-Control: private, max-age=60, must-revalidate` so deployment overrides are not stuck behind a long CDN cache. The response also includes non-secret build identity: `version`, `commit`, and `environment`.
 
 ## Docker Compose
 
@@ -149,7 +149,7 @@ Use the runtime configuration endpoint for an application-level check:
 curl --fail http://localhost:4321/api/config
 ```
 
-The Dockerfile health check uses `/api/config`. The current Compose and Kubernetes manifests probe `/`, which verifies that the Node server can return the dashboard HTML.
+The Dockerfile and Compose health checks probe `http://127.0.0.1:4321/api/config` with Node's HTTP client (explicit IPv4). Do not use `localhost` — Alpine `wget` may resolve it to IPv6 `::1` while the server binds IPv4 `0.0.0.0`, which falsely marks a healthy container unhealthy. Kubernetes liveness/readiness probes use path `/api/config`.
 
 ## CI and releases
 

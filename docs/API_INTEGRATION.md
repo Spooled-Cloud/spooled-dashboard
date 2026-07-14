@@ -70,7 +70,7 @@ JWT authentication is automatic:
 1. Login stores both tokens in Zustand state.
 2. Zustand persistence stores the short-lived access token in `localStorage`; the refresh token remains memory-only.
 3. The API client injects the bearer token and selected organization header.
-4. A `401` triggers one refresh attempt while the in-memory refresh token is available.
+4. A `401` triggers a shared single-flight refresh while the in-memory refresh token is available.
 5. Failed refresh clears auth state and redirects to login.
 
 ```typescript
@@ -78,6 +78,23 @@ import { useAuthStore } from '@/stores/auth';
 
 const { login, logout, isAuthenticated } = useAuthStore();
 ```
+
+## Realtime WebSocket
+
+Connect after runtime config + auth are ready:
+
+```
+wss://api.spooled.cloud/api/v1/ws?token=<access_jwt>
+```
+
+Backend wire format (authoritative):
+
+- Server events: `{ "type": "JobCreated", "data": { ... } }` (and other `RealtimeEvent` variants)
+- Client commands: `{ "cmd": "Subscribe"|"Unsubscribe"|"Ping", "queue": "...", "job_id": "..." }`
+
+The dashboard client normalizes events to `{ type: "job.created", channel, payload, timestamp }` and maps logical channels (`jobs`, `queue:name`, `job:id`) onto backend filters. SSE exists for job/queue polling helpers but is not the primary live path.
+
+JWT query parameters must be redacted from logs and diagnostics.
 
 ## Error Handling
 

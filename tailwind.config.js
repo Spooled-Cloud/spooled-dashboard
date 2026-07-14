@@ -12,50 +12,111 @@ export default {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: 'var(--destructive)',
+          foreground: 'var(--destructive-foreground)',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
         },
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        lane: {
+          DEFAULT: 'var(--lane)',
+          border: 'var(--lane-border)',
+        },
+        spool: {
+          accent: 'var(--spool-accent)',
         },
         success: {
-          DEFAULT: 'hsl(142 76% 36%)',
-          foreground: 'hsl(0 0% 98%)',
+          DEFAULT: 'var(--status-completed)',
+          foreground: 'var(--status-completed-foreground)',
         },
         warning: {
-          DEFAULT: 'hsl(38 92% 50%)',
-          foreground: 'hsl(0 0% 98%)',
+          DEFAULT: 'var(--status-warning)',
+          foreground: 'var(--status-warning-foreground)',
         },
         info: {
-          DEFAULT: 'hsl(199 89% 48%)',
-          foreground: 'hsl(0 0% 98%)',
+          DEFAULT: 'var(--status-scheduled)',
+          foreground: 'var(--status-scheduled-foreground)',
+        },
+        status: {
+          pending: {
+            DEFAULT: 'var(--status-pending)',
+            foreground: 'var(--status-pending-foreground)',
+          },
+          scheduled: {
+            DEFAULT: 'var(--status-scheduled)',
+            foreground: 'var(--status-scheduled-foreground)',
+          },
+          processing: {
+            DEFAULT: 'var(--status-processing)',
+            foreground: 'var(--status-processing-foreground)',
+          },
+          retrying: {
+            DEFAULT: 'var(--status-retrying)',
+            foreground: 'var(--status-retrying-foreground)',
+          },
+          completed: {
+            DEFAULT: 'var(--status-completed)',
+            foreground: 'var(--status-completed-foreground)',
+          },
+          failed: {
+            DEFAULT: 'var(--status-failed)',
+            foreground: 'var(--status-failed-foreground)',
+          },
+          canceled: {
+            DEFAULT: 'var(--status-canceled)',
+            foreground: 'var(--status-canceled-foreground)',
+          },
+          paused: {
+            DEFAULT: 'var(--status-paused)',
+            foreground: 'var(--status-paused-foreground)',
+          },
+          offline: {
+            DEFAULT: 'var(--status-offline)',
+            foreground: 'var(--status-offline-foreground)',
+          },
+          degraded: {
+            DEFAULT: 'var(--status-degraded)',
+            foreground: 'var(--status-degraded-foreground)',
+          },
+          warning: {
+            DEFAULT: 'var(--status-warning)',
+            foreground: 'var(--status-warning-foreground)',
+          },
+          quota: {
+            DEFAULT: 'var(--status-quota)',
+            foreground: 'var(--status-quota-foreground)',
+          },
+          unknown: {
+            DEFAULT: 'var(--status-unknown)',
+            foreground: 'var(--status-unknown-foreground)',
+          },
         },
       },
       borderRadius: {
@@ -64,8 +125,11 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+      },
+      fontVariantNumeric: {
+        tabular: 'tabular-nums',
       },
       keyframes: {
         'accordion-down': {

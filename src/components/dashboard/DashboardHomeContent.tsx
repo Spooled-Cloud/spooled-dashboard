@@ -73,7 +73,7 @@ function KPICard({ title, value, change, icon, trend, isLoading }: KPICardProps)
               )}
             </div>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-full text-primary">
             {icon}
           </div>
         </div>
@@ -201,7 +201,7 @@ export function DashboardHomeContent() {
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{queue.name}</h4>
                           {queue.paused && (
-                            <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs text-warning">
+                            <span className="bg-warning/10 rounded-full px-2 py-0.5 text-xs text-warning">
                               Paused
                             </span>
                           )}
@@ -245,21 +245,21 @@ export function DashboardHomeContent() {
               </div>
             ) : data?.recent_activity ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="bg-muted/30 rounded-lg border border-border p-4">
                   <div className="text-xs text-muted-foreground">Jobs created</div>
                   <div className="mt-1 text-2xl font-bold">
                     {formatNumber(data.recent_activity.jobs_created_1h)}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="bg-muted/30 rounded-lg border border-border p-4">
                   <div className="text-xs text-muted-foreground">Jobs completed</div>
                   <div className="mt-1 text-2xl font-bold text-success">
                     {formatNumber(data.recent_activity.jobs_completed_1h)}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">Last 60 minutes</div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="bg-muted/30 rounded-lg border border-border p-4">
                   <div className="text-xs text-muted-foreground">Jobs failed</div>
                   <div className="mt-1 text-2xl font-bold text-destructive">
                     {formatNumber(data.recent_activity.jobs_failed_1h)}

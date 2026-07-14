@@ -247,7 +247,7 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
               {worker.metadata && Object.keys(worker.metadata).length > 0 && (
                 <div>
                   <p className="mb-2 text-sm text-muted-foreground">Metadata</p>
-                  <div className="rounded-md bg-muted/50 p-3">
+                  <div className="bg-muted/50 rounded-md p-3">
                     {Object.entries(worker.metadata).map(([key, value]) => (
                       <div key={key} className="flex justify-between py-1">
                         <span className="text-xs text-muted-foreground">{key}</span>

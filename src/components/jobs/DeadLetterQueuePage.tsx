@@ -180,7 +180,7 @@ function DeadLetterQueueContent() {
           ) : (
             <>
               {/* Bulk Actions */}
-              <div className="flex items-center justify-between border-b bg-muted/30 p-4">
+              <div className="bg-muted/30 flex items-center justify-between border-b p-4">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"

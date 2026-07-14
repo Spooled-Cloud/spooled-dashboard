@@ -90,33 +90,49 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
 }
 
 /**
- * Default loading skeleton for auth check
+ * Default loading skeleton for auth check — responsive, no fixed desktop sidebar assumption.
  */
 function AuthLoadingSkeleton() {
   return (
-    <div className="flex h-screen">
-      {/* Sidebar skeleton */}
-      <div className="w-64 space-y-4 border-r bg-card p-4">
-        <Skeleton className="h-10 w-full" />
-        <div className="space-y-2">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
+    <div className="flex h-[100dvh] flex-col overflow-hidden">
+      {/* Header skeleton */}
+      <div className="safe-area-x flex h-14 shrink-0 items-center gap-3 border-b border-lane-border bg-card px-3 sm:px-4 lg:h-16 lg:px-6">
+        <Skeleton className="h-9 w-9 shrink-0 rounded-sm lg:hidden" />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Skeleton className="hidden h-8 w-8 shrink-0 rounded-sm sm:block" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-32 max-w-[60%]" />
+            <Skeleton className="h-3 w-24 max-w-[45%]" />
+          </div>
         </div>
+        <Skeleton className="h-8 w-20 shrink-0 rounded-sm" />
+        <Skeleton className="h-9 w-9 shrink-0 rounded-sm" />
       </div>
 
-      {/* Main content skeleton */}
-      <div className="flex-1 space-y-6 p-6">
-        <div className="flex justify-between">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-10 w-32" />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Desktop sidebar skeleton — hidden on mobile */}
+        <div className="hidden w-64 shrink-0 space-y-4 border-r border-lane-border bg-card p-4 lg:block">
+          <Skeleton className="h-10 w-full rounded-sm" />
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-10 w-full rounded-sm" />
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
+
+        {/* Main content skeleton */}
+        <div className="console-surface flex-1 space-y-4 overflow-y-auto p-3 sm:space-y-6 sm:p-5 lg:p-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Skeleton className="h-8 w-48 max-w-full" />
+            <Skeleton className="h-9 w-32" />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-sm" />
+            ))}
+          </div>
+          <Skeleton className="h-64 w-full rounded-sm sm:h-96" />
         </div>
-        <Skeleton className="h-96 w-full" />
       </div>
     </div>
   );

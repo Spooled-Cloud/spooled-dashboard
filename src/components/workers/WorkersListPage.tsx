@@ -169,7 +169,7 @@ function WorkersListContent() {
           ) : (
             <div className="divide-y">
               {workers.map((worker) => (
-                <div key={worker.id} className="p-6 transition-colors hover:bg-muted/30">
+                <div key={worker.id} className="hover:bg-muted/30 p-6 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="mb-3 flex items-center gap-3">
@@ -198,11 +198,11 @@ function WorkersListContent() {
                             )}
                           </div>
                         </div>
-                        <div className="rounded-lg bg-muted/50 p-2">
+                        <div className="bg-muted/50 rounded-lg p-2">
                           <p className="text-xs font-medium text-muted-foreground">Concurrency</p>
                           <p className="text-lg font-semibold">{worker.concurrency}</p>
                         </div>
-                        <div className="rounded-lg bg-muted/50 p-2">
+                        <div className="bg-muted/50 rounded-lg p-2">
                           <p className="text-xs font-medium text-muted-foreground">Current Jobs</p>
                           <p className="text-lg font-semibold">
                             {worker.current_jobs}

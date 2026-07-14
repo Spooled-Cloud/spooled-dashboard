@@ -1,11 +1,11 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { OnboardingPage } from '@/components/auth/OnboardingPage';
+import { OnboardingShell } from '@/components/auth/OnboardingShell';
 ---
 
 <BaseLayout
   title="Create Organization"
   description="Create a new organization on Spooled Cloud. Set up your job queue management system."
 >
-  <OnboardingPage client:load />
+  <OnboardingShell client:load />
 </BaseLayout>

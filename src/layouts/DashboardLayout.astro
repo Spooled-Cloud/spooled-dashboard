@@ -12,18 +12,16 @@ const { title, description } = Astro.props;
 ---
 
 <BaseLayout title={title} description={description} noindex={true}>
-  <div class="flex h-screen overflow-hidden">
-    <!-- Sidebar -->
+  <div class="flex h-[100dvh] overflow-hidden">
     <Sidebar client:load />
 
-    <!-- Main Content -->
-    <div class="flex flex-1 flex-col overflow-hidden">
-      <!-- Header -->
+    <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
       <Header client:load />
 
-      <!-- Page Content -->
-      <main class="flex-1 overflow-y-auto bg-muted/30 p-6">
-        <div class="mx-auto max-w-7xl">
+      <main
+        class="console-surface safe-area-x flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-6"
+      >
+        <div class="mx-auto w-full max-w-7xl">
           <slot />
         </div>
       </main>

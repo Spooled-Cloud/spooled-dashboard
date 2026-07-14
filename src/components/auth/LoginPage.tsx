@@ -114,7 +114,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-background to-muted/30 p-6">
+    <div className="to-muted/30 flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-background p-6">
       <div className="w-full max-w-md space-y-8">
         {/* Logo and Title */}
         <div className="text-center">

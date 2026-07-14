@@ -1101,6 +1101,9 @@ export const handlers = [
       enableSchedules: true,
       enableAnalytics: false,
       enableQueuePurge: false,
+      version: '0.1.60',
+      commit: 'abc123def',
+      environment: 'test',
     });
   }),
 ];

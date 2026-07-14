@@ -185,7 +185,7 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-4 pt-2">
-          <div className="rounded-lg bg-muted/50 p-3">
+          <div className="bg-muted/50 rounded-lg p-3">
             <p className="text-xs font-medium text-muted-foreground">Workers</p>
             <p className="text-lg font-semibold">
               {activeWorkers}{' '}
@@ -194,7 +194,7 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
               </span>
             </p>
           </div>
-          <div className="rounded-lg bg-muted/50 p-3">
+          <div className="bg-muted/50 rounded-lg p-3">
             <p className="text-xs font-medium text-muted-foreground">Total Capacity</p>
             <p className="text-lg font-semibold">{totalCapacity}</p>
           </div>
@@ -476,7 +476,7 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                   { key: 'max_retry_delay_ms', label: 'Max Retry Delay (ms)', type: 'number' },
                   { key: 'job_timeout_ms', label: 'Job Timeout (ms)', type: 'number' },
                 ].map((field) => (
-                  <div key={field.key} className="rounded-lg bg-muted/50 p-3">
+                  <div key={field.key} className="bg-muted/50 rounded-lg p-3">
                     <label className="text-xs font-medium text-muted-foreground">
                       {field.label}
                     </label>

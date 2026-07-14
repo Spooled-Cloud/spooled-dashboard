@@ -422,22 +422,45 @@ describe('API Response Types', () => {
 
 describe('WebSocket Types', () => {
   describe('WebSocketMessage', () => {
-    it('should support subscribe message', () => {
+    it('should support Subscribe command for aggregate channels', () => {
       const message: WebSocketMessage = {
-        type: 'subscribe',
-        channel: 'jobs',
+        cmd: 'Subscribe',
+        queue: null,
+        job_id: null,
       };
 
-      expect(message.type).toBe('subscribe');
-      expect(message.channel).toBe('jobs');
+      expect(message.cmd).toBe('Subscribe');
+      expect(message.queue).toBeNull();
+      expect(message.job_id).toBeNull();
     });
 
-    it('should support ping message', () => {
+    it('should support Subscribe command with queue filter', () => {
       const message: WebSocketMessage = {
-        type: 'ping',
+        cmd: 'Subscribe',
+        queue: 'emails',
+        job_id: null,
       };
 
-      expect(message.type).toBe('ping');
+      expect(message.cmd).toBe('Subscribe');
+      expect(message.queue).toBe('emails');
+    });
+
+    it('should support Unsubscribe command', () => {
+      const message: WebSocketMessage = {
+        cmd: 'Unsubscribe',
+        queue: 'emails',
+        job_id: null,
+      };
+
+      expect(message.cmd).toBe('Unsubscribe');
+    });
+
+    it('should support Ping command', () => {
+      const message: WebSocketMessage = {
+        cmd: 'Ping',
+      };
+
+      expect(message.cmd).toBe('Ping');
     });
   });
 

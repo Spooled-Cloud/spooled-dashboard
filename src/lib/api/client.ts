@@ -23,16 +23,28 @@ export class APIError extends Error {
   }
 
   static async fromResponse(response: Response): Promise<APIError> {
-    let body: { code?: string; message?: string; details?: Record<string, unknown> } | null = null;
+    let body: {
+      code?: string;
+      error?: string;
+      message?: string;
+      details?: Record<string, unknown>;
+    } | null = null;
     try {
       body = await response.json();
     } catch {
       // Response body is not JSON
     }
 
+    const code =
+      body?.code ||
+      (typeof body?.error === 'string'
+        ? body.error.toUpperCase().replace(/\s+/g, '_')
+        : undefined) ||
+      'UNKNOWN_ERROR';
+
     return new APIError(
       response.status,
-      body?.code || 'UNKNOWN_ERROR',
+      code,
       body?.message || `HTTP Error: ${response.status}`,
       body?.details
     );
@@ -51,7 +63,11 @@ export class APIError extends Error {
   }
 
   isValidationError(): boolean {
-    return this.status === HTTP_STATUS.UNPROCESSABLE_ENTITY;
+    return (
+      this.status === HTTP_STATUS.UNPROCESSABLE_ENTITY ||
+      this.status === HTTP_STATUS.BAD_REQUEST ||
+      this.code === 'VALIDATION_ERROR'
+    );
   }
 
   isRateLimited(): boolean {
@@ -80,6 +96,8 @@ class APIClient {
   private getToken: (() => string | null) | null = null;
   private getOrgId: (() => string | null) | null = null;
   private refreshToken: (() => Promise<void>) | null = null;
+  /** Shared in-flight refresh to prevent 401 stampedes */
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor(baseUrlOrGetter: string | (() => string) = getApiUrl) {
     // Support both static URL and getter function for runtime config
@@ -106,6 +124,21 @@ class APIClient {
    */
   setRefreshHandler(handler: () => Promise<void>) {
     this.refreshToken = handler;
+  }
+
+  /**
+   * Single-flight refresh: concurrent 401s share one refresh operation
+   */
+  private async refreshShared(): Promise<void> {
+    if (!this.refreshToken) {
+      throw new APIError(401, 'UNAUTHORIZED', 'No refresh handler configured');
+    }
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.refreshToken().finally(() => {
+        this.refreshInFlight = null;
+      });
+    }
+    return this.refreshInFlight;
   }
 
   /**
@@ -164,10 +197,10 @@ class APIClient {
         },
       });
 
-      // Handle 401 Unauthorized - try to refresh token
+      // Handle 401 Unauthorized - try to refresh token (single-flight)
       if (response.status === HTTP_STATUS.UNAUTHORIZED && !skipAuth && this.refreshToken) {
         try {
-          await this.refreshToken();
+          await this.refreshShared();
           // Retry the request with new token
           const retryResponse = await fetch(this.buildUrl(endpoint, params), {
             ...fetchOptions,

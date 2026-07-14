@@ -12,10 +12,10 @@ interface SettingsLinkProps {
 function SettingsLink({ href, icon, title, description }: SettingsLinkProps) {
   return (
     <a href={href} className="block">
-      <Card className="cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50">
+      <Card className="hover:border-primary/50 hover:bg-muted/50 cursor-pointer transition-colors">
         <CardContent className="p-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg text-primary">
               {icon}
             </div>
             <div className="flex-1">

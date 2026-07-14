@@ -20,11 +20,15 @@
 # Optional Environment Variables:
 #   DASHBOARD_IMAGE         - Docker image (default: ghcr.io/spooled-cloud/spooled-dashboard:latest)
 #   PUBLIC_API_URL          - Backend API URL
-#   PUBLIC_WS_URL           - WebSocket URL
+#   PUBLIC_WS_URL           - Backend WebSocket URL
 #   PUBLIC_SENTRY_DSN       - Sentry DSN for error tracking
 #
 # Cloudflare Tunnel Routes (configure in Zero Trust dashboard):
 #   - dashboard.spooled.cloud -> http://dashboard:4321
+#
+# Healthcheck note:
+#   Always probe 127.0.0.1 (not localhost). Alpine wget may resolve
+#   localhost via IPv6 while the Node server binds IPv4 only.
 
 services:
   # ===========================================
@@ -55,7 +59,14 @@ services:
       # Analytics (optional)
       PUBLIC_ENABLE_ANALYTICS: ${PUBLIC_ENABLE_ANALYTICS:-false}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4321/"]
+      # Explicit IPv4 + application endpoint (matches Dockerfile intent)
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:4321/api/config', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

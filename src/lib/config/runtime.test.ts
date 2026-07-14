@@ -2,10 +2,36 @@
  * Tests for Runtime Configuration
  */
 
-import { describe, it, expect } from 'vitest';
-import { getRuntimeConfig, isConfigLoaded, getApiUrl, getWsUrl } from './runtime';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  getRuntimeConfig,
+  isConfigLoaded,
+  getApiUrl,
+  getWsUrl,
+  validateRuntimeConfig,
+  loadRuntimeConfig,
+  resetRuntimeConfigCache,
+  RuntimeConfigError,
+} from './runtime';
+
+const validConfig = {
+  apiUrl: 'https://api.spooled.cloud',
+  wsUrl: 'wss://api.spooled.cloud',
+  sentryEnvironment: 'test',
+  enableWorkflows: true,
+  enableSchedules: true,
+  enableAnalytics: false,
+  version: '0.1.60',
+  commit: 'abc123def',
+  environment: 'test',
+};
 
 describe('Runtime Configuration', () => {
+  beforeEach(() => {
+    resetRuntimeConfigCache();
+    vi.restoreAllMocks();
+  });
+
   describe('getRuntimeConfig', () => {
     it('should return default config in test environment', () => {
       const config = getRuntimeConfig();
@@ -26,7 +52,6 @@ describe('Runtime Configuration', () => {
 
     it('should return production URLs in test mode', () => {
       const config = getRuntimeConfig();
-      // In test mode, should return static fallback (production URLs)
       expect(config.apiUrl).toBe('https://api.spooled.cloud');
       expect(config.wsUrl).toBe('wss://api.spooled.cloud');
     });
@@ -68,8 +93,104 @@ describe('Runtime Configuration', () => {
 
     it('should return valid WebSocket URL', () => {
       const url = getWsUrl();
-      // WebSocket URLs start with ws:// or wss://
       expect(url.startsWith('ws://') || url.startsWith('wss://')).toBe(true);
+    });
+  });
+
+  describe('validateRuntimeConfig', () => {
+    it('should accept valid https/wss config', () => {
+      const config = validateRuntimeConfig(validConfig);
+
+      expect(config.apiUrl).toBe('https://api.spooled.cloud');
+      expect(config.wsUrl).toBe('wss://api.spooled.cloud');
+      expect(config.version).toBe('0.1.60');
+      expect(config.commit).toBe('abc123def');
+    });
+
+    it('should accept valid http/ws config for local dev', () => {
+      const config = validateRuntimeConfig({
+        apiUrl: 'http://localhost:8080',
+        wsUrl: 'ws://localhost:8080',
+      });
+
+      expect(config.apiUrl).toBe('http://localhost:8080');
+      expect(config.wsUrl).toBe('ws://localhost:8080');
+    });
+
+    it('should reject non-object input', () => {
+      expect(() => validateRuntimeConfig(null)).toThrow(RuntimeConfigError);
+      expect(() => validateRuntimeConfig('bad')).toThrow(RuntimeConfigError);
+    });
+
+    it('should reject secret-looking fields', () => {
+      expect(() =>
+        validateRuntimeConfig({
+          ...validConfig,
+          adminApiKey: 'secret',
+        })
+      ).toThrow(/secret field/i);
+
+      expect(() =>
+        validateRuntimeConfig({
+          ...validConfig,
+          api_key: 'secret',
+        })
+      ).toThrow(/secret field/i);
+
+      expect(() =>
+        validateRuntimeConfig({
+          ...validConfig,
+          accessToken: 'secret',
+        })
+      ).toThrow(/secret field/i);
+    });
+
+    it('should reject invalid URL schemes', () => {
+      expect(() =>
+        validateRuntimeConfig({
+          apiUrl: 'ftp://api.example.com',
+          wsUrl: 'wss://api.example.com',
+        })
+      ).toThrow(/apiUrl must use http or https/i);
+
+      expect(() =>
+        validateRuntimeConfig({
+          apiUrl: 'https://api.example.com',
+          wsUrl: 'http://api.example.com',
+        })
+      ).toThrow(/wsUrl must use ws or wss/i);
+    });
+
+    it('should reject malformed URLs', () => {
+      expect(() =>
+        validateRuntimeConfig({
+          apiUrl: 'not-a-url',
+          wsUrl: 'wss://api.example.com',
+        })
+      ).toThrow(/absolute URLs/i);
+    });
+  });
+
+  describe('loadRuntimeConfig', () => {
+    it('should fetch and cache validated config', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => validConfig,
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const config = await loadRuntimeConfig();
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/config', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      expect(config.apiUrl).toBe('https://api.spooled.cloud');
+      expect(config.wsUrl).toBe('wss://api.spooled.cloud');
+      expect(isConfigLoaded()).toBe(true);
+
+      vi.unstubAllGlobals();
     });
   });
 });

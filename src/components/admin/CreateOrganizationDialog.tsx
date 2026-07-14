@@ -129,7 +129,7 @@ export function CreateOrganizationDialog({ onSuccess }: CreateOrganizationDialog
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="bg-destructive/10 flex items-center gap-2 rounded-md p-3 text-sm text-destructive">
                   <AlertTriangle className="h-4 w-4" />
                   {error}
                 </div>

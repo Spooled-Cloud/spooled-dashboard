@@ -404,12 +404,14 @@ export interface APIError {
 // WebSocket Types
 // ============================================================================
 
+/** Client → server command (matches backend ClientCommand) */
 export interface WebSocketMessage {
-  type: 'subscribe' | 'unsubscribe' | 'ping';
-  channel?: string;
-  payload?: unknown;
+  cmd: 'Subscribe' | 'Unsubscribe' | 'Ping';
+  queue?: string | null;
+  job_id?: string | null;
 }
 
+/** Normalized client event (mapped from backend RealtimeEvent) */
 export interface WebSocketEvent {
   type: string;
   channel: string;
@@ -419,6 +421,7 @@ export interface WebSocketEvent {
 
 export type WebSocketEventType =
   | 'job.created'
+  | 'job.status'
   | 'job.started'
   | 'job.completed'
   | 'job.failed'
@@ -432,4 +435,7 @@ export type WebSocketEventType =
   | 'workflow.started'
   | 'workflow.completed'
   | 'workflow.failed'
-  | 'schedule.triggered';
+  | 'schedule.triggered'
+  | 'system.health'
+  | 'ping'
+  | 'error';

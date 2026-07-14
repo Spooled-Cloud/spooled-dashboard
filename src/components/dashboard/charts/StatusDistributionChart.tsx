@@ -10,7 +10,7 @@ interface StatusData {
 }
 
 interface StatusDistributionChartProps {
-  data?: Record<JobStatus, number>;
+  data?: Partial<Record<JobStatus, number>>;
 }
 
 const STATUS_COLORS: Record<JobStatus, string> = {
@@ -36,10 +36,10 @@ const STATUS_LABELS: Record<JobStatus, string> = {
 export function StatusDistributionChart({ data }: StatusDistributionChartProps) {
   const chartData: StatusData[] = data
     ? Object.entries(data)
-        .filter(([_, value]) => value > 0)
+        .filter(([, value]) => typeof value === 'number' && value > 0)
         .map(([status, value]) => ({
           name: STATUS_LABELS[status as JobStatus],
-          value,
+          value: value as number,
           status: status as JobStatus,
         }))
     : [];

@@ -229,7 +229,7 @@ export function EditWebhookDialog({
                   {WEBHOOK_EVENTS.map((event) => (
                     <label
                       key={event.value}
-                      className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted/50"
+                      className="hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-md p-2"
                     >
                       <input
                         type="checkbox"

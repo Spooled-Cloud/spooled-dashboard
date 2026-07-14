@@ -90,7 +90,7 @@ function JsonDisplay({
         </Button>
       </div>
       <pre
-        className={`overflow-x-auto rounded-lg border bg-muted/30 p-4 text-xs ${isLarge ? 'max-h-96' : ''}`}
+        className={`bg-muted/30 overflow-x-auto rounded-lg border p-4 text-xs ${isLarge ? 'max-h-96' : ''}`}
       >
         <code className="font-mono">{jsonString}</code>
       </pre>
@@ -248,7 +248,7 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
                 <a
                   key={dep.job_id}
                   href={`/jobs/${dep.job_id}`}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
+                  className="hover:bg-muted/80 inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-xs"
                 >
                   {formatJobId(dep.job_id, 8)}
                   <JobStatusBadge status={dep.status as Job['status']} size="sm" />
@@ -265,7 +265,7 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
                 <a
                   key={dep.job_id}
                   href={`/jobs/${dep.job_id}`}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-xs hover:bg-muted/80"
+                  className="hover:bg-muted/80 inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-xs"
                 >
                   {formatJobId(dep.job_id, 8)}
                   <JobStatusBadge status={dep.status as Job['status']} size="sm" />
@@ -507,27 +507,27 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-muted/50 p-3">
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground">Status</p>
                   <div className="mt-1">
                     <JobStatusBadge status={job.status} />
                   </div>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3">
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground">Queue</p>
                   <Badge variant="outline" className="mt-1">
                     {job.queue}
                   </Badge>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3">
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground">Job Type</p>
                   <p className="mt-1 text-sm font-medium">{job.job_type || 'N/A'}</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3">
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground">Priority</p>
                   <p className="mt-1 text-lg font-semibold">{job.priority}</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3">
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground">Attempt</p>
                   <p className="mt-1 text-lg font-semibold">
                     {job.attempt}{' '}
@@ -536,14 +536,14 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                     </span>
                   </p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-3">
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground">Timeout</p>
                   <p className="mt-1 text-sm font-medium">
                     {job.timeout_ms ? `${Math.round(job.timeout_ms / 1000)}s` : 'N/A'}
                   </p>
                 </div>
                 {job.workflow_id && (
-                  <div className="col-span-2 rounded-lg bg-muted/50 p-3">
+                  <div className="bg-muted/50 col-span-2 rounded-lg p-3">
                     <p className="text-xs font-medium text-muted-foreground">Workflow ID</p>
                     <a
                       href={`/workflows/${job.workflow_id}`}
@@ -574,11 +574,11 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="rounded-lg bg-destructive/5 p-3">
+                    <div className="bg-destructive/5 rounded-lg p-3">
                       <p className="text-xs font-medium text-muted-foreground">Type</p>
                       <p className="mt-1 font-mono text-sm font-medium">{job.error.type}</p>
                     </div>
-                    <div className="rounded-lg bg-destructive/5 p-3">
+                    <div className="bg-destructive/5 rounded-lg p-3">
                       <p className="text-xs font-medium text-muted-foreground">Message</p>
                       <p className="mt-1 text-sm font-medium">{job.error.message}</p>
                     </div>
@@ -587,7 +587,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                         <p className="mb-2 text-xs font-medium text-muted-foreground">
                           Stack Trace
                         </p>
-                        <pre className="overflow-x-auto rounded-lg border bg-muted/30 p-3 text-xs">
+                        <pre className="bg-muted/30 overflow-x-auto rounded-lg border p-3 text-xs">
                           <code className="font-mono">{job.error.stack}</code>
                         </pre>
                       </div>

@@ -146,7 +146,7 @@ function QueuesListContent() {
           ) : (
             <div className="divide-y">
               {queues.map((queue) => (
-                <div key={queue.name} className="p-6 transition-colors hover:bg-muted/30">
+                <div key={queue.name} className="hover:bg-muted/30 p-6 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="mb-2 flex items-center gap-3">
@@ -164,19 +164,19 @@ function QueuesListContent() {
                       )}
 
                       <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-                        <div className="rounded-lg bg-muted/50 p-3">
+                        <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs font-medium text-muted-foreground">Concurrency</p>
                           <p className="text-lg font-semibold">{queue.concurrency}</p>
                         </div>
-                        <div className="rounded-lg bg-muted/50 p-3">
+                        <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs font-medium text-muted-foreground">Max Retries</p>
                           <p className="text-lg font-semibold">{queue.max_retries}</p>
                         </div>
-                        <div className="rounded-lg bg-muted/50 p-3">
+                        <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs font-medium text-muted-foreground">Retry Delay</p>
                           <p className="text-lg font-semibold">{queue.retry_delay_ms}ms</p>
                         </div>
-                        <div className="rounded-lg bg-muted/50 p-3">
+                        <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs font-medium text-muted-foreground">Job Timeout</p>
                           <p className="text-lg font-semibold">{queue.job_timeout_ms}ms</p>
                         </div>

@@ -858,7 +858,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
         </CardHeader>
         <CardContent>
           {org.custom_limits && Object.keys(org.custom_limits).length > 0 ? (
-            <div className="rounded-lg border bg-muted/50 p-4">
+            <div className="bg-muted/50 rounded-lg border p-4">
               <h4 className="mb-3 text-sm font-medium">Active Custom Overrides:</h4>
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3 lg:grid-cols-4">
                 {Object.entries(org.custom_limits).map(([key, value]) => (

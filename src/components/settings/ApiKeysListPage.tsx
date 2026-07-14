@@ -94,7 +94,7 @@ function ApiKeysListContent() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-primary/10 p-2">
+                <div className="bg-primary/10 rounded-lg p-2">
                   <Key className="h-5 w-5 text-primary" />
                 </div>
                 <div>
@@ -174,7 +174,7 @@ function ApiKeysListContent() {
           ) : (
             <div className="divide-y">
               {apiKeys.map((apiKey) => (
-                <div key={apiKey.id} className="p-6 transition-colors hover:bg-muted/30">
+                <div key={apiKey.id} className="hover:bg-muted/30 p-6 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="mb-2 flex items-center gap-3">

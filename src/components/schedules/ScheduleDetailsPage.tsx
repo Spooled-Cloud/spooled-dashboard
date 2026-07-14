@@ -366,7 +366,7 @@ function ScheduleDetailsContent({ scheduleId }: ScheduleDetailsContentProps) {
 
               <div className="border-t pt-4">
                 <label className="text-sm font-medium">Payload</label>
-                <pre className="mt-2 overflow-x-auto rounded-md bg-muted/50 p-3 text-xs">
+                <pre className="bg-muted/50 mt-2 overflow-x-auto rounded-md p-3 text-xs">
                   <code>{JSON.stringify(schedule.payload, null, 2)}</code>
                 </pre>
               </div>

@@ -390,7 +390,7 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
               <a
                 key={job.id}
                 href={`/jobs/${job.id}`}
-                className="flex items-center justify-between p-4 transition-colors hover:bg-muted/50"
+                className="hover:bg-muted/50 flex items-center justify-between p-4 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <span className="w-6 text-sm text-muted-foreground">{index + 1}</span>

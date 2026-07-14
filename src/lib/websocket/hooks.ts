@@ -14,32 +14,42 @@ import type { WebSocketEvent, WebSocketEventType } from '@/lib/types';
  */
 export function useWebSocketConnection() {
   const [isConnected, setIsConnected] = useState(false);
-  const [state, setState] = useState<'connecting' | 'open' | 'closing' | 'closed'>('closed');
-  const { accessToken } = useAuthStore();
+  const [state, setState] = useState(wsClient.getConnectionState());
+  const [lastEventAt, setLastEventAt] = useState<string | null>(wsClient.getLastEventAt());
+  const { accessToken, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    // Set token and connect
-    wsClient.setAccessToken(accessToken);
-
-    if (accessToken) {
-      wsClient.connect();
+    if (!isAuthenticated || !accessToken) {
+      wsClient.setAccessToken(null);
+      setIsConnected(false);
+      setState('stopped');
+      return;
     }
+
+    wsClient.setAccessToken(accessToken);
 
     const unsubConnect = wsClient.onConnect(() => {
       setIsConnected(true);
-      setState('open');
+      setState('live');
+      setLastEventAt(wsClient.getLastEventAt());
     });
 
     const unsubDisconnect = wsClient.onDisconnect(() => {
       setIsConnected(false);
-      setState('closed');
+    });
+
+    const unsubState = wsClient.onStateChange((next) => {
+      setState(next);
+      setIsConnected(next === 'live');
+      setLastEventAt(wsClient.getLastEventAt());
     });
 
     return () => {
       unsubConnect();
       unsubDisconnect();
+      unsubState();
     };
-  }, [accessToken]);
+  }, [accessToken, isAuthenticated]);
 
   const connect = useCallback(() => {
     wsClient.connect();
@@ -49,7 +59,7 @@ export function useWebSocketConnection() {
     wsClient.disconnect();
   }, []);
 
-  return { isConnected, state, connect, disconnect };
+  return { isConnected, state, lastEventAt, connect, disconnect };
 }
 
 /**
@@ -103,6 +113,7 @@ export function useWebSocketQueryInvalidation() {
       // Invalidate relevant queries based on event type
       switch (eventType) {
         case 'job.created':
+        case 'job.status':
         case 'job.started':
         case 'job.completed':
         case 'job.failed':

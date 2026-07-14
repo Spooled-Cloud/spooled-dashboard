@@ -161,7 +161,7 @@ export function AdminPlansPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}
           >
-            <Card className={plan.tier === 'pro' ? 'border-primary ring-1 ring-primary/20' : ''}>
+            <Card className={plan.tier === 'pro' ? 'ring-primary/20 border-primary ring-1' : ''}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -180,7 +180,7 @@ export function AdminPlansPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                <div className="bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2">
                   <span className="text-muted-foreground">Jobs/day</span>
                   <span className="font-semibold">
                     {plan.max_jobs_per_day === null ? (
@@ -190,15 +190,15 @@ export function AdminPlansPage() {
                     )}
                   </span>
                 </div>
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                <div className="bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2">
                   <span className="text-muted-foreground">Rate limit</span>
                   <span className="font-semibold">{plan.rate_limit_requests_per_second}/s</span>
                 </div>
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                <div className="bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2">
                   <span className="text-muted-foreground">Retention</span>
                   <span className="font-semibold">{plan.job_retention_days} days</span>
                 </div>
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                <div className="bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2">
                   <span className="text-muted-foreground">Workflows</span>
                   <span className="font-semibold">
                     {plan.max_workflows === null ? (

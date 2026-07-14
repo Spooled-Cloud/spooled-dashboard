@@ -179,7 +179,7 @@ function WebhooksListContent() {
           ) : (
             <div className="divide-y">
               {webhooks.map((webhook) => (
-                <div key={webhook.id} className="p-6 transition-colors hover:bg-muted/30">
+                <div key={webhook.id} className="hover:bg-muted/30 p-6 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="mb-2 flex items-center gap-3">

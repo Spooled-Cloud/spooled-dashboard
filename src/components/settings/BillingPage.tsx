@@ -51,7 +51,7 @@ function PlanBadge({ planTier }: { planTier: string }) {
     <Badge
       className={
         isPaid
-          ? 'border-primary bg-primary/10 text-primary'
+          ? 'bg-primary/10 border-primary text-primary'
           : 'border-muted-foreground bg-muted text-muted-foreground'
       }
     >
@@ -172,7 +172,7 @@ function BillingContent() {
               <p className="text-sm text-muted-foreground">{statusInfo.description}</p>
 
               {billing.stripe_current_period_end && (
-                <div className="rounded-lg border bg-muted/50 p-4">
+                <div className="bg-muted/50 rounded-lg border p-4">
                   <div className="grid gap-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Next billing date</span>
@@ -203,7 +203,7 @@ function BillingContent() {
               )}
 
               {!isPaidPlan && (
-                <div className="rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-4">
+                <div className="border-primary/30 bg-primary/5 rounded-lg border-2 border-dashed p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <Sparkles className="mt-0.5 h-5 w-5 text-primary" />

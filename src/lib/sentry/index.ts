@@ -1,9 +1,11 @@
 /**
  * Sentry Error Tracking Integration
  *
- * This module provides optional Sentry integration for error tracking.
- * Set PUBLIC_SENTRY_DSN in your environment to enable.
+ * Optional Sentry integration. Prefer runtime config DSN over build-time env.
+ * Never send tokens, API keys, or Authorization headers to Sentry.
  */
+
+import type { RuntimeConfig } from '@/lib/config/runtime';
 
 interface SentryConfig {
   dsn: string;
@@ -24,76 +26,103 @@ interface SentryContext {
   [key: string]: unknown;
 }
 
-// Store for Sentry instance (loaded dynamically)
 let sentryInstance: typeof import('@sentry/browser') | null = null;
+let initialized = false;
+
+const SENSITIVE_KEY = /token|authorization|api[_-]?key|password|secret|cookie|admin/i;
+
+function scrubValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    if (value.startsWith('eyJ') || value.startsWith('sp_live_') || value.startsWith('sp_test_')) {
+      return '[redacted]';
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(scrubValue);
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = SENSITIVE_KEY.test(k) ? '[redacted]' : scrubValue(v);
+    }
+    return out;
+  }
+  return value;
+}
 
 /**
  * Check if Sentry is enabled (DSN is configured)
  */
-export function isSentryEnabled(): boolean {
+export function isSentryEnabled(config?: RuntimeConfig | null): boolean {
+  if (config?.sentryDsn) return Boolean(config.sentryDsn);
   return Boolean(import.meta.env.PUBLIC_SENTRY_DSN);
 }
 
 /**
- * Initialize Sentry error tracking
- * Call this once at app startup (e.g., in the root layout)
+ * Initialize Sentry error tracking after runtime config is available.
  */
-export async function initSentry(): Promise<void> {
-  const dsn = import.meta.env.PUBLIC_SENTRY_DSN;
+export async function initSentry(config?: RuntimeConfig | null): Promise<void> {
+  if (initialized) return;
+
+  const dsn = config?.sentryDsn || import.meta.env.PUBLIC_SENTRY_DSN;
 
   if (!dsn) {
-    // Sentry disabled - no DSN configured (this is normal in development)
     return;
   }
 
   try {
-    // Dynamically import Sentry to avoid bundling if not used
     const Sentry = await import('@sentry/browser');
     sentryInstance = Sentry;
 
-    const config: SentryConfig = {
+    const sentryConfig: SentryConfig = {
       dsn,
-      environment: import.meta.env.PUBLIC_SENTRY_ENVIRONMENT || 'development',
-      release: import.meta.env.PUBLIC_SENTRY_RELEASE,
-      tracesSampleRate: 0.1, // Capture 10% of transactions for performance monitoring
-      replaysSessionSampleRate: 0.1, // Capture 10% of sessions for replay
-      replaysOnErrorSampleRate: 1.0, // Capture 100% of sessions with errors
+      environment:
+        config?.sentryEnvironment || import.meta.env.PUBLIC_SENTRY_ENVIRONMENT || 'development',
+      release:
+        config?.sentryRelease ||
+        import.meta.env.PUBLIC_SENTRY_RELEASE ||
+        (config?.version && config?.commit
+          ? `${config.version}+${config.commit.slice(0, 12)}`
+          : undefined),
+      tracesSampleRate: 0.1,
+      replaysSessionSampleRate: 0,
+      replaysOnErrorSampleRate: 0.1,
     };
 
     Sentry.init({
-      dsn: config.dsn,
-      environment: config.environment,
-      release: config.release,
-      integrations: [
-        Sentry.browserTracingIntegration(),
-        Sentry.replayIntegration({
-          maskAllText: true,
-          blockAllMedia: true,
-        }),
-      ],
-      tracesSampleRate: config.tracesSampleRate,
-      replaysSessionSampleRate: config.replaysSessionSampleRate,
-      replaysOnErrorSampleRate: config.replaysOnErrorSampleRate,
+      dsn: sentryConfig.dsn,
+      environment: sentryConfig.environment,
+      release: sentryConfig.release,
+      integrations: [Sentry.browserTracingIntegration()],
+      tracesSampleRate: sentryConfig.tracesSampleRate,
       beforeSend(event) {
-        // Filter out certain errors if needed
-        // Example: ignore ResizeObserver errors
         if (event.exception?.values?.[0]?.type === 'ResizeObserver loop limit exceeded') {
           return null;
+        }
+        if (event.request?.headers) {
+          event.request.headers = scrubValue(event.request.headers) as Record<string, string>;
+        }
+        if (event.extra) {
+          event.extra = scrubValue(event.extra) as Record<string, unknown>;
+        }
+        if (event.breadcrumbs) {
+          event.breadcrumbs = event.breadcrumbs.map((b) => ({
+            ...b,
+            data: b.data ? (scrubValue(b.data) as Record<string, unknown>) : b.data,
+          }));
         }
         return event;
       },
     });
 
-    // Make Sentry available globally for ErrorBoundary
+    initialized = true;
     (window as Window).Sentry = Sentry;
   } catch (error) {
     console.error('[Sentry] Failed to initialize:', error);
   }
 }
 
-/**
- * Set the current user context for error tracking
- */
 export function setSentryUser(user: SentryUser | null): void {
   if (!sentryInstance) return;
 
@@ -104,17 +133,11 @@ export function setSentryUser(user: SentryUser | null): void {
   }
 }
 
-/**
- * Set additional context for error tracking
- */
 export function setSentryContext(name: string, context: SentryContext): void {
   if (!sentryInstance) return;
-  sentryInstance.setContext(name, context);
+  sentryInstance.setContext(name, scrubValue(context) as SentryContext);
 }
 
-/**
- * Add a breadcrumb to track user actions
- */
 export function addSentryBreadcrumb(
   message: string,
   category: string,
@@ -126,14 +149,11 @@ export function addSentryBreadcrumb(
     message,
     category,
     level,
-    data,
+    data: data ? (scrubValue(data) as Record<string, unknown>) : undefined,
     timestamp: Date.now() / 1000,
   });
 }
 
-/**
- * Capture an exception manually
- */
 export function captureException(
   error: Error,
   context?: Record<string, unknown>
@@ -142,18 +162,16 @@ export function captureException(
     console.error('[Error]', error, context);
     return undefined;
   }
-  return sentryInstance.captureException(error, { extra: context });
+  return sentryInstance.captureException(error, {
+    extra: context ? (scrubValue(context) as Record<string, unknown>) : undefined,
+  });
 }
 
-/**
- * Capture a message manually
- */
 export function captureMessage(
   message: string,
   level: 'debug' | 'info' | 'warning' | 'error' = 'info'
 ): string | undefined {
   if (!sentryInstance) {
-    // When Sentry is not available, still log errors/warnings to console
     if (level === 'error') {
       console.error(`[${level.toUpperCase()}]`, message);
     } else if (level === 'warning') {
@@ -164,9 +182,6 @@ export function captureMessage(
   return sentryInstance.captureMessage(message, level);
 }
 
-/**
- * Set a tag for all subsequent events
- */
 export function setSentryTag(key: string, value: string): void {
   if (!sentryInstance) return;
   sentryInstance.setTag(key, value);

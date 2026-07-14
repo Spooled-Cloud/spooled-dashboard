@@ -131,7 +131,7 @@ export function WebhookDeliveriesDialog({
                         </div>
 
                         {delivery.error && (
-                          <div className="mt-2 rounded bg-destructive/10 p-2 text-xs text-destructive">
+                          <div className="bg-destructive/10 mt-2 rounded p-2 text-xs text-destructive">
                             <strong>Error:</strong> {delivery.error}
                           </div>
                         )}
