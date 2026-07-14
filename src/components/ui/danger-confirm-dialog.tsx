@@ -50,14 +50,14 @@ export function DangerConfirmDialog({
 }: DangerConfirmDialogProps) {
   const [inputValue, setInputValue] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
 
   const canConfirm = confirmText ? inputValue === confirmText : true;
 
-  // Reset input when dialog opens/closes
   React.useEffect(() => {
     if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
       setInputValue('');
-      // Focus input after a small delay for animation
       if (confirmText) {
         setTimeout(() => inputRef.current?.focus(), 100);
       }
@@ -75,11 +75,21 @@ export function DangerConfirmDialog({
     }
   };
 
+  const restoreFocus = (event: Event) => {
+    if (previousFocusRef.current?.focus) {
+      event.preventDefault();
+      previousFocusRef.current.focus();
+    }
+  };
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className="max-w-md" onCloseAutoFocus={restoreFocus}>
         <AlertDialogHeader>
-          <div className="bg-destructive/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+          <div
+            className="bg-destructive/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full"
+            aria-hidden="true"
+          >
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
           <AlertDialogTitle className="text-center">{title}</AlertDialogTitle>
@@ -91,7 +101,9 @@ export function DangerConfirmDialog({
             <ul className="space-y-1 text-sm text-destructive">
               {warnings.map((warning, index) => (
                 <li key={index} className="flex items-start gap-2">
-                  <span className="mt-0.5 text-xs">•</span>
+                  <span className="mt-0.5 text-xs" aria-hidden="true">
+                    •
+                  </span>
                   <span>{warning}</span>
                 </li>
               ))}
@@ -119,6 +131,7 @@ export function DangerConfirmDialog({
                   'border-destructive focus-visible:ring-destructive'
               )}
               disabled={isLoading}
+              aria-invalid={Boolean(inputValue && inputValue !== confirmText)}
             />
           </div>
         )}
@@ -127,7 +140,12 @@ export function DangerConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             {cancelLabel}
           </Button>
-          <Button variant="destructive" onClick={handleConfirm} disabled={!canConfirm || isLoading}>
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={!canConfirm || isLoading}
+            aria-busy={isLoading}
+          >
             {isLoading ? 'Processing...' : confirmLabel}
           </Button>
         </AlertDialogFooter>

@@ -27,6 +27,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, AlertCircle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDialogFocusRestore } from '@/lib/utils/form';
 
 interface CreateScheduleDialogProps {
   trigger?: React.ReactNode;
@@ -60,9 +61,10 @@ const TIMEZONES = [
 export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialogProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
+  const { wrapTrigger, onCloseAutoFocus } = useDialogFocusRestore();
 
-  // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [cronExpression, setCronExpression] = useState('0 * * * *');
@@ -71,7 +73,6 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
   const [jobType, setJobType] = useState('');
   const [payload, setPayload] = useState('{\n  \n}');
 
-  // Fetch queues for dropdown
   const { data: queues } = useQuery({
     queryKey: queryKeys.queues.list(),
     queryFn: () => queuesAPI.list(),
@@ -101,46 +102,63 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
     setJobType('');
     setPayload('{\n  \n}');
     setError(null);
+    setFieldErrors({});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validate required fields
-    if (!name.trim()) {
-      setError('Schedule name is required');
-      return;
+    const nextFieldErrors: Record<string, string> = {};
+    const trimmedName = name.trim();
+    const trimmedCron = cronExpression.trim();
+    const trimmedJobType = jobType.trim();
+
+    if (!trimmedName) {
+      nextFieldErrors.name = 'Schedule name is required';
     }
-    if (!cronExpression.trim()) {
-      setError('Cron expression is required');
-      return;
+    if (!trimmedCron) {
+      nextFieldErrors.cronExpression = 'Cron expression is required';
     }
     if (!queue) {
-      setError('Queue is required');
-      return;
+      nextFieldErrors.queue = 'Queue is required';
     }
-    if (!jobType.trim()) {
-      setError('Job type is required');
+    if (!trimmedJobType) {
+      nextFieldErrors.jobType = 'Job type is required';
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      const firstInvalidId =
+        nextFieldErrors.name !== undefined
+          ? 'schedule-name'
+          : nextFieldErrors.cronExpression !== undefined
+            ? 'cronExpression'
+            : nextFieldErrors.queue !== undefined
+              ? 'queue'
+              : 'jobType';
+      document.getElementById(firstInvalidId)?.focus();
       return;
     }
 
-    // Parse payload JSON
+    setFieldErrors({});
+
     let parsedPayload: Record<string, unknown>;
     try {
       parsedPayload = JSON.parse(payload);
     } catch {
       setError('Invalid JSON payload');
+      document.getElementById('payload')?.focus();
       return;
     }
 
     const request: CreateScheduleRequest = {
-      name: name.trim(),
+      name: trimmedName,
       description: description.trim() || undefined,
-      cron_expression: cronExpression.trim(),
+      cron_expression: trimmedCron,
       timezone,
       queue_name: queue,
-      job_type: jobType.trim(),
+      job_type: trimmedJobType,
       payload: parsedPayload,
       enabled: true,
     };
@@ -148,24 +166,28 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
     createMutation.mutate(request);
   };
 
+  const isBusy = createMutation.isPending;
+  const defaultTrigger = (
+    <Button size="sm">
+      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+      Create Schedule
+    </Button>
+  );
+
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (!o) resetForm();
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) resetForm();
       }}
     >
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Schedule
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
-        <form onSubmit={handleSubmit}>
+      <DialogTrigger asChild>{wrapTrigger(trigger ?? defaultTrigger)}</DialogTrigger>
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]"
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        <form onSubmit={handleSubmit} noValidate>
           <DialogHeader>
             <DialogTitle>Create New Schedule</DialogTitle>
             <DialogDescription>
@@ -176,23 +198,29 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
           <div className="grid gap-4 py-4">
             {error && (
               <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
+                <AlertCircle className="h-4 w-4" aria-hidden="true" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            {/* Schedule Name */}
             <div className="grid gap-2">
-              <Label htmlFor="name">Schedule Name *</Label>
+              <Label htmlFor="schedule-name">Schedule Name *</Label>
               <Input
-                id="name"
+                id="schedule-name"
                 placeholder="e.g., Daily Report, Hourly Cleanup"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? 'schedule-name-error' : undefined}
+                disabled={isBusy}
               />
+              {fieldErrors.name && (
+                <p id="schedule-name-error" className="text-sm text-destructive" role="alert">
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
-            {/* Description */}
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
               <Input
@@ -200,10 +228,10 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
                 placeholder="Optional description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={isBusy}
               />
             </div>
 
-            {/* Cron Expression */}
             <div className="grid gap-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="cronExpression">Cron Expression *</Label>
@@ -212,17 +240,36 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-primary"
+                  aria-label="Open crontab.guru cron expression helper (opens in new tab)"
                 >
-                  <HelpCircle className="h-4 w-4" />
+                  <HelpCircle className="h-4 w-4" aria-hidden="true" />
                 </a>
               </div>
+              <p id="cronExpression-help" className="text-xs text-muted-foreground">
+                Use standard 5-field cron: minute, hour, day of month, month, day of week (e.g.{' '}
+                <code className="font-mono">0 * * * *</code> = top of every hour). An optional
+                leading seconds field is also accepted (e.g.{' '}
+                <code className="font-mono">0 0 * * * *</code>).
+              </p>
               <Input
                 id="cronExpression"
-                placeholder="* * * * *"
+                placeholder="0 * * * *"
                 value={cronExpression}
                 onChange={(e) => setCronExpression(e.target.value)}
                 className="font-mono"
+                aria-invalid={Boolean(fieldErrors.cronExpression)}
+                aria-describedby={
+                  fieldErrors.cronExpression
+                    ? 'cronExpression-error cronExpression-help'
+                    : 'cronExpression-help'
+                }
+                disabled={isBusy}
               />
+              {fieldErrors.cronExpression && (
+                <p id="cronExpression-error" className="text-sm text-destructive" role="alert">
+                  {fieldErrors.cronExpression}
+                </p>
+              )}
               <div className="flex flex-wrap gap-1">
                 {COMMON_CRON_PRESETS.slice(0, 4).map((preset) => (
                   <Button
@@ -232,6 +279,7 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
                     size="sm"
                     className="h-6 text-xs"
                     onClick={() => setCronExpression(preset.value)}
+                    disabled={isBusy}
                   >
                     {preset.label}
                   </Button>
@@ -239,11 +287,14 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
               </div>
             </div>
 
-            {/* Timezone */}
             <div className="grid gap-2">
               <Label htmlFor="timezone">Timezone</Label>
-              <Select value={timezone} onValueChange={setTimezone}>
-                <SelectTrigger id="timezone">
+              <p id="timezone-help" className="text-xs text-muted-foreground">
+                Cron times are evaluated in this timezone. UTC is recommended unless the schedule
+                should follow a specific region&apos;s local clock.
+              </p>
+              <Select value={timezone} onValueChange={setTimezone} disabled={isBusy}>
+                <SelectTrigger id="timezone" aria-describedby="timezone-help">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -256,11 +307,14 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
               </Select>
             </div>
 
-            {/* Queue Selection */}
             <div className="grid gap-2">
               <Label htmlFor="queue">Queue *</Label>
-              <Select value={queue} onValueChange={setQueue}>
-                <SelectTrigger id="queue">
+              <Select value={queue} onValueChange={setQueue} disabled={isBusy}>
+                <SelectTrigger
+                  id="queue"
+                  aria-invalid={Boolean(fieldErrors.queue)}
+                  aria-describedby={fieldErrors.queue ? 'queue-error' : undefined}
+                >
                   <SelectValue placeholder="Select a queue" />
                 </SelectTrigger>
                 <SelectContent>
@@ -272,9 +326,13 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.queue && (
+                <p id="queue-error" className="text-sm text-destructive" role="alert">
+                  {fieldErrors.queue}
+                </p>
+              )}
             </div>
 
-            {/* Job Type */}
             <div className="grid gap-2">
               <Label htmlFor="jobType">Job Type *</Label>
               <Input
@@ -282,10 +340,17 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
                 placeholder="e.g., generate_report, cleanup_old_data"
                 value={jobType}
                 onChange={(e) => setJobType(e.target.value)}
+                aria-invalid={Boolean(fieldErrors.jobType)}
+                aria-describedby={fieldErrors.jobType ? 'jobType-error' : undefined}
+                disabled={isBusy}
               />
+              {fieldErrors.jobType && (
+                <p id="jobType-error" className="text-sm text-destructive" role="alert">
+                  {fieldErrors.jobType}
+                </p>
+              )}
             </div>
 
-            {/* Payload */}
             <div className="grid gap-2">
               <Label htmlFor="payload">Payload (JSON)</Label>
               <Textarea
@@ -294,6 +359,7 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
                 value={payload}
                 onChange={(e) => setPayload(e.target.value)}
                 className="min-h-[100px] font-mono"
+                disabled={isBusy}
               />
             </div>
           </div>
@@ -303,19 +369,19 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              disabled={createMutation.isPending}
+              disabled={isBusy}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? (
+            <Button type="submit" disabled={isBusy} aria-busy={isBusy}>
+              {isBusy ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                   Creating...
                 </>
               ) : (
                 <>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                   Create Schedule
                 </>
               )}
