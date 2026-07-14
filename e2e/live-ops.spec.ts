@@ -49,9 +49,7 @@ test.describe('live ops flows', () => {
 
   test('shell shows realtime status after login', async ({ page }) => {
     await login(page);
-    await expect(
-      page.getByLabel(/realtime/i).or(page.getByText(/live|connecting|reconnecting|offline/i).first())
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByLabel(/realtime/i).first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('create queue then see it on queues page', async ({ page }) => {

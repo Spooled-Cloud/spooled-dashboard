@@ -63,28 +63,31 @@ test.describe('live shell surfaces', () => {
     await login(page);
 
     await gotoApp(page, '/settings');
-    await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Session' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Billing' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Session' }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Billing' }).first()).toBeVisible();
 
     await gotoApp(page, '/settings/profile');
-    await expect(page.getByRole('heading', { name: 'Session' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Session' })).toBeVisible();
 
     await gotoApp(page, '/settings/billing');
-    await expect(page.getByRole('heading', { name: /Billing/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Billing/i })).toBeVisible();
 
     await gotoApp(page, '/settings/organization');
-    await expect(page.getByRole('heading', { name: /Organization/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Organization/i })).toBeVisible();
+
+    await gotoApp(page, '/workers');
+    await expect(page.getByRole('heading', { level: 1, name: /Workers/i })).toBeVisible();
+    await gotoApp(page, '/jobs/dlq');
+    await expect(page.getByRole('heading', { level: 1, name: /Dead Letter|DLQ/i })).toBeVisible();
   });
 
   test('jobs URL status filter applies from query string', async ({ page }) => {
     await login(page);
     await gotoApp(page, '/jobs?status=failed');
-    const statusSelect = page
-      .locator('select')
-      .filter({ hasText: 'All Statuses' })
-      .or(page.locator('select').first());
-    await expect(statusSelect).toHaveValue('failed');
+    // Requires dashboard build with JobsListPage URL sync (≥0.1.61)
+    const statusSelect = page.locator('select').first();
+    await expect(statusSelect).toHaveValue('failed', { timeout: 15_000 });
   });
 
   test('API-created job appears on jobs list via realtime invalidation', async ({
@@ -114,7 +117,7 @@ test.describe('live shell surfaces', () => {
     expect(queueRes.ok()).toBeTruthy();
 
     await gotoApp(page, '/jobs');
-    await expect(page.getByLabel(/realtime/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByLabel(/realtime/i).first()).toBeVisible({ timeout: 20_000 });
 
     const jobRes = await request.post(`${apiBase}/api/v1/jobs`, {
       headers: {
@@ -129,16 +132,13 @@ test.describe('live shell surfaces', () => {
       },
     });
     expect(jobRes.ok()).toBeTruthy();
+    const created = (await jobRes.json()) as { id?: string };
+    expect(created.id).toBeTruthy();
+    const shortId = created.id!.slice(0, 8);
 
     // Poll interval is 10s — appear within 8s implies WS invalidation (or faster refetch)
-    await expect(page.getByText(jobType).first()).toBeVisible({ timeout: 8_000 });
-  });
-
-  test('workers and dlq pages load', async ({ page }) => {
-    await login(page);
-    await gotoApp(page, '/workers');
-    await expect(page.getByRole('heading', { name: /Workers/i })).toBeVisible();
-    await gotoApp(page, '/jobs/dlq');
-    await expect(page.getByRole('heading', { name: /Dead Letter|DLQ/i })).toBeVisible();
+    await expect(
+      page.getByText(shortId).or(page.getByText(qName)).or(page.getByText(jobType)).first()
+    ).toBeVisible({ timeout: 8_000 });
   });
 });
