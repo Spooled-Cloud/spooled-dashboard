@@ -59,16 +59,19 @@ Configure the tunnel route to send the public hostname to `http://dashboard:4321
 
 #### Current production host layout (2026-07-14)
 
-On the production host the stack is managed from a durable path (not `/tmp`):
+On the production host the stack is managed from a durable path (not `/tmp` and not ephemeral Portainer Git dirs under `/data/compose/71/<sha>/`):
 
 - Directory: `/opt/spooled/dashboard`
+- Compose project name: **`spooled-dashboard`** only (never other host projects)
 - Compose file: `docker-compose.prod.yml`
 - Image pin: `.env.image` with immutable digest `ghcr.io/spooled-cloud/spooled-dashboard:v0.1.63@sha256:2c0478df9585f1bbd6a328354c78f5672414435b974bb0d46ceff4644d969192`
 - Secrets: `.env` mode `600` (includes tunnel token). Never commit or paste this file.
-- Recreate: `cd /opt/spooled/dashboard && sudo docker compose -p spooled-dashboard --env-file .env -f docker-compose.prod.yml up -d`
+- Recreate: `cd /opt/spooled/dashboard && sudo docker compose -p spooled-dashboard --env-file .env --env-file .env.image -f docker-compose.prod.yml up -d`
 - Health probe: explicit IPv4 `127.0.0.1:4321/api/config` (container must report `healthy`)
 
-Portainer Agent is present on the host; if a Portainer UI stack entry exists, point it at this directory / image digest so the UI matches the live containers. Do not redeploy from an ephemeral `/tmp` path.
+**Isolation on the shared host:** do not stop/rm/compose against `authentik`, `outlinewiki`, `spooled-backend`, `spooled-example-spriteforge`, or any non-`spooled-dashboard` project. Prefer digest pins over `:latest`. Backend durable path is separate: `/opt/spooled/backend` (see `spooled-backend/docs/guides/production-host-portainer.md`).
+
+Portainer Agent is present on the host; if a Portainer UI stack entry exists, point it at **`/opt/spooled/dashboard`** (Web editor or bind/relative path), not an ephemeral Git sha folder. Do not redeploy from `/tmp`.
 
 ## Docker without Compose
 
