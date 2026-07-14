@@ -163,7 +163,7 @@ export function parseCreateOrgResponse(raw: unknown): CreateOrgResponse {
     throw new Error('Create-organization response api_key incomplete');
   }
 
-  return body as CreateOrgResponse;
+  return body as unknown as CreateOrgResponse;
 }
 
 export interface CreateApiKeyRequest {
