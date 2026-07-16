@@ -119,7 +119,7 @@ export function LoginPage() {
         {/* Logo and Title */}
         <div className="text-center">
           <div className="mx-auto mb-6">
-            <img src="/logo-horizontal.webp" alt="Spooled Cloud" className="mx-auto h-16" />
+            <img src="/favicon.svg" alt="Spooled Cloud" className="mx-auto h-16" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="mt-2 text-muted-foreground">Job Queue Management System</p>

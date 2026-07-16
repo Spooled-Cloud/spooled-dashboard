@@ -201,7 +201,7 @@ function SidebarBrand({ collapsed }: { collapsed: boolean }) {
         )}
       >
         <img
-          src="/logo.webp"
+          src="/favicon.svg"
           alt="Spooled Logo"
           className={cn(
             'transition-all motion-reduce:transition-none',

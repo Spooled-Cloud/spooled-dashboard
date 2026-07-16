@@ -11,7 +11,7 @@ interface Props {
 const {
   title,
   description = 'Manage job queues, workers, workflows, and schedules with the Spooled Cloud Dashboard. Real-time monitoring, powerful scheduling, and enterprise-grade reliability.',
-  image = '/og.webp',
+  image = '/og.svg',
   noindex = false,
 } = Astro.props;
 
@@ -58,10 +58,7 @@ const imageUrl = new URL(image, siteUrl).toString();
     <link rel="canonical" href={canonicalUrl} />
 
     <!-- Favicons -->
-    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="shortcut icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Spooled Cloud" />
     <link rel="manifest" href="/site.webmanifest" />
 

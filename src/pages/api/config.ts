@@ -20,7 +20,6 @@ export interface RuntimeConfig {
   enableWorkflows?: boolean;
   enableSchedules?: boolean;
   enableAnalytics?: boolean;
-  enableQueuePurge?: boolean;
   /** Package / image version (e.g. 0.1.60) */
   version?: string;
   /** Source commit SHA injected at image build time */
@@ -93,8 +92,6 @@ export const GET: APIRoute = () => {
     enableWorkflows: process.env.PUBLIC_ENABLE_WORKFLOWS !== 'false',
     enableSchedules: process.env.PUBLIC_ENABLE_SCHEDULES !== 'false',
     enableAnalytics: process.env.PUBLIC_ENABLE_ANALYTICS === 'true',
-    // Queue purge disabled by default - not implemented in backend
-    enableQueuePurge: process.env.PUBLIC_ENABLE_QUEUE_PURGE === 'true',
     version,
     commit,
     environment,

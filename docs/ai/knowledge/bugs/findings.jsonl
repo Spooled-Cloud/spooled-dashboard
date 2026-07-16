@@ -1,3 +1,4 @@
 {"id":"DB-00","sev":"info","summary":"no P0/P1 dashboard-only findings this pass","status":"n/a"}
 {"id":"DB-01","sev":"P2","summary":"runtime config fetch failure fell back to hosted defaults on non-local dashboards","path":"src/lib/config/runtime.ts","status":"fixed","note":"Working tree fails closed outside local/SSR fallback"}
 {"id":"DB-02","sev":"P1","summary":"admin pages bypassed runtime config bootstrap and could contact default API","path":"src/pages/admin/*","status":"fixed","note":"Working tree wraps admin pages in RuntimeConfigBootstrap and marks them noindex"}
+{"id":"DB-03","sev":"P3","summary":"dead queue-purge stub/flag and orphan dashboard components","path":"src/lib/api/queues.ts src/components/dashboard","status":"fixed","note":"Working tree removes unused queue purge surface, stale dashboard charts, and old dashboard content"}

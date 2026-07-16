@@ -284,14 +284,4 @@ export const queuesAPI = {
     };
   },
 
-  /**
-   * Purge queue jobs
-   * Note: This endpoint doesn't exist in backend.
-   * To purge dead-letter queue jobs, use jobsAPI.purgeDeadLetter() instead.
-   */
-  purge: (_name: string): Promise<{ deleted: number }> => {
-    return Promise.reject(
-      new Error('Queue purge not available. Use Jobs > Dead Letter Queue > Purge instead.')
-    );
-  },
 };

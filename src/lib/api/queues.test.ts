@@ -123,13 +123,4 @@ describe('queuesAPI', () => {
     });
   });
 
-  describe('purge', () => {
-    it('should reject because queue purge is not available', async () => {
-      // Queue purge endpoint doesn't exist in backend
-      // Use jobsAPI.purgeDeadLetter() instead
-      await expect(queuesAPI.purge('default')).rejects.toThrow(
-        'Queue purge not available. Use Jobs > Dead Letter Queue > Purge instead.'
-      );
-    });
-  });
 });

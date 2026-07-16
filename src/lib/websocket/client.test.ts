@@ -208,7 +208,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should include token in URL when set', async () => {
-      const client = await connectClient('my-token-123');
+      await connectClient('my-token-123');
 
       const ws = MockWebSocket.getLatestInstance();
       expect(ws?.url).toContain('token=my-token-123');
@@ -373,7 +373,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should handle invalid JSON gracefully', async () => {
-      const client = await connectClient();
+      await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       const ws = MockWebSocket.getLatestInstance();
@@ -512,7 +512,7 @@ describe('WebSocket Client', () => {
 
   describe('Heartbeat Mechanism', () => {
     it('should start sending Ping commands after connection', async () => {
-      const client = await connectClient();
+      await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       vi.advanceTimersByTime(30000);
@@ -526,7 +526,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should send multiple heartbeats over time', async () => {
-      const client = await connectClient();
+      await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       vi.advanceTimersByTime(90000);
@@ -573,7 +573,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should use exponential backoff for reconnection', async () => {
-      const client = await connectClient();
+      await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       MockWebSocket.getLatestInstance()?.simulateClose(1006, 'Lost');
@@ -610,7 +610,7 @@ describe('WebSocket Client', () => {
     });
 
     it('should reset reconnect attempts after successful connection', async () => {
-      const client = await connectClient();
+      await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
       MockWebSocket.getLatestInstance()?.simulateClose(1006, 'Lost');
@@ -659,7 +659,7 @@ describe('WebSocket Client', () => {
 
   describe('Error Handling', () => {
     it('should handle WebSocket errors gracefully', async () => {
-      const client = await connectClient();
+      await connectClient();
 
       expect(() => {
         MockWebSocket.getLatestInstance()?.simulateError();

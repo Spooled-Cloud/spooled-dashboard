@@ -1127,7 +1127,6 @@ export const handlers = [
       enableWorkflows: true,
       enableSchedules: true,
       enableAnalytics: false,
-      enableQueuePurge: false,
       version: '0.1.60',
       commit: 'abc123def',
       environment: 'test',
