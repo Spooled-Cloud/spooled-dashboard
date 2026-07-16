@@ -12,6 +12,7 @@ import {
   loadRuntimeConfig,
   resetRuntimeConfigCache,
   RuntimeConfigError,
+  shouldAllowRuntimeConfigFallback,
 } from './runtime';
 
 const validConfig = {
@@ -191,6 +192,13 @@ describe('Runtime Configuration', () => {
       expect(isConfigLoaded()).toBe(true);
 
       vi.unstubAllGlobals();
+    });
+
+    it('should only allow config fetch fallback on local hostnames', () => {
+      expect(shouldAllowRuntimeConfigFallback('localhost')).toBe(true);
+      expect(shouldAllowRuntimeConfigFallback('127.0.0.1')).toBe(true);
+      expect(shouldAllowRuntimeConfigFallback('dashboard.spooled.cloud')).toBe(false);
+      expect(shouldAllowRuntimeConfigFallback('staging.spooled.cloud')).toBe(false);
     });
   });
 });

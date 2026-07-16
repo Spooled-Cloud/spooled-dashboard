@@ -80,8 +80,8 @@ export function RuntimeConfigBootstrap({ children, compact = false }: RuntimeCon
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm font-semibold text-destructive">Configuration unavailable</p>
         <p className="max-w-md text-xs text-muted-foreground">
-          Could not load <code className="font-mono">/api/config</code>. Using safe local defaults
-          where possible. Check network connectivity and reload.
+          Could not load <code className="font-mono">/api/config</code>. The dashboard is blocked so
+          it does not contact the wrong API. Check network connectivity and reload.
         </p>
         <button
           type="button"
@@ -90,8 +90,6 @@ export function RuntimeConfigBootstrap({ children, compact = false }: RuntimeCon
         >
           Retry
         </button>
-        {/* Still render children so offline/local recovery is possible */}
-        <div className="mt-6 w-full">{children}</div>
       </div>
     );
   }

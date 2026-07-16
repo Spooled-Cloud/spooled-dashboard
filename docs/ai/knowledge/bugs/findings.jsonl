@@ -1,1 +1,2 @@
 {"id":"DB-00","sev":"info","summary":"no P0/P1 dashboard-only findings this pass","status":"n/a"}
+{"id":"DB-01","sev":"P2","summary":"runtime config fetch failure fell back to hosted defaults on non-local dashboards","path":"src/lib/config/runtime.ts","status":"fixed","note":"Working tree fails closed outside local/SSR fallback"}

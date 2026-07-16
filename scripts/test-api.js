@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+/* global console, fetch, process */
+
 /**
  * Test Script for Spooled API
  *

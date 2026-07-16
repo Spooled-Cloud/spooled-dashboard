@@ -39,6 +39,13 @@ function isSecureProductionOrigin(hostname: string): boolean {
   return hostname === 'dashboard.spooled.cloud' || hostname.endsWith('.spooled.cloud');
 }
 
+export function shouldAllowRuntimeConfigFallback(hostname?: string): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+  return isLocalHostname(hostname ?? window.location.hostname);
+}
+
 /**
  * Validate and normalize a runtime config object.
  * Rejects secrets-looking keys and invalid URL schemes.
@@ -177,7 +184,10 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
     .catch((error: unknown) => {
       configPromise = null;
       loadError = error instanceof Error ? error : new RuntimeConfigError(String(error));
-      // Soft-fail to defaults so local/offline still boots with intentional fallback
+      if (!shouldAllowRuntimeConfigFallback()) {
+        throw loadError;
+      }
+      // Soft-fail to defaults only for SSR/local development, never hosted dashboards.
       cachedConfig = getDefaultConfig();
       return cachedConfig;
     });
