@@ -1,8 +1,8 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { AdminPlansPage } from '@/components/admin/AdminPlansPage';
+import { AdminPlansShell } from '@/components/admin/AdminShells';
 ---
 
-<BaseLayout title="Plan Limits - Admin - Spooled Cloud">
-  <AdminPlansPage client:load />
+<BaseLayout title="Plan Limits - Admin - Spooled Cloud" noindex={true}>
+  <AdminPlansShell client:load />
 </BaseLayout>

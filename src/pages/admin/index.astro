@@ -1,8 +1,8 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { AdminDashboard } from '@/components/admin/AdminDashboard';
+import { AdminDashboardShell } from '@/components/admin/AdminShells';
 ---
 
-<BaseLayout title="Admin Dashboard - Spooled Cloud">
-  <AdminDashboard client:load />
+<BaseLayout title="Admin Dashboard - Spooled Cloud" noindex={true}>
+  <AdminDashboardShell client:load />
 </BaseLayout>
