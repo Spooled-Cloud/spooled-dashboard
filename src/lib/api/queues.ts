@@ -283,5 +283,4 @@ export const queuesAPI = {
       updated_at: '',
     };
   },
-
 };

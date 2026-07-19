@@ -122,5 +122,4 @@ describe('queuesAPI', () => {
       expect(stats.failed).toBeDefined();
     });
   });
-
 });
