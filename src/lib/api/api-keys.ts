@@ -12,6 +12,11 @@ export interface APIKey {
   rate_limit: number | null;
   is_active: boolean;
   created_at: string;
+  /**
+   * Coarse: the backend writes this at most once per key per 5 minutes, not once per request.
+   * A key in constant use can look up to 5 minutes idle, so never present it as real-time — and
+   * never treat a recent-looking gap as proof that a key is unused.
+   */
   last_used: string | null;
   expires_at: string | null;
 }

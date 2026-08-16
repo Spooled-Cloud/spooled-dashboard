@@ -209,7 +209,10 @@ function ApiKeysListContent() {
                       <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
                         <span>Created {formatRelativeTime(apiKey.created_at)}</span>
                         {apiKey.last_used && (
-                          <span>Last used {formatRelativeTime(apiKey.last_used)}</span>
+                          <span title="Recorded at most once every 5 minutes, so a key in active use can look idle for up to 5 minutes.">
+                            Last used {formatRelativeTime(apiKey.last_used)} (updated at most every
+                            5 min)
+                          </span>
                         )}
                         {apiKey.expires_at && (
                           <span>Expires {formatRelativeTime(apiKey.expires_at)}</span>

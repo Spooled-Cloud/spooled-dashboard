@@ -96,6 +96,12 @@ export const queryKeys = {
     deliveries: (id: string) => [...queryKeys.webhooks.all, 'deliveries', id] as const,
   },
 
+  // Usage & plan limits
+  usage: {
+    all: ['usage'] as const,
+    current: () => [...queryKeys.usage.all, 'current'] as const,
+  },
+
   // Organizations
   organizations: {
     all: ['organizations'] as const,

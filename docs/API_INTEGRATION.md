@@ -73,6 +73,8 @@ JWT authentication is automatic:
 4. A `401` triggers a shared single-flight refresh while the in-memory refresh token is available.
 5. Failed refresh clears auth state and redirects to login.
 
+REST endpoints accept the credential only in the `Authorization` header; `?api_key=` and `?token=` return `401`. Query-string credentials survive only on the four realtime routes (`/api/v1/ws`, `/api/v1/events`, `/api/v1/events/jobs/{id}`, `/api/v1/events/queues/{name}`), where browser `EventSource`/`WebSocket` cannot set headers.
+
 ```typescript
 import { useAuthStore } from '@/stores/auth';
 

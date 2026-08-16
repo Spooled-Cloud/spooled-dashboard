@@ -15,6 +15,19 @@ The dashboard exchanges an API key or email verification code for JWTs.
 
 Because an access token is stored in `localStorage`, preventing script injection is critical. Do not describe the access token as memory-only.
 
+### Credentials in query strings
+
+REST endpoints reject `?api_key=` and `?token=` with a `401`; the credential must travel in the `Authorization: Bearer <token>` header, which is what `apiClient` does for every REST call. Query strings are recorded by reverse-proxy and CDN access logs, tracing spans, browser history, and the `Referer` header, and API keys do not expire by default, so a credential that reaches a URL should be treated as leaked (CWE-598).
+
+The four realtime routes still accept a query-string token, because browser `EventSource` and `WebSocket` cannot set request headers:
+
+- `/api/v1/ws`
+- `/api/v1/events`
+- `/api/v1/events/jobs/{id}`
+- `/api/v1/events/queues/{name}`
+
+The dashboard uses the query string on those routes only, and only with the short-lived access JWT — never an API key. Redact those parameters from logs and diagnostics.
+
 ## HTTPS
 
 Use HTTPS for the dashboard and API in production, and use `wss://` for WebSocket traffic. Redirect plaintext HTTP at the ingress, reverse proxy, or CDN.

@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { webhooksAPI, WEBHOOK_EVENTS } from '@/lib/api/webhooks';
+import {
+  webhooksAPI,
+  WEBHOOK_EVENTS,
+  WEBHOOK_AUTO_DISABLE_THRESHOLD,
+  isAutoDisabled,
+} from '@/lib/api/webhooks';
 import type { UpdateWebhookRequest, WebhookEvent, Webhook } from '@/lib/api/webhooks';
+import { APIError } from '@/lib/api/client';
 import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
 import {
@@ -17,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle, Save } from 'lucide-react';
+import { Loader2, AlertCircle, Save, ShieldOff } from 'lucide-react';
 
 interface EditWebhookDialogProps {
   webhook: Webhook;
@@ -25,6 +31,14 @@ interface EditWebhookDialogProps {
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
+
+/**
+ * What to do with the signing secret on save.
+ *
+ * `keep` omits the field entirely so the backend leaves the stored secret alone — anything else
+ * would overwrite it. `clear` sends an explicit null, which removes the secret for good.
+ */
+type SecretAction = 'keep' | 'replace' | 'clear';
 
 export function EditWebhookDialog({
   webhook,
@@ -39,14 +53,19 @@ export function EditWebhookDialog({
   const [name, setName] = useState(webhook.name);
   const [url, setUrl] = useState(webhook.url);
   const [secret, setSecret] = useState('');
+  const [removeSecret, setRemoveSecret] = useState(false);
   const [selectedEvents, setSelectedEvents] = useState<WebhookEvent[]>(webhook.events);
   const [enabled, setEnabled] = useState(webhook.enabled);
+
+  const autoDisabled = isAutoDisabled(webhook);
+  const isReEnabling = !webhook.enabled && enabled;
 
   // Reset form when webhook changes
   useEffect(() => {
     setName(webhook.name);
     setUrl(webhook.url);
     setSecret('');
+    setRemoveSecret(false);
     setSelectedEvents(webhook.events);
     setEnabled(webhook.enabled);
     setError(null);
@@ -61,6 +80,14 @@ export function EditWebhookDialog({
       onSuccess?.();
     },
     onError: (err) => {
+      if (err instanceof APIError && err.isQuotaExceeded()) {
+        setError(
+          isReEnabling
+            ? 'Your plan’s webhook limit is already reached, so this webhook cannot be re-enabled. Delete or disable another webhook, or upgrade your plan, then try again.'
+            : 'Your plan’s webhook limit is already reached. Delete or disable another webhook, or upgrade your plan, then try again.'
+        );
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to update webhook');
     },
   });
@@ -94,12 +121,36 @@ export function EditWebhookDialog({
       enabled,
     };
 
-    // Only include secret if it was changed
-    if (secret.trim()) {
+    // The secret field is three-state on the backend, and the difference is destructive:
+    // omitting it keeps the stored secret, a string replaces it, and an explicit null wipes it.
+    // Only ever send a value when the user asked for one.
+    const secretAction: SecretAction = removeSecret ? 'clear' : secret.trim() ? 'replace' : 'keep';
+
+    if (secretAction === 'replace') {
       request.secret = secret.trim();
+    } else if (secretAction === 'clear') {
+      request.secret = null;
+    }
+
+    if (
+      secretAction === 'clear' &&
+      !confirm(
+        `Remove the signing secret for "${webhook.name}"?\n\n` +
+          'Future deliveries will be sent unsigned, with no X-Spooled-Signature header, so your ' +
+          'endpoint will no longer be able to verify that a payload came from Spooled.'
+      )
+    ) {
+      return;
     }
 
     updateMutation.mutate(request);
+  };
+
+  const toggleRemoveSecret = (checked: boolean) => {
+    setRemoveSecret(checked);
+    if (checked) {
+      setSecret('');
+    }
   };
 
   const toggleEvent = (event: WebhookEvent) => {
@@ -137,16 +188,35 @@ export function EditWebhookDialog({
               </Alert>
             )}
 
+            {autoDisabled && (
+              <Alert className="border-amber-500/50 bg-amber-500/5">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-700">
+                  Spooled disabled this webhook after {WEBHOOK_AUTO_DISABLE_THRESHOLD} consecutive
+                  failed deliveries. It is not receiving events. Fix the endpoint first, then tick
+                  Webhook Enabled below to resume deliveries.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Enabled Toggle */}
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="enabled"
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label htmlFor="enabled">Webhook Enabled</Label>
+            <div className="grid gap-1.5">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="enabled"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="enabled">Webhook Enabled</Label>
+              </div>
+              {isReEnabling && (
+                <p className="text-xs text-muted-foreground">
+                  Re-enabling counts against your plan’s webhook limit, so saving can fail if you
+                  are already at the cap.
+                </p>
+              )}
             </div>
 
             {/* Webhook Name */}
@@ -181,13 +251,43 @@ export function EditWebhookDialog({
               <Input
                 id="secret"
                 type="password"
-                placeholder="Leave empty to keep current secret"
+                placeholder={
+                  removeSecret
+                    ? 'Secret will be removed on save'
+                    : 'Leave empty to keep current secret'
+                }
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
+                disabled={removeSecret}
               />
               <p className="text-xs text-muted-foreground">
-                Only fill this if you want to change the signing secret
+                Leave this empty to keep the current signing secret. Fill it in to replace the
+                secret with a new one.
               </p>
+
+              <div className="border-destructive/40 flex items-start gap-3 rounded-md border p-3">
+                <input
+                  type="checkbox"
+                  id="remove-secret"
+                  checked={removeSecret}
+                  onChange={(e) => toggleRemoveSecret(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                />
+                <div className="grid gap-1">
+                  <Label
+                    htmlFor="remove-secret"
+                    className="flex items-center gap-2 text-destructive"
+                  >
+                    <ShieldOff className="h-4 w-4" />
+                    Remove signing secret
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Deletes the secret on save. Deliveries then go out <strong>unsigned</strong>,
+                    with no X-Spooled-Signature header, so your endpoint can no longer verify that a
+                    payload came from Spooled.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Events */}

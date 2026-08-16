@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { webhooksAPI } from '@/lib/api/webhooks';
 import type { Webhook, WebhookDelivery } from '@/lib/api/webhooks';
+import { usageAPI } from '@/lib/api/usage';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import {
@@ -66,6 +67,19 @@ export function WebhookDeliveriesDialog({
     enabled: open,
   });
 
+  // Delivery rows are swept once they pass the plan's history retention window, so the plan
+  // limits decide how far back this view can reach.
+  const { data: usage } = useQuery({
+    queryKey: queryKeys.usage.current(),
+    queryFn: () => usageAPI.getUsage(),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+  const retentionDays = usage?.limits.history_retention_days ?? null;
+  const retentionLabel =
+    retentionDays === null ? null : retentionDays === 1 ? '24 hours' : `${retentionDays} days`;
+  const retentionWindow = retentionLabel === null ? null : `the last ${retentionLabel}`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[700px]">
@@ -73,7 +87,11 @@ export function WebhookDeliveriesDialog({
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle>Delivery History</DialogTitle>
-              <DialogDescription>Recent webhook deliveries for "{webhook.name}"</DialogDescription>
+              <DialogDescription>
+                {retentionWindow
+                  ? `Deliveries to "${webhook.name}" from ${retentionWindow} — older entries are removed automatically.`
+                  : `Deliveries to "${webhook.name}" from your plan’s retention window — older entries are removed automatically.`}
+              </DialogDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -100,8 +118,23 @@ export function WebhookDeliveriesDialog({
           ) : !deliveries || deliveries.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
               <Clock className="mx-auto mb-3 h-12 w-12 opacity-50" />
-              <p className="mb-1 text-lg font-medium">No deliveries yet</p>
-              <p className="text-sm">Deliveries will appear here when the webhook is triggered</p>
+              {webhook.last_triggered_at ? (
+                <>
+                  <p className="mb-1 text-lg font-medium">Nothing in the retention window</p>
+                  <p className="text-sm">
+                    This webhook was last triggered {formatRelativeTime(webhook.last_triggered_at)},
+                    but no delivery falls inside {retentionWindow ?? 'your plan’s retention window'}
+                    . Older records have already been removed.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mb-1 text-lg font-medium">No deliveries yet</p>
+                  <p className="text-sm">
+                    Deliveries will appear here when the webhook is triggered
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -127,7 +160,9 @@ export function WebhookDeliveriesDialog({
                           {delivery.delivered_at && (
                             <p>Delivered: {formatRelativeTime(delivery.delivered_at)}</p>
                           )}
-                          <p>Attempts: {delivery.attempts}</p>
+                          <p title="Retry attempts made for this one delivery. The webhook's failure count tracks whole deliveries, not attempts.">
+                            Attempts: {delivery.attempts}
+                          </p>
                         </div>
 
                         {delivery.error && (
@@ -151,6 +186,11 @@ export function WebhookDeliveriesDialog({
                   </CardContent>
                 </Card>
               ))}
+              <p className="pt-1 text-center text-xs text-muted-foreground">
+                Showing at most the newest 100 deliveries
+                {retentionLabel ? `, kept for ${retentionLabel} on your plan` : ''}. This is a
+                rolling window, not a permanent audit log.
+              </p>
             </div>
           )}
         </div>

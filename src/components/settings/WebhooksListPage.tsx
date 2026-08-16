@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { webhooksAPI } from '@/lib/api/webhooks';
+import { webhooksAPI, WEBHOOK_AUTO_DISABLE_THRESHOLD, isAutoDisabled } from '@/lib/api/webhooks';
 import type { Webhook } from '@/lib/api/webhooks';
+import { APIError } from '@/lib/api/client';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import {
@@ -19,6 +20,8 @@ import {
   AlertCircle,
   Pencil,
   History,
+  ShieldAlert,
+  Power,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateWebhookDialog } from './CreateWebhookDialog';
@@ -26,9 +29,25 @@ import { EditWebhookDialog } from './EditWebhookDialog';
 import { WebhookDeliveriesDialog } from './WebhookDeliveriesDialog';
 
 function WebhookStatusBadge({ webhook }: { webhook: Webhook }) {
+  if (isAutoDisabled(webhook)) {
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-600 bg-amber-500/10 text-amber-700"
+        title={`Spooled disabled this webhook after ${WEBHOOK_AUTO_DISABLE_THRESHOLD} consecutive failed deliveries. It is not receiving events until you re-enable it.`}
+      >
+        <ShieldAlert className="mr-1 h-3 w-3" />
+        Auto-disabled
+      </Badge>
+    );
+  }
   if (!webhook.enabled) {
     return (
-      <Badge variant="outline" className="border-gray-500 text-gray-600">
+      <Badge
+        variant="outline"
+        className="border-gray-500 text-gray-600"
+        title="Turned off manually"
+      >
         Disabled
       </Badge>
     );
@@ -49,9 +68,25 @@ function WebhookStatusBadge({ webhook }: { webhook: Webhook }) {
       </Badge>
     );
   }
+  if (webhook.last_status === 'auto_disabled') {
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-500 text-amber-600"
+        title={`Re-enabled after Spooled disabled it for ${WEBHOOK_AUTO_DISABLE_THRESHOLD} consecutive failed deliveries. The status updates once the next delivery is attempted.`}
+      >
+        <Power className="mr-1 h-3 w-3" />
+        Re-enabled
+      </Badge>
+    );
+  }
   return (
-    <Badge variant="outline" className="border-blue-500 text-blue-600">
-      Active
+    <Badge
+      variant="outline"
+      className="border-gray-500 text-gray-600"
+      title="Enabled, but nothing has been delivered yet"
+    >
+      No deliveries yet
     </Badge>
   );
 }
@@ -104,8 +139,35 @@ function WebhooksListContent() {
     },
   });
 
+  const reEnableMutation = useMutation({
+    mutationFn: (id: string) => webhooksAPI.update(id, { enabled: true }),
+    onSuccess: (webhook) => {
+      toast.success('Webhook re-enabled', {
+        description: `"${webhook.name}" will receive events again`,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all });
+    },
+    onError: (error) => {
+      // Re-enabling is charged against the plan webhook cap, so it can be refused outright.
+      if (error instanceof APIError && error.isQuotaExceeded()) {
+        toast.error('Webhook limit reached', {
+          description:
+            'Re-enabling counts against your plan’s webhook limit. Delete or disable another webhook, or upgrade your plan, then try again.',
+        });
+        return;
+      }
+      toast.error('Failed to re-enable webhook', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
+
   const handleTest = (webhook: Webhook) => {
     testMutation.mutate(webhook.id);
+  };
+
+  const handleReEnable = (webhook: Webhook) => {
+    reEnableMutation.mutate(webhook.id);
   };
 
   const handleDelete = (webhook: Webhook) => {
@@ -186,14 +248,51 @@ function WebhooksListContent() {
                         <span className="text-lg font-semibold">{webhook.name}</span>
                         <WebhookStatusBadge webhook={webhook} />
                         {webhook.failure_count > 0 && (
-                          <Badge variant="outline" className="border-amber-500 text-amber-600">
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500 text-amber-600"
+                            title={`Consecutive failed deliveries, counted once per delivery rather than per retry attempt. At ${WEBHOOK_AUTO_DISABLE_THRESHOLD} the webhook is disabled automatically. A successful delivery resets the count to 0.`}
+                          >
                             <AlertCircle className="mr-1 h-3 w-3" />
-                            {webhook.failure_count} failures
+                            {webhook.failure_count}/{WEBHOOK_AUTO_DISABLE_THRESHOLD} consecutive
+                            failed deliveries
                           </Badge>
                         )}
                       </div>
 
                       <p className="mb-3 font-mono text-sm text-muted-foreground">{webhook.url}</p>
+
+                      {isAutoDisabled(webhook) && (
+                        <div className="mb-3 rounded-md border border-amber-500/50 bg-amber-500/5 p-3">
+                          <div className="flex items-start gap-3">
+                            <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-amber-700">
+                                Disabled automatically after {WEBHOOK_AUTO_DISABLE_THRESHOLD}{' '}
+                                consecutive failed deliveries
+                              </p>
+                              <p className="mt-1 text-sm text-amber-600/80">
+                                Spooled stopped sending events to this endpoint. Fix the endpoint,
+                                then re-enable it — re-enabling counts against your plan’s webhook
+                                limit, so it can be refused if you are already at the cap.
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-3 border-amber-500 text-amber-700"
+                                onClick={() => handleReEnable(webhook)}
+                                disabled={reEnableMutation.isPending}
+                              >
+                                <Power className="mr-2 h-4 w-4" />
+                                {reEnableMutation.isPending &&
+                                reEnableMutation.variables === webhook.id
+                                  ? 'Re-enabling...'
+                                  : 'Re-enable'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="mb-3 flex flex-wrap gap-1">
                         {webhook.events.slice(0, 4).map((event) => (
@@ -219,15 +318,25 @@ function WebhooksListContent() {
                     </div>
 
                     <div className="ml-4 flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTest(webhook)}
-                        disabled={testMutation.isPending || !webhook.enabled}
+                      <span
+                        title={
+                          webhook.enabled
+                            ? 'Send a sample payload to this endpoint'
+                            : isAutoDisabled(webhook)
+                              ? 'Testing is unavailable while a webhook is disabled. Re-enable it to send a test payload.'
+                              : 'Testing is unavailable while a webhook is disabled. Enable it to send a test payload.'
+                        }
                       >
-                        <Zap className="mr-2 h-4 w-4" />
-                        Test
-                      </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleTest(webhook)}
+                          disabled={testMutation.isPending || !webhook.enabled}
+                        >
+                          <Zap className="mr-2 h-4 w-4" />
+                          Test
+                        </Button>
+                      </span>
                       <Button
                         variant="outline"
                         size="sm"

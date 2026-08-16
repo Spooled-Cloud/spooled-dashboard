@@ -16,8 +16,32 @@ export interface Webhook {
   created_at: string;
   updated_at: string;
   last_triggered_at?: string;
-  last_status?: 'success' | 'failed';
+  /**
+   * Outcome of the most recent delivery attempt.
+   *
+   * `auto_disabled` is set by the backend, not by a user: after
+   * {@link WEBHOOK_AUTO_DISABLE_THRESHOLD} consecutive failed deliveries the webhook is disabled
+   * automatically (`enabled` also becomes `false`) and stops receiving events until it is
+   * re-enabled. It can persist after a re-enable, until the next delivery records a new outcome.
+   */
+  last_status?: 'success' | 'failed' | 'auto_disabled';
+  /**
+   * Consecutive failed deliveries. Counted once per DELIVERY, not once per retry attempt, so a
+   * given amount of breakage produces a much smaller number than it used to. Any successful
+   * delivery — including a successful manual retry — resets it to 0.
+   */
   failure_count: number;
+}
+
+/** Consecutive failed deliveries after which the backend disables a webhook automatically. */
+export const WEBHOOK_AUTO_DISABLE_THRESHOLD = 20;
+
+/**
+ * True when Spooled disabled this webhook itself after repeated delivery failures, as opposed to
+ * the user turning it off.
+ */
+export function isAutoDisabled(webhook: Webhook): boolean {
+  return !webhook.enabled && webhook.last_status === 'auto_disabled';
 }
 
 export type WebhookEvent =
@@ -44,7 +68,21 @@ export interface UpdateWebhookRequest {
   name?: string;
   url?: string;
   events?: WebhookEvent[];
-  secret?: string;
+  /**
+   * Signing secret. Three-state, and the states are NOT interchangeable:
+   *
+   * - omitted (`undefined`) — keep the current secret. This is the only safe default; never
+   *   serialise an untouched secret field.
+   * - `string` — replace the current secret.
+   * - `null` — CLEAR the secret. Deliveries then go out unsigned, with no `X-Spooled-Signature`
+   *   header, and the receiver can no longer verify that a payload came from Spooled. Only send
+   *   `null` when the user deliberately asked to remove the secret.
+   */
+  secret?: string | null;
+  /**
+   * Re-enabling a webhook is charged against the plan webhook cap, so this can fail with
+   * 429 `QUOTA_EXCEEDED` when the organization is already at its limit.
+   */
   enabled?: boolean;
 }
 
@@ -120,7 +158,11 @@ export const webhooksAPI = {
 
   /**
    * GET /api/v1/webhooks/{id}/deliveries
-   * Get webhook delivery history
+   * Get webhook delivery history.
+   *
+   * This is a rolling window, not a permanent audit trail: it returns at most the newest 100
+   * deliveries for the webhook, and older rows are removed by the retention sweep once they pass
+   * the plan's `history_retention_days`.
    */
   getDeliveries: (id: string): Promise<WebhookDelivery[]> => {
     return apiClient.get<WebhookDelivery[]>(API_ENDPOINTS.WEBHOOKS.DELIVERIES(id));
