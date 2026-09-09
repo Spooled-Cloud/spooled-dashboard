@@ -83,6 +83,24 @@ export interface WorkflowWithDetails extends Workflow {
   estimated_completion?: string;
 }
 
+function extractJobTypeFromPayload(payload: unknown): string {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return '';
+  const jobType = (payload as { job_type?: unknown }).job_type;
+  return typeof jobType === 'string' ? jobType : '';
+}
+
+/**
+ * GET /workflows/{id} hardcodes `job_type: "job"` (no column). The real type
+ * lives in payload, same as POST /jobs and POST /workflows.
+ */
+export function withPayloadJobType<T extends { job_type?: string; payload?: unknown }>(job: T): T {
+  const fromPayload = extractJobTypeFromPayload(job.payload);
+  return {
+    ...job,
+    job_type: fromPayload || job.job_type || 'job',
+  };
+}
+
 export const workflowsAPI = {
   /**
    * GET /api/v1/workflows
@@ -109,8 +127,12 @@ export const workflowsAPI = {
    * GET /api/v1/workflows/{id}
    * Get workflow details
    */
-  get: (id: string): Promise<WorkflowWithDetails> => {
-    return apiClient.get<WorkflowWithDetails>(API_ENDPOINTS.WORKFLOWS.GET(id));
+  get: async (id: string): Promise<WorkflowWithDetails> => {
+    const response = await apiClient.get<WorkflowWithDetails>(API_ENDPOINTS.WORKFLOWS.GET(id));
+    return {
+      ...response,
+      jobs: (response.jobs ?? []).map((job) => withPayloadJobType(job)),
+    };
   },
 
   /**

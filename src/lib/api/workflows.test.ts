@@ -12,6 +12,7 @@ import {
   getRootJobs,
   getJobLevels,
   toBackendWorkflowJob,
+  withPayloadJobType,
 } from './workflows';
 import type { WorkflowDependency, Job } from '@/lib/types';
 
@@ -122,6 +123,57 @@ describe('workflowsAPI', () => {
     it('should throw error for non-existent workflow', async () => {
       await expect(workflowsAPI.get('non-existent')).rejects.toThrow();
     });
+
+    it('maps job_type from payload when GET hardcodes "job"', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/workflows/wf-payload-type`, () => {
+          return HttpResponse.json({
+            id: 'wf-payload-type',
+            organization_id: 'org-1',
+            name: 'ETL',
+            status: 'running',
+            jobs: [
+              {
+                id: 'job-1',
+                organization_id: 'org-1',
+                queue: 'etl',
+                job_type: 'job',
+                payload: { source: 's3', job_type: 'extract_data' },
+                status: 'completed',
+                priority: 0,
+                attempt: 0,
+                max_retries: 3,
+                backoff_type: 'exponential',
+                created_at: '2024-01-01T00:00:00Z',
+              },
+            ],
+            dependencies: [],
+            progress: { total: 1, completed: 1, failed: 0, pending: 0, processing: 0 },
+            created_at: '2024-01-01T00:00:00Z',
+          });
+        })
+      );
+
+      const workflow = await workflowsAPI.get('wf-payload-type');
+      expect(workflow.jobs[0].job_type).toBe('extract_data');
+    });
+  });
+});
+
+describe('withPayloadJobType', () => {
+  it('prefers payload.job_type over the hardcoded GET value', () => {
+    expect(
+      withPayloadJobType({
+        job_type: 'job',
+        payload: { job_type: 'transform_data' },
+      }).job_type
+    ).toBe('transform_data');
+  });
+
+  it('keeps the existing job_type when payload has none', () => {
+    expect(withPayloadJobType({ job_type: 'send_email', payload: { to: 'a' } }).job_type).toBe(
+      'send_email'
+    );
   });
 });
 
