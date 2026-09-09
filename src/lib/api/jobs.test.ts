@@ -29,6 +29,11 @@ describe('jobsAPI', () => {
         expect(job.queue).toBe('default');
       });
     });
+
+    it('maps job_type from list summaries', async () => {
+      const result = await jobsAPI.list();
+      expect(result.data[0].job_type).toBe('send_email');
+    });
   });
 
   describe('get', () => {

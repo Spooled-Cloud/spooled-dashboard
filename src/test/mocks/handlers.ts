@@ -507,6 +507,7 @@ export const handlers = [
       priority: j.priority,
       attempt: j.attempt,
       max_retries: j.max_retries,
+      job_type: j.job_type,
       created_at: j.created_at,
       scheduled_at: (j as { scheduled_at?: string }).scheduled_at ?? null,
       started_at: (j as { started_at?: string }).started_at ?? null,

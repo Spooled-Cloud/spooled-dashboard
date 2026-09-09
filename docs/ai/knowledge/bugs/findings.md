@@ -10,3 +10,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-04 | P1  | Quick Lookup attempt always blank: batch status sends `retry_count`, UI read `attempt`/`max_retries` | `src/lib/api/jobs.ts`; `QuickStatusLookup.tsx` | **FIXED** |
 | DB-05 | P2  | `JobStatistics` typed `by_queue` and omitted `scheduled`; `GET /jobs/stats` is the opposite | `src/lib/types/index.ts` | **FIXED** |
 | DB-06 | P2  | Workflow job cards always showed `job`; `GET /workflows/{id}` hardcodes `job_type` and the real type is in `payload` | `src/lib/api/workflows.ts`; `WorkflowDetailsPage.tsx` | **FIXED** |
+| DB-07 | P2  | Jobs list Type column always blank: list summaries omitted `job_type` and the client hardcoded `''` | `src/lib/api/jobs.ts`; backend `JobSummary` | **FIXED** |

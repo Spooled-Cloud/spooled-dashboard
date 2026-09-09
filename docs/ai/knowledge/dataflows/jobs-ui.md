@@ -6,6 +6,8 @@ Pages under `/jobs`, `/jobs/[id]`, `/jobs/dlq`. Clients in `src/lib/api/jobs.ts`
 
 `GET /api/v1/jobs/stats` is `{ pending, scheduled, processing, completed, failed, deadletter, cancelled, total }`. It has no `by_queue`/`by_type`/`by_hour`.
 
+`GET /api/v1/jobs` summaries include `job_type` from `payload.job_type` (empty string when absent). `jobsAPI.list` maps that onto `Job.job_type`.
+
 ## Workflows
 
 `POST /api/v1/workflows` returns `{ workflow_id, job_ids, status }`, not a full `Workflow`. The backend has no `job_type` column; the client writes it into each job `payload` (same as job create) and sends timeouts as `timeout_seconds`. `GET /workflows/{id}` still sends `job_type: "job"`; `workflowsAPI.get` maps `payload.job_type` onto the UI field.

@@ -32,6 +32,7 @@ interface BackendJobSummary {
   priority: number;
   attempt: number;
   max_retries: number;
+  job_type?: string;
   created_at: string;
   scheduled_at?: string | null;
   started_at?: string | null;
@@ -79,7 +80,7 @@ function transformBackendJobSummaryToFrontend(summary: BackendJobSummary): Job {
     id: summary.id,
     organization_id: '',
     queue: summary.queue_name,
-    job_type: '', // not available in backend summary
+    job_type: summary.job_type || '',
     payload: {},
     status: summary.status as JobStatus,
     priority: summary.priority,
