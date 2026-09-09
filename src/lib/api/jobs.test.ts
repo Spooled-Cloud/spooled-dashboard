@@ -58,6 +58,12 @@ describe('jobsAPI', () => {
     it('should throw error for non-existent job', async () => {
       await expect(jobsAPI.get('non-existent')).rejects.toThrow();
     });
+
+    it('maps failed_at for failed jobs', async () => {
+      const job = await jobsAPI.get('job-3');
+      expect(job.status).toBe('failed');
+      expect(job.failed_at).toBeTruthy();
+    });
   });
 
   describe('create', () => {

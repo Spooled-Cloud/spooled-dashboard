@@ -14,3 +14,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-08 | P2  | DLQ Type always `job` and Attempts `0`: `listDeadLetter` mapped `JobSummary` as a full `Job` (`retry_count`/`payload`) | `src/lib/api/jobs.ts`; backend `list_dlq` | **FIXED** |
 | DB-09 | P2  | DLQ Error column always empty: summaries omitted `last_error` and the client hardcoded `error: undefined` | `src/lib/api/jobs.ts`; backend `JobSummary` | **FIXED** |
 | DB-10 | P2  | Jobs list search/type did nothing: `list` ignored `search` and `job_type` | `src/lib/api/jobs.ts`; `JobsListPage.tsx` | **FIXED** |
+| DB-11 | P2  | Job details timeline never showed Failed (mapper hardcoded `failed_at: undefined`) and showed Completed for cancelled jobs (`completed_at` is set on cancel) | `src/lib/api/jobs.ts`; `JobDetailsPage.tsx` | **FIXED** |

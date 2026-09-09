@@ -134,7 +134,7 @@ function JobTimeline({ job }: { job: Job }) {
           },
         ]
       : []),
-    ...(job.completed_at
+    ...(job.status === 'completed' && job.completed_at
       ? [
           {
             label: 'Completed',
@@ -145,7 +145,18 @@ function JobTimeline({ job }: { job: Job }) {
           },
         ]
       : []),
-    ...(job.failed_at
+    ...(job.status === 'cancelled' && job.completed_at
+      ? [
+          {
+            label: 'Cancelled',
+            time: job.completed_at,
+            icon: XCircle,
+            active: true,
+            variant: 'warning' as const,
+          },
+        ]
+      : []),
+    ...((job.status === 'failed' || job.status === 'deadletter') && job.failed_at
       ? [
           {
             label: 'Failed',
