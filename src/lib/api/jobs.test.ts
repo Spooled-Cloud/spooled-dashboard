@@ -64,6 +64,12 @@ describe('jobsAPI', () => {
       expect(job.status).toBe('failed');
       expect(job.failed_at).toBeTruthy();
     });
+
+    it('maps next_retry_at for pending jobs with last_error', async () => {
+      const job = await jobsAPI.get('job-4');
+      expect(job.status).toBe('pending');
+      expect(job.next_retry_at).toBe('2024-01-01T00:05:00Z');
+    });
   });
 
   describe('create', () => {

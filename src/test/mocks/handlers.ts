@@ -77,6 +77,21 @@ export const mockJobs = [
     failed_at: '2024-01-01T00:04:00Z',
     error: { type: 'NetworkError', message: 'Connection refused' },
   },
+  {
+    id: 'job-4',
+    organization_id: 'org-1',
+    queue: 'retry-q',
+    job_type: 'retry_email',
+    payload: { to: 'retry@example.com' },
+    status: 'pending',
+    priority: 0,
+    attempt: 1,
+    max_retries: 3,
+    backoff_type: 'exponential',
+    created_at: '2024-01-01T00:04:00Z',
+    scheduled_at: '2024-01-01T00:05:00Z',
+    error: { type: 'Error', message: 'timeout' },
+  },
 ];
 
 // Backend format for queue list (QueueConfigSummary)

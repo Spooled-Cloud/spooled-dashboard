@@ -15,3 +15,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-09 | P2  | DLQ Error column always empty: summaries omitted `last_error` and the client hardcoded `error: undefined` | `src/lib/api/jobs.ts`; backend `JobSummary` | **FIXED** |
 | DB-10 | P2  | Jobs list search/type did nothing: `list` ignored `search` and `job_type` | `src/lib/api/jobs.ts`; `JobsListPage.tsx` | **FIXED** |
 | DB-11 | P2  | Job details timeline never showed Failed (mapper hardcoded `failed_at: undefined`) and showed Completed for cancelled jobs (`completed_at` is set on cancel) | `src/lib/api/jobs.ts`; `JobDetailsPage.tsx` | **FIXED** |
+| DB-12 | P2  | Job details timeline never showed Next Retry (`next_retry_at` hardcoded undefined; retry wait is `scheduled_at` + `last_error`) | `src/lib/api/jobs.ts`; `JobDetailsPage.tsx` | **FIXED** |

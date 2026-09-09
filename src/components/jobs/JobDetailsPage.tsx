@@ -114,7 +114,7 @@ function JobTimeline({ job }: { job: Job }) {
       icon: Clock,
       active: true,
     },
-    ...(job.scheduled_at
+    ...(job.scheduled_at && !job.next_retry_at
       ? [
           {
             label: 'Scheduled',

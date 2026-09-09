@@ -91,6 +91,15 @@ function failedAtFrom(
   return completedAt ?? updatedAt ?? undefined;
 }
 
+function nextRetryAtFrom(
+  status: string,
+  lastError?: string | null,
+  scheduledAt?: string | null
+): string | undefined {
+  if (status !== 'pending' || !lastError || !scheduledAt) return undefined;
+  return scheduledAt;
+}
+
 function extractJobTypeFromPayload(payload: Record<string, unknown> | undefined): string {
   if (!payload) return '';
   const jt = (payload as { job_type?: unknown }).job_type;
@@ -115,7 +124,7 @@ function transformBackendJobSummaryToFrontend(summary: BackendJobSummary): Job {
     started_at: summary.started_at ?? undefined,
     completed_at: summary.completed_at ?? undefined,
     failed_at: failedAtFrom(summary.status, summary.completed_at),
-    next_retry_at: undefined,
+    next_retry_at: nextRetryAtFrom(summary.status, summary.last_error, summary.scheduled_at),
     result: undefined,
     error: summary.last_error ? { type: 'Error', message: summary.last_error } : undefined,
     metadata: undefined,
@@ -143,7 +152,7 @@ function transformBackendJobToFrontend(job: BackendJob): Job {
     started_at: job.started_at ?? undefined,
     completed_at: job.completed_at ?? undefined,
     failed_at: failedAtFrom(job.status, job.completed_at, job.updated_at),
-    next_retry_at: undefined,
+    next_retry_at: nextRetryAtFrom(job.status, job.last_error, job.scheduled_at),
     result: (job.result as Record<string, unknown>) ?? undefined,
     error: job.last_error ? { type: 'Error', message: job.last_error } : undefined,
     metadata: (job.tags as Record<string, string>) ?? undefined,

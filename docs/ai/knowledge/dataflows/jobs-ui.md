@@ -8,7 +8,7 @@ Pages under `/jobs`, `/jobs/[id]`, `/jobs/dlq`. Clients in `src/lib/api/jobs.ts`
 
 `GET /api/v1/jobs` summaries include `job_type` from `payload.job_type` (empty string when absent). `jobsAPI.list` maps that onto `Job.job_type`. The jobs page search box is not a backend query: `list` filters the fetched page by id/job_type substring, and `GET`s a UUID that is not on the page.
 
-There is no `failed_at` column. The details mapper sets `Job.failed_at` from `completed_at`/`updated_at` when status is `failed` or `deadletter`. The timeline shows Completed only for `completed`, Cancelled from `completed_at` when cancelled, Failed from `failed_at`.
+There is no `failed_at` column. The details mapper sets `Job.failed_at` from `completed_at`/`updated_at` when status is `failed` or `deadletter`. A pending retry has `last_error` + `scheduled_at`; that maps onto `next_retry_at` so the timeline shows Next Retry instead of Scheduled. Completed only for `completed`, Cancelled from `completed_at` when cancelled, Failed from `failed_at`.
 
 `GET /api/v1/jobs/dlq` is the same `JobSummary[]` (`attempt`, top-level `job_type`, `last_error`), not a full `Job`. `jobsAPI.listDeadLetter` uses the list summary mapper and maps `last_error` onto `Job.error`.
 
