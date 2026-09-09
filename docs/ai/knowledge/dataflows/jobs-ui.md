@@ -8,7 +8,7 @@ Pages under `/jobs`, `/jobs/[id]`, `/jobs/dlq`. Clients in `src/lib/api/jobs.ts`
 
 `GET /api/v1/jobs` summaries include `job_type` from `payload.job_type` (empty string when absent). `jobsAPI.list` maps that onto `Job.job_type`.
 
-`GET /api/v1/jobs/dlq` is the same `JobSummary[]` (`attempt`, top-level `job_type`), not a full `Job`. `jobsAPI.listDeadLetter` uses the list summary mapper. The Error column stays empty because summaries have no `last_error`.
+`GET /api/v1/jobs/dlq` is the same `JobSummary[]` (`attempt`, top-level `job_type`, `last_error`), not a full `Job`. `jobsAPI.listDeadLetter` uses the list summary mapper and maps `last_error` onto `Job.error`.
 
 ## Workflows
 

@@ -473,6 +473,7 @@ export const handlers = [
         attempt: 3,
         max_retries: 3,
         job_type: 'send_notification',
+        last_error: 'Connection refused',
         created_at: '2024-01-01T00:03:00Z',
         scheduled_at: null,
         started_at: '2024-01-01T00:03:30Z',

@@ -33,6 +33,7 @@ interface BackendJobSummary {
   attempt: number;
   max_retries: number;
   job_type?: string;
+  last_error?: string | null;
   created_at: string;
   scheduled_at?: string | null;
   started_at?: string | null;
@@ -95,7 +96,7 @@ function transformBackendJobSummaryToFrontend(summary: BackendJobSummary): Job {
     failed_at: undefined,
     next_retry_at: undefined,
     result: undefined,
-    error: undefined,
+    error: summary.last_error ? { type: 'Error', message: summary.last_error } : undefined,
     metadata: undefined,
     workflow_id: undefined,
     parent_job_id: undefined,

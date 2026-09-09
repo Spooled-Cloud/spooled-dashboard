@@ -12,3 +12,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-06 | P2  | Workflow job cards always showed `job`; `GET /workflows/{id}` hardcodes `job_type` and the real type is in `payload` | `src/lib/api/workflows.ts`; `WorkflowDetailsPage.tsx` | **FIXED** |
 | DB-07 | P2  | Jobs list Type column always blank: list summaries omitted `job_type` and the client hardcoded `''` | `src/lib/api/jobs.ts`; backend `JobSummary` | **FIXED** |
 | DB-08 | P2  | DLQ Type always `job` and Attempts `0`: `listDeadLetter` mapped `JobSummary` as a full `Job` (`retry_count`/`payload`) | `src/lib/api/jobs.ts`; backend `list_dlq` | **FIXED** |
+| DB-09 | P2  | DLQ Error column always empty: summaries omitted `last_error` and the client hardcoded `error: undefined` | `src/lib/api/jobs.ts`; backend `JobSummary` | **FIXED** |

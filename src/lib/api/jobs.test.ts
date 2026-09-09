@@ -141,6 +141,7 @@ describe('jobsAPI', () => {
         job_type: 'send_notification',
         attempt: 3,
         max_retries: 3,
+        error: { type: 'Error', message: 'Connection refused' },
       });
     });
   });
