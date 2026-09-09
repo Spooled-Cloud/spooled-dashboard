@@ -18,8 +18,13 @@ export interface OrganizationMember {
 
 export interface UpdateOrganizationRequest {
   name?: string;
+  /**
+   * Shown on the org settings page. The API has no description column; the
+   * client stores it in `settings.description` (same pattern as job_type in
+   * payload). The backend preserves `webhook_token` when settings are replaced.
+   */
   description?: string;
-  logo_url?: string;
+  billing_email?: string;
 }
 
 export interface InviteMemberRequest {
@@ -51,6 +56,19 @@ export interface InitialApiKey {
 export interface CreateOrganizationResponse {
   organization: Organization;
   api_key: InitialApiKey;
+}
+
+function descriptionFromSettings(settings: unknown): string | undefined {
+  if (!settings || typeof settings !== 'object') return undefined;
+  const value = (settings as { description?: unknown }).description;
+  return typeof value === 'string' ? value : undefined;
+}
+
+function withDescription(org: Organization): Organization {
+  return {
+    ...org,
+    description: org.description ?? descriptionFromSettings(org.settings),
+  };
 }
 
 export const organizationsAPI = {
@@ -89,16 +107,38 @@ export const organizationsAPI = {
    * GET /api/v1/organizations/{id}
    * Get organization details
    */
-  get: (id: string): Promise<Organization> => {
-    return apiClient.get<Organization>(API_ENDPOINTS.ORGANIZATIONS.GET(id));
+  get: async (id: string): Promise<Organization> => {
+    const org = await apiClient.get<Organization>(API_ENDPOINTS.ORGANIZATIONS.GET(id));
+    return withDescription(org);
   },
 
   /**
    * PUT /api/v1/organizations/{id}
    * Update organization
    */
-  update: (id: string, data: UpdateOrganizationRequest): Promise<Organization> => {
-    return apiClient.put<Organization>(API_ENDPOINTS.ORGANIZATIONS.UPDATE(id), data);
+  update: async (id: string, data: UpdateOrganizationRequest): Promise<Organization> => {
+    const body: Record<string, unknown> = {};
+    if (data.name !== undefined) body.name = data.name;
+    if (data.billing_email !== undefined) body.billing_email = data.billing_email;
+
+    if (data.description !== undefined) {
+      const current = await apiClient.get<Organization>(API_ENDPOINTS.ORGANIZATIONS.GET(id));
+      const settings: Record<string, unknown> = {
+        ...(current.settings && typeof current.settings === 'object'
+          ? (current.settings as Record<string, unknown>)
+          : {}),
+      };
+      const trimmed = data.description.trim();
+      if (trimmed) {
+        settings.description = trimmed;
+      } else {
+        delete settings.description;
+      }
+      body.settings = settings;
+    }
+
+    const updated = await apiClient.put<Organization>(API_ENDPOINTS.ORGANIZATIONS.UPDATE(id), body);
+    return withDescription(updated);
   },
 
   /**

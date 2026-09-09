@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { organizationsAPI } from './organizations';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 describe('organizationsAPI', () => {
   describe('get', () => {
@@ -11,6 +15,67 @@ describe('organizationsAPI', () => {
       const result = await organizationsAPI.get('org-1');
       expect(result).toBeDefined();
       expect(result.id).toBe('org-1');
+    });
+
+    it('surfaces settings.description as description', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/organizations/:id`, () => {
+          return HttpResponse.json({
+            id: 'org-1',
+            name: 'Test Organization',
+            slug: 'test-org',
+            plan_tier: 'free',
+            settings: { webhook_token: 'tok', description: 'From settings' },
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          });
+        })
+      );
+      const org = await organizationsAPI.get('org-1');
+      expect(org.description).toBe('From settings');
+    });
+  });
+
+  describe('update', () => {
+    it('writes description into settings and does not send a top-level description', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.get(`${API_BASE}/api/v1/organizations/:id`, () => {
+          return HttpResponse.json({
+            id: 'org-1',
+            name: 'Test Organization',
+            slug: 'test-org',
+            plan_tier: 'free',
+            settings: { webhook_token: 'tok' },
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          });
+        }),
+        http.put(`${API_BASE}/api/v1/organizations/:id`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: 'org-1',
+            name: posted.name,
+            slug: 'test-org',
+            plan_tier: 'free',
+            settings: posted.settings,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          });
+        })
+      );
+
+      const updated = await organizationsAPI.update('org-1', {
+        name: 'Renamed',
+        description: 'A real description',
+      });
+
+      expect(posted).toMatchObject({
+        name: 'Renamed',
+        settings: { webhook_token: 'tok', description: 'A real description' },
+      });
+      expect(posted).not.toHaveProperty('description');
+      expect(updated.description).toBe('A real description');
     });
   });
 

@@ -1116,6 +1116,15 @@ export const handlers = [
     return HttpResponse.json(mockOrganization);
   }),
 
+  http.put(`${API_BASE}/api/v1/organizations/:id`, async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({
+      ...mockOrganization,
+      name: (body.name as string) ?? mockOrganization.name,
+      settings: (body.settings as Record<string, unknown>) ?? {},
+    });
+  }),
+
   http.get(`${API_BASE}/api/v1/organizations/:id/members`, () => {
     return HttpResponse.json([
       {

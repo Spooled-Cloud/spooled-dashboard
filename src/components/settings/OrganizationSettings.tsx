@@ -274,7 +274,7 @@ function OrganizationSettingsContent() {
   const handleSave = () => {
     updateMutation.mutate({
       name: name.trim(),
-      description: description.trim() || undefined,
+      description: description.trim(),
     });
   };
 
