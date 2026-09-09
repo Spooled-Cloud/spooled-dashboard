@@ -68,12 +68,16 @@ function ExecutionHistory({ scheduleId }: { scheduleId: string }) {
               <XCircle className="h-4 w-4 text-red-600" />
             )}
             <div>
-              <a
-                href={`/jobs/${execution.job_id}`}
-                className="font-mono text-sm hover:text-primary"
-              >
-                {execution.job_id.slice(0, 12)}...
-              </a>
+              {execution.job_id ? (
+                <a
+                  href={`/jobs/${execution.job_id}`}
+                  className="font-mono text-sm hover:text-primary"
+                >
+                  {execution.job_id.slice(0, 12)}...
+                </a>
+              ) : (
+                <span className="text-sm text-muted-foreground">No job created</span>
+              )}
               {execution.error && (
                 <p className="mt-1 text-xs text-destructive">{execution.error}</p>
               )}

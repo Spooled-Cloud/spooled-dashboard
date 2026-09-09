@@ -17,3 +17,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-11 | P2  | Job details timeline never showed Failed (mapper hardcoded `failed_at: undefined`) and showed Completed for cancelled jobs (`completed_at` is set on cancel) | `src/lib/api/jobs.ts`; `JobDetailsPage.tsx` | **FIXED** |
 | DB-12 | P2  | Job details timeline never showed Next Retry (`next_retry_at` hardcoded undefined; retry wait is `scheduled_at` + `last_error`) | `src/lib/api/jobs.ts`; `JobDetailsPage.tsx` | **FIXED** |
 | DB-13 | P2  | Workers Idle card always 0: `healthy` mapped to `active` even when `current_jobs` is 0 | `src/lib/api/workers.ts`; `WorkersListPage.tsx` | **FIXED** |
+| DB-14 | P2  | Schedule history showed every successful run as failed: mapper required `status === 'success'` while the scheduler writes `completed`, and dropped failed runs with no `job_id` | `src/lib/api/schedules.ts`; `ScheduleDetailsPage.tsx` | **FIXED** |

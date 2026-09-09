@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { schedulesAPI } from './schedules';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 describe('schedulesAPI', () => {
   describe('list', () => {
@@ -97,6 +101,54 @@ describe('schedulesAPI', () => {
       const history = await schedulesAPI.getHistory('schedule-1');
 
       expect(Array.isArray(history)).toBe(true);
+    });
+
+    it('maps completed runs to success and keeps failed runs without a job', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/schedules/:id/history`, () => {
+          return HttpResponse.json([
+            {
+              id: 'run-ok',
+              schedule_id: 'schedule-1',
+              job_id: 'job-abc',
+              status: 'completed',
+              error_message: null,
+              started_at: '2024-01-01T00:00:00Z',
+              completed_at: '2024-01-01T00:00:00Z',
+            },
+            {
+              id: 'run-fail',
+              schedule_id: 'schedule-1',
+              job_id: null,
+              status: 'failed',
+              error_message: 'plan limit',
+              started_at: '2024-01-01T00:01:00Z',
+              completed_at: '2024-01-01T00:01:00Z',
+            },
+          ]);
+        })
+      );
+
+      const history = await schedulesAPI.getHistory('schedule-1');
+
+      expect(history).toEqual([
+        {
+          id: 'run-ok',
+          schedule_id: 'schedule-1',
+          job_id: 'job-abc',
+          status: 'success',
+          triggered_at: '2024-01-01T00:00:00Z',
+          error: undefined,
+        },
+        {
+          id: 'run-fail',
+          schedule_id: 'schedule-1',
+          job_id: null,
+          status: 'failed',
+          triggered_at: '2024-01-01T00:01:00Z',
+          error: 'plan limit',
+        },
+      ]);
     });
   });
 });

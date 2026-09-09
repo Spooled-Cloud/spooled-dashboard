@@ -32,7 +32,8 @@ export interface UpdateScheduleRequest {
 export interface ScheduleExecution {
   id: string;
   schedule_id: string;
-  job_id: string;
+  /** Null when enqueue failed (plan limit, validation) and no job was created. */
+  job_id: string | null;
   status: 'success' | 'failed';
   triggered_at: string;
   error?: string;
@@ -227,15 +228,14 @@ export const schedulesAPI = {
     const response = await apiClient.get<BackendScheduleRunRecord[]>(
       API_ENDPOINTS.SCHEDULES.HISTORY(id)
     );
-    return response
-      .filter((r) => Boolean(r.job_id))
-      .map((r) => ({
-        id: r.id,
-        schedule_id: r.schedule_id,
-        job_id: r.job_id as string,
-        status: (r.status === 'success' ? 'success' : 'failed') as 'success' | 'failed',
-        triggered_at: r.started_at,
-        error: r.error_message ?? undefined,
-      }));
+    return response.map((r) => ({
+      id: r.id,
+      schedule_id: r.schedule_id,
+      job_id: r.job_id,
+      // Scheduler writes 'completed' / 'failed', never 'success'.
+      status: r.status === 'completed' || r.status === 'success' ? 'success' : 'failed',
+      triggered_at: r.started_at,
+      error: r.error_message ?? undefined,
+    }));
   },
 };
