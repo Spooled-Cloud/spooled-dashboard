@@ -8,6 +8,8 @@ Pages under `/jobs`, `/jobs/[id]`, `/jobs/dlq`. Clients in `src/lib/api/jobs.ts`
 
 `GET /api/v1/jobs` summaries include `job_type` from `payload.job_type` (empty string when absent). `jobsAPI.list` maps that onto `Job.job_type`.
 
+`GET /api/v1/jobs/dlq` is the same `JobSummary[]` (`attempt`, top-level `job_type`), not a full `Job`. `jobsAPI.listDeadLetter` uses the list summary mapper. The Error column stays empty because summaries have no `last_error`.
+
 ## Workflows
 
 `POST /api/v1/workflows` returns `{ workflow_id, job_ids, status }`, not a full `Workflow`. The backend has no `job_type` column; the client writes it into each job `payload` (same as job create) and sends timeouts as `timeout_seconds`. `GET /workflows/{id}` still sends `job_type: "job"`; `workflowsAPI.get` maps `payload.job_type` onto the UI field.

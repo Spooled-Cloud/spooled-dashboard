@@ -394,8 +394,7 @@ export const jobsAPI = {
   },
 
   /**
-   * GET /api/v1/jobs/dlq
-   * List jobs in dead-letter queue
+   * GET /api/v1/jobs/dlq — `JobSummary[]`, same as `GET /jobs`.
    */
   listDeadLetter: (params?: {
     queue_name?: string;
@@ -403,8 +402,8 @@ export const jobsAPI = {
     offset?: number;
   }): Promise<Job[]> => {
     return apiClient
-      .get<BackendJob[]>(API_ENDPOINTS.JOBS.DLQ, params as Record<string, string | number>)
-      .then((jobs) => jobs.map(transformBackendJobToFrontend));
+      .get<BackendJobSummary[]>(API_ENDPOINTS.JOBS.DLQ, params as Record<string, string | number>)
+      .then((jobs) => jobs.map(transformBackendJobSummaryToFrontend));
   },
 
   /**

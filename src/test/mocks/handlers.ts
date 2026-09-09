@@ -462,6 +462,25 @@ export const handlers = [
     });
   }),
 
+  http.get(`${API_BASE}/api/v1/jobs/dlq`, () => {
+    // Backend list_dlq returns JobSummary[], same as GET /jobs.
+    return HttpResponse.json([
+      {
+        id: 'job-dlq-1',
+        queue_name: 'emails',
+        status: 'deadletter',
+        priority: 0,
+        attempt: 3,
+        max_retries: 3,
+        job_type: 'send_notification',
+        created_at: '2024-01-01T00:03:00Z',
+        scheduled_at: null,
+        started_at: '2024-01-01T00:03:30Z',
+        completed_at: null,
+      },
+    ]);
+  }),
+
   http.get(`${API_BASE}/api/v1/jobs/status`, ({ request }) => {
     const url = new URL(request.url);
     const idsParam = url.searchParams.get('ids');

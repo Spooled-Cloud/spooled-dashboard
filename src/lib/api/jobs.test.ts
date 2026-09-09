@@ -130,4 +130,18 @@ describe('jobsAPI', () => {
       await expect(jobsAPI.batchStatus(ids)).rejects.toThrow('Maximum 100 job IDs per request');
     });
   });
+
+  describe('listDeadLetter', () => {
+    it('maps DLQ summaries from attempt and job_type', async () => {
+      const jobs = await jobsAPI.listDeadLetter();
+      expect(jobs[0]).toMatchObject({
+        id: 'job-dlq-1',
+        queue: 'emails',
+        status: 'deadletter',
+        job_type: 'send_notification',
+        attempt: 3,
+        max_retries: 3,
+      });
+    });
+  });
 });
