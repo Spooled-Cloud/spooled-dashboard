@@ -8,3 +8,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-02 | P1  | Admin pages bypassed runtime config bootstrap and could contact default API       | `src/pages/admin/*`; `src/lib/api/admin.ts`               | fixed working tree |
 | DB-03 | P3  | Dead queue-purge stub/flag and orphan dashboard components                       | `src/lib/api/queues.ts`; `src/components/dashboard/*`      | fixed working tree |
 | DB-04 | P1  | Quick Lookup attempt always blank: batch status sends `retry_count`, UI read `attempt`/`max_retries` | `src/lib/api/jobs.ts`; `QuickStatusLookup.tsx` | **FIXED** |
+| DB-05 | P2  | `JobStatistics` typed `by_queue` and omitted `scheduled`; `GET /jobs/stats` is the opposite | `src/lib/types/index.ts` | **FIXED** |

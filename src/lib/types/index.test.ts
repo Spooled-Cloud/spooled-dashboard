@@ -226,18 +226,16 @@ describe('Job Types', () => {
       const stats: JobStatistics = {
         total: 1000,
         pending: 50,
+        scheduled: 5,
         processing: 10,
         completed: 900,
         failed: 30,
         cancelled: 5,
         deadletter: 5,
-        by_queue: { default: 800, emails: 200 },
-        by_type: { send_email: 500, process_image: 500 },
-        by_hour: [{ hour: '2024-01-01T00:00:00Z', count: 100 }],
       };
 
       expect(stats.total).toBe(1000);
-      expect(stats.by_queue.default).toBe(800);
+      expect(stats.scheduled).toBe(5);
     });
   });
 });

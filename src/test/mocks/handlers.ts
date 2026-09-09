@@ -453,13 +453,12 @@ export const handlers = [
     return HttpResponse.json({
       total: 1000,
       pending: 50,
+      scheduled: 5,
       processing: 10,
       completed: 900,
       failed: 30,
       cancelled: 5,
       deadletter: 5,
-      success_rate: 96.8,
-      avg_processing_time_ms: 1500,
     });
   }),
 

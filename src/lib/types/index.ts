@@ -138,14 +138,12 @@ export interface CreateJobRequest {
 export interface JobStatistics {
   total: number;
   pending: number;
+  scheduled: number;
   processing: number;
   completed: number;
   failed: number;
   cancelled: number;
   deadletter: number;
-  by_queue: Record<string, number>;
-  by_type: Record<string, number>;
-  by_hour: { hour: string; count: number }[];
 }
 
 // ============================================================================

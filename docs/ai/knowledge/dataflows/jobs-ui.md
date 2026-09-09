@@ -4,6 +4,8 @@ Pages under `/jobs`, `/jobs/[id]`, `/jobs/dlq`. Clients in `src/lib/api/jobs.ts`
 
 `GET /api/v1/jobs/status?ids=` returns `{ id, status, queue_name, retry_count, created_at, completed_at }`, not `attempt`/`max_retries`. `jobsAPI.batchStatus` maps `retry_count` onto `attempt`. The lookup UI cannot show max retries; that field is not on the batch payload.
 
+`GET /api/v1/jobs/stats` is `{ pending, scheduled, processing, completed, failed, deadletter, cancelled, total }`. It has no `by_queue`/`by_type`/`by_hour`.
+
 ## Workflows
 
 `POST /api/v1/workflows` returns `{ workflow_id, job_ids, status }`, not a full `Workflow`. The backend has no `job_type` column; the client writes it into each job `payload` (same as job create) and sends timeouts as `timeout_seconds`.

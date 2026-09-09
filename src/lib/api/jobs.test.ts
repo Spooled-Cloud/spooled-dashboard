@@ -85,9 +85,10 @@ describe('jobsAPI', () => {
     it('should fetch job statistics', async () => {
       const stats = await jobsAPI.getStatistics();
       expect(stats).toBeDefined();
-      expect(stats.total).toBeDefined();
-      expect(stats.pending).toBeDefined();
-      expect(stats.completed).toBeDefined();
+      expect(stats.total).toBe(1000);
+      expect(stats.pending).toBe(50);
+      expect(stats.scheduled).toBe(5);
+      expect(stats.completed).toBe(900);
     });
   });
 
