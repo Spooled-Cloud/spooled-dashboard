@@ -22,4 +22,4 @@ There is no `failed_at` column. The details mapper sets `Job.failed_at` from `co
 
 ## Workers
 
-`GET /api/v1/workers/{id}` returns `WorkerResponse` (`max_concurrency`, `current_jobs`, `registered_at`), not the DB `Worker` row (`max_concurrent_jobs`, `current_job_count`, `created_at`). List uses `WorkerSummary` (`max_concurrency` / `current_jobs`).
+`GET /api/v1/workers/{id}` returns `WorkerResponse` (`max_concurrency`, `current_jobs`, `registered_at`), not the DB `Worker` row (`max_concurrent_jobs`, `current_job_count`, `created_at`). List uses `WorkerSummary` (`max_concurrency` / `current_jobs`). Backend status is `healthy`/`degraded`/`offline`/`draining`; the UI maps `healthy` with `current_jobs === 0` to `idle` and other healthy/degraded workers to `active`.

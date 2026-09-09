@@ -26,6 +26,12 @@ describe('workersAPI', () => {
       expect(worker).toHaveProperty('hostname');
       expect(worker).toHaveProperty('status');
     });
+
+    it('maps healthy with no current jobs to idle', async () => {
+      const workers = await workersAPI.list();
+      expect(workers.find((w) => w.id === 'worker-1')?.status).toBe('active');
+      expect(workers.find((w) => w.id === 'worker-2')?.status).toBe('idle');
+    });
   });
 
   describe('get', () => {

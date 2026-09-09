@@ -39,6 +39,21 @@ interface BackendWorker {
 }
 
 /**
+ * Backend workers are healthy/degraded/offline/draining. The UI uses
+ * active/idle/offline/draining: healthy with no current jobs is idle.
+ */
+function mapWorkerStatus(status: string, currentJobs: number): Worker['status'] {
+  if (status === 'offline') return 'offline';
+  if (status === 'draining') return 'draining';
+  if (status === 'idle') return 'idle';
+  if (status === 'degraded') return 'active';
+  if (status === 'healthy' || status === 'active') {
+    return currentJobs > 0 ? 'active' : 'idle';
+  }
+  return 'offline';
+}
+
+/**
  * Transform backend WorkerSummary to frontend Worker type
  */
 function transformWorkerSummary(backend: BackendWorkerSummary): Worker {
@@ -49,7 +64,7 @@ function transformWorkerSummary(backend: BackendWorkerSummary): Worker {
     queues: backend.queue_name ? [backend.queue_name] : [],
     concurrency: backend.max_concurrency,
     current_jobs: backend.current_jobs,
-    status: (backend.status === 'healthy' ? 'active' : backend.status) as Worker['status'],
+    status: mapWorkerStatus(backend.status, backend.current_jobs),
     last_heartbeat: backend.last_heartbeat,
     started_at: backend.last_heartbeat, // Not provided in summary, use last_heartbeat
     jobs_processed: 0, // Not provided in summary
@@ -68,7 +83,7 @@ function transformWorker(backend: BackendWorker): Worker {
     queues: backend.queue_names?.length ? backend.queue_names : [backend.queue_name],
     concurrency: backend.max_concurrency ?? 0,
     current_jobs: backend.current_jobs ?? 0,
-    status: (backend.status === 'healthy' ? 'active' : backend.status) as Worker['status'],
+    status: mapWorkerStatus(backend.status, backend.current_jobs ?? 0),
     last_heartbeat: backend.last_heartbeat,
     started_at: backend.registered_at,
     jobs_processed: 0, // Would need separate stats query
