@@ -205,7 +205,7 @@ export const mockWorkersSummary = [
   },
 ];
 
-// Backend format for worker detail (Worker)
+// Backend format for worker detail (WorkerResponse)
 export const mockWorkerDetails: Record<
   string,
   {
@@ -215,13 +215,13 @@ export const mockWorkerDetails: Record<
     queue_names: string[];
     hostname: string;
     worker_type: string | null;
-    max_concurrent_jobs: number;
-    current_job_count: number;
+    max_concurrency: number;
+    current_jobs: number;
     status: string;
     last_heartbeat: string;
     metadata: Record<string, unknown>;
     version: string | null;
-    created_at: string;
+    registered_at: string;
     updated_at: string;
   }
 > = {
@@ -232,13 +232,13 @@ export const mockWorkerDetails: Record<
     queue_names: ['default', 'emails'],
     hostname: 'worker-node-1',
     worker_type: 'http',
-    max_concurrent_jobs: 10,
-    current_job_count: 3,
+    max_concurrency: 10,
+    current_jobs: 3,
     status: 'healthy',
     last_heartbeat: new Date().toISOString(),
     metadata: {},
     version: '1.0.0',
-    created_at: '2024-01-01T00:00:00Z',
+    registered_at: '2024-01-01T00:00:00Z',
     updated_at: new Date().toISOString(),
   },
   'worker-2': {
@@ -248,13 +248,13 @@ export const mockWorkerDetails: Record<
     queue_names: ['default'],
     hostname: 'worker-node-2',
     worker_type: 'http',
-    max_concurrent_jobs: 5,
-    current_job_count: 0,
+    max_concurrency: 5,
+    current_jobs: 0,
     status: 'healthy',
     last_heartbeat: new Date().toISOString(),
     metadata: {},
     version: '1.0.0',
-    created_at: '2024-01-01T00:00:00Z',
+    registered_at: '2024-01-01T00:00:00Z',
     updated_at: new Date().toISOString(),
   },
 };

@@ -20,6 +20,7 @@ interface BackendWorkerSummary {
   last_heartbeat: string;
 }
 
+/** GET /api/v1/workers/{id} — `WorkerResponse`, not the DB `Worker` row. */
 interface BackendWorker {
   id: string;
   organization_id: string;
@@ -27,13 +28,13 @@ interface BackendWorker {
   queue_names?: string[];
   hostname: string;
   worker_type?: string;
-  max_concurrent_jobs: number;
-  current_job_count: number;
+  max_concurrency: number;
+  current_jobs: number;
   status: string;
   last_heartbeat: string;
   metadata?: Record<string, unknown>;
   version?: string;
-  created_at: string;
+  registered_at: string;
   updated_at: string;
 }
 
@@ -65,11 +66,11 @@ function transformWorker(backend: BackendWorker): Worker {
     organization_id: backend.organization_id,
     hostname: backend.hostname,
     queues: backend.queue_names?.length ? backend.queue_names : [backend.queue_name],
-    concurrency: backend.max_concurrent_jobs,
-    current_jobs: backend.current_job_count,
+    concurrency: backend.max_concurrency ?? 0,
+    current_jobs: backend.current_jobs ?? 0,
     status: (backend.status === 'healthy' ? 'active' : backend.status) as Worker['status'],
     last_heartbeat: backend.last_heartbeat,
-    started_at: backend.created_at,
+    started_at: backend.registered_at,
     jobs_processed: 0, // Would need separate stats query
     jobs_failed: 0, // Would need separate stats query
     metadata: backend.metadata as Record<string, string>,
