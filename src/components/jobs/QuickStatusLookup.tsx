@@ -176,7 +176,7 @@ export function QuickStatusLookup() {
                           </Badge>
                         </td>
                         <td className="p-2 text-center text-xs text-muted-foreground">
-                          {job.attempt}/{job.max_retries}
+                          {job.attempt}
                         </td>
                         <td className="p-2 text-xs text-muted-foreground">
                           {formatRelativeTime(job.created_at)}

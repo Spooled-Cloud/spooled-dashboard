@@ -158,14 +158,22 @@ export interface BoostPriorityResponse {
   new_priority: number;
 }
 
+interface BackendBatchJobStatus {
+  id: string;
+  status: string;
+  queue_name: string;
+  retry_count: number;
+  created_at: string;
+  completed_at?: string | null;
+}
+
 export interface BatchJobStatus {
   id: string;
   status: JobStatus;
   queue_name: string;
+  /** Mapped from backend `retry_count`. Batch status does not send `attempt`. */
   attempt: number;
-  max_retries: number;
   created_at: string;
-  started_at?: string;
   completed_at?: string;
 }
 
@@ -347,9 +355,17 @@ export const jobsAPI = {
     if (ids.length > 100) {
       throw new Error('Maximum 100 job IDs per request');
     }
-    return apiClient.get<BatchJobStatus[]>(API_ENDPOINTS.JOBS.STATUS, {
+    const rows = await apiClient.get<BackendBatchJobStatus[]>(API_ENDPOINTS.JOBS.STATUS, {
       ids: ids.join(','),
     } as Record<string, string>);
+    return rows.map((row) => ({
+      id: row.id,
+      status: row.status as JobStatus,
+      queue_name: row.queue_name,
+      attempt: row.retry_count,
+      created_at: row.created_at,
+      completed_at: row.completed_at ?? undefined,
+    }));
   },
 
   /**

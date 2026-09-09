@@ -98,6 +98,22 @@ describe('jobsAPI', () => {
       expect(Array.isArray(statuses)).toBe(true);
     });
 
+    it('maps retry_count onto attempt', async () => {
+      const statuses = await jobsAPI.batchStatus(['job-1', 'job-3']);
+      expect(statuses[0]).toMatchObject({
+        id: 'job-1',
+        queue_name: 'default',
+        attempt: 1,
+        created_at: '2024-01-01T00:00:00Z',
+      });
+      expect(statuses[1]).toMatchObject({
+        id: 'job-3',
+        queue_name: 'emails',
+        attempt: 3,
+      });
+      expect(statuses[0]).not.toHaveProperty('retry_count');
+    });
+
     it('should return empty array for empty input', async () => {
       const statuses = await jobsAPI.batchStatus([]);
       expect(statuses).toEqual([]);

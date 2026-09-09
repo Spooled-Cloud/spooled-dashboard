@@ -477,7 +477,9 @@ export const handlers = [
         id,
         status: job?.status || 'pending',
         queue_name: job?.queue || 'default',
-        updated_at: job?.created_at || new Date().toISOString(),
+        retry_count: job?.attempt ?? 0,
+        created_at: job?.created_at || new Date().toISOString(),
+        completed_at: job?.completed_at ?? null,
       };
     });
     return HttpResponse.json(statuses);
