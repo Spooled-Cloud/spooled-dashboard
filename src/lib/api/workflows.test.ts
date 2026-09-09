@@ -3,14 +3,55 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import {
   workflowsAPI,
   getWorkflowStatusInfo,
   buildDependencyGraph,
   getRootJobs,
   getJobLevels,
+  toBackendWorkflowJob,
 } from './workflows';
 import type { WorkflowDependency, Job } from '@/lib/types';
+
+const API_BASE = 'https://api.spooled.cloud';
+
+describe('toBackendWorkflowJob', () => {
+  it('puts job_type into payload and converts timeout_ms to seconds', () => {
+    const body = toBackendWorkflowJob({
+      key: 'extract',
+      queue_name: 'default',
+      job_type: 'extract_data',
+      payload: { source: 's3' },
+      timeout_ms: 45000,
+      depends_on: [],
+    });
+
+    expect(body).toEqual({
+      key: 'extract',
+      queue_name: 'default',
+      payload: { source: 's3', job_type: 'extract_data' },
+      depends_on: [],
+      priority: undefined,
+      max_retries: undefined,
+      timeout_seconds: 45,
+    });
+    expect(body).not.toHaveProperty('job_type');
+    expect(body).not.toHaveProperty('timeout_ms');
+    expect(body).not.toHaveProperty('dependency_type');
+  });
+
+  it('does not overwrite an existing payload.job_type', () => {
+    const body = toBackendWorkflowJob({
+      key: 'step',
+      queue_name: 'default',
+      job_type: 'ignored',
+      payload: { job_type: 'keep_me' },
+    });
+    expect(body.payload).toEqual({ job_type: 'keep_me' });
+  });
+});
 
 describe('workflowsAPI', () => {
   describe('list', () => {
@@ -18,6 +59,55 @@ describe('workflowsAPI', () => {
       const result = await workflowsAPI.list();
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
+    });
+  });
+
+  describe('create', () => {
+    it('posts the backend contract and returns workflow_id, not id', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.post(`${API_BASE}/api/v1/workflows`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            workflow_id: 'wf-real',
+            job_ids: [{ key: 'extract', job_id: 'job-1' }],
+            status: 'pending',
+          });
+        })
+      );
+
+      const created = await workflowsAPI.create({
+        name: 'Pipeline',
+        jobs: [
+          {
+            key: 'extract',
+            queue_name: 'default',
+            job_type: 'extract_data',
+            payload: {},
+            timeout_ms: 30000,
+            depends_on: [],
+            dependency_type: 'success',
+          },
+        ],
+      });
+
+      expect(created.workflow_id).toBe('wf-real');
+      expect(created).not.toHaveProperty('id');
+      expect(posted).toMatchObject({
+        name: 'Pipeline',
+        jobs: [
+          {
+            key: 'extract',
+            queue_name: 'default',
+            payload: { job_type: 'extract_data' },
+            timeout_seconds: 30,
+          },
+        ],
+      });
+      const postedJobs = posted?.jobs as Array<Record<string, unknown>>;
+      expect(postedJobs[0]).not.toHaveProperty('job_type');
+      expect(postedJobs[0]).not.toHaveProperty('timeout_ms');
+      expect(postedJobs[0]).not.toHaveProperty('dependency_type');
     });
   });
 

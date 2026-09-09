@@ -960,6 +960,25 @@ export const handlers = [
     return HttpResponse.json(mockWorkflows);
   }),
 
+  http.post(`${API_BASE}/api/v1/workflows`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      jobs?: Array<{ key: string }>;
+    };
+    const jobs = Array.isArray(body.jobs) ? body.jobs : [];
+    return HttpResponse.json(
+      {
+        workflow_id: `workflow-${Date.now()}`,
+        job_ids: jobs.map((job, index) => ({
+          key: job.key,
+          job_id: `job-wf-${index + 1}`,
+        })),
+        status: 'pending',
+      },
+      { status: 201 }
+    );
+  }),
+
   http.get(`${API_BASE}/api/v1/workflows/:id`, ({ params }) => {
     const workflow = mockWorkflows.find((w) => w.id === params.id);
     if (!workflow) {

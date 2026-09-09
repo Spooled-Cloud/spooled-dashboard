@@ -82,12 +82,12 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
 
   const createMutation = useMutation({
     mutationFn: (data: CreateWorkflowRequest) => workflowsAPI.create(data),
-    onSuccess: (workflow) => {
-      toast.success('Workflow created', { description: workflow.name || workflow.id });
+    onSuccess: (created) => {
+      toast.success('Workflow created', { description: created.workflow_id });
       queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
       setOpen(false);
       resetForm();
-      onSuccess?.(workflow.id);
+      onSuccess?.(created.workflow_id);
     },
     onError: (err) => {
       setServerError(err instanceof Error ? err.message : 'Failed to create workflow');

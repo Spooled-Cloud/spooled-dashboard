@@ -31,6 +31,47 @@ export interface CreateWorkflowRequest {
   metadata?: Record<string, string>;
 }
 
+/** `POST /api/v1/workflows` — not a full Workflow. */
+export interface CreateWorkflowResponse {
+  workflow_id: string;
+  job_ids: Array<{ key: string; job_id: string }>;
+  status: string;
+}
+
+/**
+ * Map a dashboard workflow job onto the backend create body.
+ *
+ * The API has no `job_type` column (same as `POST /jobs`): the type is stored
+ * inside `payload`. Timeouts are seconds. Unknown fields such as
+ * `dependency_type` are dropped — the backend's `dependency_mode` is all/any,
+ * not success/completion/failure, and `depends_on` is what wires the DAG.
+ */
+export function toBackendWorkflowJob(job: WorkflowJob): {
+  key: string;
+  queue_name: string;
+  payload: Record<string, unknown>;
+  depends_on?: string[];
+  priority?: number;
+  max_retries?: number;
+  timeout_seconds?: number;
+} {
+  const payload =
+    job.job_type && typeof job.payload?.job_type !== 'string'
+      ? { ...(job.payload || {}), job_type: job.job_type }
+      : job.payload || {};
+
+  return {
+    key: job.key,
+    queue_name: job.queue_name,
+    payload,
+    depends_on: job.depends_on,
+    priority: job.priority,
+    max_retries: job.max_retries,
+    timeout_seconds:
+      job.timeout_ms != null ? Math.max(1, Math.floor(job.timeout_ms / 1000)) : undefined,
+  };
+}
+
 export interface WorkflowWithDetails extends Workflow {
   progress: {
     total: number;
@@ -55,8 +96,13 @@ export const workflowsAPI = {
    * POST /api/v1/workflows
    * Create a new workflow
    */
-  create: (data: CreateWorkflowRequest): Promise<Workflow> => {
-    return apiClient.post<Workflow>(API_ENDPOINTS.WORKFLOWS.CREATE, data);
+  create: (data: CreateWorkflowRequest): Promise<CreateWorkflowResponse> => {
+    return apiClient.post<CreateWorkflowResponse>(API_ENDPOINTS.WORKFLOWS.CREATE, {
+      name: data.name,
+      description: data.description,
+      metadata: data.metadata,
+      jobs: data.jobs.map(toBackendWorkflowJob),
+    });
   },
 
   /**
