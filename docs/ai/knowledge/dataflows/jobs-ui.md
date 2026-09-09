@@ -6,7 +6,7 @@ Pages under `/jobs`, `/jobs/[id]`, `/jobs/dlq`. Clients in `src/lib/api/jobs.ts`
 
 `GET /api/v1/jobs/stats` is `{ pending, scheduled, processing, completed, failed, deadletter, cancelled, total }`. It has no `by_queue`/`by_type`/`by_hour`.
 
-`GET /api/v1/jobs` summaries include `job_type` from `payload.job_type` (empty string when absent). `jobsAPI.list` maps that onto `Job.job_type`.
+`GET /api/v1/jobs` summaries include `job_type` from `payload.job_type` (empty string when absent). `jobsAPI.list` maps that onto `Job.job_type`. The jobs page search box is not a backend query: `list` filters the fetched page by id/job_type substring, and `GET`s a UUID that is not on the page.
 
 `GET /api/v1/jobs/dlq` is the same `JobSummary[]` (`attempt`, top-level `job_type`, `last_error`), not a full `Job`. `jobsAPI.listDeadLetter` uses the list summary mapper and maps `last_error` onto `Job.error`.
 

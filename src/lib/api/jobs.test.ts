@@ -34,6 +34,17 @@ describe('jobsAPI', () => {
       const result = await jobsAPI.list();
       expect(result.data[0].job_type).toBe('send_email');
     });
+
+    it('filters list by search id and job_type', async () => {
+      const byType = await jobsAPI.list({ search: 'send_email' });
+      expect(byType.data.map((j) => j.id)).toEqual(['job-1']);
+
+      const byId = await jobsAPI.list({ search: 'job-1' });
+      expect(byId.data.map((j) => j.id)).toEqual(['job-1']);
+
+      const byParam = await jobsAPI.list({ job_type: 'process_image' });
+      expect(byParam.data.map((j) => j.id)).toEqual(['job-2']);
+    });
   });
 
   describe('get', () => {

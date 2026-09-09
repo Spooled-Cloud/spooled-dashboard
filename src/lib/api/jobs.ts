@@ -2,7 +2,7 @@
  * Jobs API
  */
 
-import { apiClient } from './client';
+import { APIError, apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
 import type {
   Job,
@@ -18,6 +18,8 @@ export interface JobListParams {
   status?: JobStatus | JobStatus[];
   queue?: string;
   job_type?: string;
+  /** Client-side: job id substring or job_type. Backend list has no search. */
+  search?: string;
   from_date?: string;
   to_date?: string;
   sort_by?: string;
@@ -68,6 +70,16 @@ interface BackendJob {
 interface BackendCreateJobResponse {
   id: string;
   created: boolean;
+}
+
+const JOB_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function jobMatchesListFilters(job: Job, search?: string, jobType?: string): boolean {
+  if (jobType && job.job_type !== jobType) return false;
+  if (!search) return true;
+  const q = search.toLowerCase();
+  return job.id.toLowerCase().includes(q) || job.job_type.toLowerCase().includes(q);
 }
 
 function extractJobTypeFromPayload(payload: Record<string, unknown> | undefined): string {
@@ -269,15 +281,40 @@ export const jobsAPI = {
       } as Record<string, string | number | boolean | undefined>);
     }
 
-    const hasMore = summaries.length > perPage;
-    const pageItems = summaries.slice(0, perPage).map(transformBackendJobSummaryToFrontend);
+    const search = params?.search?.trim();
+    const jobType = params?.job_type?.trim();
+    const hasSearch = Boolean(search || jobType);
+
+    let pageItems = summaries
+      .slice(0, hasSearch ? summaries.length : perPage)
+      .map(transformBackendJobSummaryToFrontend)
+      .filter((job) => jobMatchesListFilters(job, search, jobType));
+
+    if (pageItems.length === 0 && search && JOB_ID_RE.test(search)) {
+      try {
+        const job = await jobsAPI.get(search);
+        if (jobMatchesListFilters(job, search, jobType)) {
+          if (!queue_name || job.queue === queue_name) {
+            if (statuses.length === 0 || statuses.includes(job.status)) {
+              pageItems = [job];
+            }
+          }
+        }
+      } catch (err) {
+        if (!(err instanceof APIError && err.isNotFound())) {
+          throw err;
+        }
+      }
+    }
+
+    const hasMore = !hasSearch && summaries.length > perPage;
 
     return {
       data: pageItems,
-      page,
+      page: hasSearch ? 1 : page,
       per_page: perPage,
-      total: offset + pageItems.length + (hasMore ? 1 : 0),
-      total_pages: hasMore ? page + 1 : page,
+      total: hasSearch ? pageItems.length : offset + pageItems.length + (hasMore ? 1 : 0),
+      total_pages: hasSearch ? 1 : hasMore ? page + 1 : page,
     };
   },
 
