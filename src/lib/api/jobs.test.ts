@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { jobsAPI } from './jobs';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 describe('jobsAPI', () => {
   describe('list', () => {
@@ -83,6 +87,26 @@ describe('jobsAPI', () => {
       expect(newJob).toBeDefined();
       expect(newJob.id).toBeDefined();
       expect(typeof newJob.created).toBe('boolean');
+    });
+
+    it('clamps timeout_ms under one second to timeout_seconds 1', async () => {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ id: 'job-timeout', created: true }, { status: 201 });
+        })
+      );
+
+      await jobsAPI.create({
+        queue: 'default',
+        job_type: 'test_job',
+        payload: { test: true },
+        timeout_ms: 500,
+      });
+
+      expect(posted?.timeout_seconds).toBe(1);
+      expect(posted).not.toHaveProperty('timeout_ms');
     });
   });
 

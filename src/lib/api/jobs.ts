@@ -352,7 +352,10 @@ export const jobsAPI = {
       payload,
       priority: data.priority,
       max_retries: data.max_retries,
-      timeout_seconds: data.timeout_ms ? Math.floor(data.timeout_ms / 1000) : undefined,
+      timeout_seconds:
+        data.timeout_ms != null && data.timeout_ms > 0
+          ? Math.max(1, Math.floor(data.timeout_ms / 1000))
+          : undefined,
       scheduled_at: data.scheduled_at,
       tags: data.metadata,
       idempotency_key: data.idempotency_key,
