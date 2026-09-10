@@ -11,7 +11,7 @@ import type { DashboardData } from '@/lib/types';
  * Normalize dashboard data from API response
  * Maps backend field names to frontend-friendly names
  */
-function normalizeDashboardData(data: DashboardData): DashboardData {
+export function normalizeDashboardData(data: DashboardData): DashboardData {
   // Calculate success rate from completed vs failed
   const completed = data.jobs?.completed_24h ?? 0;
   const failed = data.jobs?.failed_24h ?? 0;
@@ -48,11 +48,14 @@ function normalizeDashboardData(data: DashboardData): DashboardData {
         paused: q.paused,
       })) ??
       [],
+    // Overview has healthy/unhealthy totals, not idle. Idle is healthy+0 jobs
+    // on GET /workers; putting unhealthy here made the trend chart label
+    // degraded/offline workers as Idle.
     worker_status: data.worker_status ?? {
       total: data.workers?.total ?? 0,
       active: data.workers?.healthy ?? 0,
-      idle: data.workers?.unhealthy ?? 0,
-      offline: 0,
+      idle: 0,
+      offline: data.workers?.unhealthy ?? 0,
     },
   };
 }

@@ -27,3 +27,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-21 | P1  | SSE `onmessage` never saw named frames (`event: job.status` / `queue.stats`); UI waited on poll | `src/lib/hooks/use-sse.ts`; backend `realtime.rs` | **FIXED** |
 | DB-22 | P1  | Email verify `{type:signup}` was treated as login (undefined tokens, fake session) | `src/components/auth/LoginPage.tsx`; backend `VerifyEmailResponse` | **FIXED** |
 | DB-23 | P2  | Org description update spread non-object `settings` into `{0: ...}` | `src/lib/api/organizations.ts`; backend settings is `serde_json::Value` | **FIXED** |
+| DB-24 | P2  | Overview trend chart labeled unhealthy workers Idle (`workers.unhealthy` → `worker_status.idle`) | `src/lib/hooks/useDashboard.ts`; backend `DashboardData.workers` is healthy/unhealthy | **FIXED** |
