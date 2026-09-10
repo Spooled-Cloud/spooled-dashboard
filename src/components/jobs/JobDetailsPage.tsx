@@ -40,16 +40,22 @@ interface JobDetailsContentProps {
   jobId: string;
 }
 
-function JsonDisplay({
+export function JsonDisplay({
   data,
   title,
 }: {
-  data: Record<string, unknown> | undefined;
+  data: unknown;
   title: string;
 }) {
   const [copied, setCopied] = useState(false);
 
-  if (!data || Object.keys(data).length === 0) {
+  // Backend payload/result is serde_json::Value. `!data` hid false/0/"" and
+  // Object.keys hid [] (and treated a JSON string as character indexes).
+  const missing =
+    data === undefined ||
+    data === null ||
+    (typeof data === 'object' && !Array.isArray(data) && Object.keys(data as object).length === 0);
+  if (missing) {
     return <div className="text-sm text-muted-foreground">No {title.toLowerCase()} available</div>;
   }
 
@@ -620,7 +626,7 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
           </Card>
 
           {/* Result */}
-          {job.result && (
+          {job.result != null && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-emerald-600">
