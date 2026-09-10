@@ -33,15 +33,13 @@ export interface SSEEvent {
   timestamp: string;
 }
 
-/** Backend `Event::default().event(...)` names. `onmessage` only sees unnamed `message` frames. */
-const SSE_NAMED_EVENTS = [
-  'job.status',
-  'job.created',
-  'job.completed',
-  'job.failed',
-  'queue.stats',
-  'error',
-] as const;
+/**
+ * Every `Event::default().event(...)` name the backend actually sends
+ * (`api/handlers/realtime.rs`): `job.status` on `/events/jobs/{id}`, `queue.stats`
+ * on `/events/queues/{name}`, `system.health` on `/events`, and `error` on failure.
+ * `onmessage` only sees unnamed `message` frames, so each name needs its own listener.
+ */
+const SSE_NAMED_EVENTS = ['job.status', 'queue.stats', 'system.health', 'error'] as const;
 
 /** Map internally-tagged JSON `type` / SSE event name onto names the UI already checks. */
 const SSE_TYPE_MAP: Record<string, string> = {

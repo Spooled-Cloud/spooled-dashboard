@@ -74,6 +74,11 @@ interface BackendCreateJobResponse {
 
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** `MAX_JOBS_PER_PAGE` on the backend — a larger `limit` is clamped, not honoured. */
+const SEARCH_CHUNK = 100;
+/** Upper bound on rows a client-side search will pull before giving up. */
+const SEARCH_MAX_SCAN = 500;
+
 function jobMatchesListFilters(job: Job, search?: string, jobType?: string): boolean {
   if (jobType && job.job_type !== jobType) return false;
   if (!search) return true;
@@ -275,59 +280,96 @@ export const jobsAPI = {
 
     const limit = perPage + 1; // fetch one extra to detect "has next page"
 
-    let summaries: BackendJobSummary[] = [];
+    const fetchPage = (
+      status: string | undefined,
+      pageOffset: number,
+      pageLimit: number
+    ): Promise<BackendJobSummary[]> =>
+      apiClient.get<BackendJobSummary[]>(API_ENDPOINTS.JOBS.LIST, {
+        queue_name,
+        status,
+        limit: pageLimit,
+        offset: pageOffset,
+      } as Record<string, string | number | boolean | undefined>);
 
-    if (statuses.length <= 1) {
-      summaries = await apiClient.get<BackendJobSummary[]>(API_ENDPOINTS.JOBS.LIST, {
-        queue_name,
-        status: statuses[0],
-        limit,
-        offset,
-      } as Record<string, string | number | boolean | undefined>);
-    } else if (page === 1 && offset === 0) {
-      // Merge results for dashboard widgets / first page. Not perfect pagination, but avoids a broken UI.
-      const results = await Promise.all(
-        statuses.map((status) =>
-          apiClient.get<BackendJobSummary[]>(API_ENDPOINTS.JOBS.LIST, {
-            queue_name,
-            status,
-            limit,
-            offset: 0,
-          } as Record<string, string | number | boolean | undefined>)
-        )
-      );
-      summaries = results.flat();
-      summaries.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-      // de-dupe by id (in case of unexpected overlap)
+    /** Newest-first merge of per-status lists, de-duped by id. */
+    const mergeByRecency = (lists: BackendJobSummary[][], cap: number): BackendJobSummary[] => {
+      const merged = lists.flat();
+      merged.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
       const seen = new Set<string>();
-      summaries = summaries.filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true)));
-      summaries = summaries.slice(0, limit);
-    } else {
-      // Fallback: use the first status for pagination
-      summaries = await apiClient.get<BackendJobSummary[]>(API_ENDPOINTS.JOBS.LIST, {
-        queue_name,
-        status: statuses[0],
-        limit,
-        offset,
-      } as Record<string, string | number | boolean | undefined>);
-    }
+      return merged.filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true))).slice(0, cap);
+    };
 
     const search = params?.search?.trim();
     const jobType = params?.job_type?.trim();
     const hasSearch = Boolean(search || jobType);
 
-    let pageItems = summaries
-      .slice(0, hasSearch ? summaries.length : perPage)
+    if (!hasSearch) {
+      let summaries: BackendJobSummary[] = [];
+
+      if (statuses.length <= 1) {
+        summaries = await fetchPage(statuses[0], offset, limit);
+      } else if (page === 1 && offset === 0) {
+        // Merge results for dashboard widgets / first page. Not perfect pagination, but avoids a broken UI.
+        summaries = mergeByRecency(
+          await Promise.all(statuses.map((status) => fetchPage(status, 0, limit))),
+          limit
+        );
+      } else {
+        // Fallback: use the first status for pagination
+        summaries = await fetchPage(statuses[0], offset, limit);
+      }
+
+      const pageItems = summaries.slice(0, perPage).map(transformBackendJobSummaryToFrontend);
+      const hasMore = summaries.length > perPage;
+
+      return {
+        data: pageItems,
+        page,
+        per_page: perPage,
+        total: offset + pageItems.length + (hasMore ? 1 : 0),
+        total_pages: hasMore ? page + 1 : page,
+      };
+    }
+
+    // `ListJobsQuery` on the backend is queue/status/tag only — there is no search or
+    // job_type filter — so the dashboard filters rows itself. Scan a bounded window from
+    // the newest job rather than only the requested page: filtering one page of 25 makes
+    // a match three pages deep read as "no results".
+    const scanned: BackendJobSummary[] = [];
+    const scannedIds = new Set<string>();
+    for (let scanOffset = 0; scanOffset < SEARCH_MAX_SCAN; scanOffset += SEARCH_CHUNK) {
+      const chunkLimit = Math.min(SEARCH_CHUNK, SEARCH_MAX_SCAN - scanOffset);
+      const chunk =
+        statuses.length <= 1
+          ? await fetchPage(statuses[0], scanOffset, chunkLimit)
+          : mergeByRecency(
+              await Promise.all(statuses.map((status) => fetchPage(status, scanOffset, chunkLimit))),
+              chunkLimit
+            );
+
+      for (const row of chunk) {
+        if (!scannedIds.has(row.id)) {
+          scannedIds.add(row.id);
+          scanned.push(row);
+        }
+      }
+
+      if (chunk.length < chunkLimit) break; // exhausted the result set
+    }
+
+    let matches = scanned
       .map(transformBackendJobSummaryToFrontend)
       .filter((job) => jobMatchesListFilters(job, search, jobType));
 
-    if (pageItems.length === 0 && search && JOB_ID_RE.test(search)) {
+    // A job older than the scan window is still reachable when the query is its exact id.
+    if (matches.length === 0 && search && JOB_ID_RE.test(search)) {
       try {
         const job = await jobsAPI.get(search);
         if (jobMatchesListFilters(job, search, jobType)) {
           if (!queue_name || job.queue === queue_name) {
             if (statuses.length === 0 || statuses.includes(job.status)) {
-              pageItems = [job];
+              matches = [job];
             }
           }
         }
@@ -338,14 +380,14 @@ export const jobsAPI = {
       }
     }
 
-    const hasMore = !hasSearch && summaries.length > perPage;
+    const matchOffset = (page - 1) * perPage;
 
     return {
-      data: pageItems,
-      page: hasSearch ? 1 : page,
+      data: matches.slice(matchOffset, matchOffset + perPage),
+      page,
       per_page: perPage,
-      total: hasSearch ? pageItems.length : offset + pageItems.length + (hasMore ? 1 : 0),
-      total_pages: hasSearch ? 1 : hasMore ? page + 1 : page,
+      total: matches.length,
+      total_pages: Math.max(1, Math.ceil(matches.length / perPage)),
     };
   },
 

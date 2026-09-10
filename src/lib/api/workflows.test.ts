@@ -124,7 +124,10 @@ describe('workflowsAPI', () => {
           },
         ],
       });
-      const postedJobs = posted?.jobs as Array<Record<string, unknown>>;
+      // `posted` is only ever assigned inside the MSW handler, so control-flow
+      // analysis still has it narrowed to `null` here.
+      const postedBody = posted as unknown as Record<string, unknown>;
+      const postedJobs = postedBody.jobs as Array<Record<string, unknown>>;
       expect(postedJobs[0]).not.toHaveProperty('job_type');
       expect(postedJobs[0]).not.toHaveProperty('timeout_ms');
       expect(postedJobs[0]).not.toHaveProperty('dependency_type');

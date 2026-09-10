@@ -49,6 +49,73 @@ describe('jobsAPI', () => {
       const byParam = await jobsAPI.list({ job_type: 'process_image' });
       expect(byParam.data.map((j) => j.id)).toEqual(['job-2']);
     });
+
+    it('scans past the first page so a deep match is still found', async () => {
+      // 250 jobs; only the last one is a `deep_match`. A search that filtered
+      // just the requested page of 25 would report no results.
+      const rows = Array.from({ length: 250 }, (_, i) => ({
+        id: `bulk-${i}`,
+        queue_name: 'default',
+        status: 'completed',
+        priority: 0,
+        attempt: 0,
+        max_retries: 3,
+        job_type: i === 249 ? 'deep_match' : 'filler',
+        last_error: null,
+        created_at: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+      }));
+
+      const offsets: number[] = [];
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs`, ({ request }) => {
+          const url = new URL(request.url);
+          const offset = Number(url.searchParams.get('offset') ?? 0);
+          const limit = Number(url.searchParams.get('limit') ?? 50);
+          offsets.push(offset);
+          return HttpResponse.json(rows.slice(offset, offset + limit));
+        })
+      );
+
+      const result = await jobsAPI.list({ job_type: 'deep_match' });
+
+      expect(result.data.map((j) => j.id)).toEqual(['bulk-249']);
+      expect(result.total).toBe(1);
+      // Chunked at the backend's 100-row page cap, and stopped once a short page
+      // proved the result set was exhausted.
+      expect(offsets).toEqual([0, 100, 200]);
+    });
+
+    it('paginates search matches instead of returning every match at once', async () => {
+      const rows = Array.from({ length: 30 }, (_, i) => ({
+        id: `match-${i}`,
+        queue_name: 'default',
+        status: 'completed',
+        priority: 0,
+        attempt: 0,
+        max_retries: 3,
+        job_type: 'same_type',
+        last_error: null,
+        created_at: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+      }));
+
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs`, ({ request }) => {
+          const url = new URL(request.url);
+          const offset = Number(url.searchParams.get('offset') ?? 0);
+          const limit = Number(url.searchParams.get('limit') ?? 50);
+          return HttpResponse.json(rows.slice(offset, offset + limit));
+        })
+      );
+
+      const page1 = await jobsAPI.list({ job_type: 'same_type', per_page: 25 });
+      expect(page1.data).toHaveLength(25);
+      expect(page1.total).toBe(30);
+      expect(page1.total_pages).toBe(2);
+
+      const page2 = await jobsAPI.list({ job_type: 'same_type', per_page: 25, page: 2 });
+      expect(page2.data).toHaveLength(5);
+      expect(page2.data[0].id).toBe('match-25');
+    });
   });
 
   describe('get', () => {
