@@ -131,6 +131,12 @@ export const organizationsAPI = {
       const settings: Record<string, unknown> = {
         ...(isPlainObject(current.settings) ? current.settings : {}),
       };
+      // GET returns the inbound-ingest secret in settings for an unrestricted key.
+      // Sending it straight back would put it in a second request body for no gain:
+      // the backend re-inserts an omitted webhook_token on a settings replace
+      // (`preserve_webhook_token`), and clearing it is a separate endpoint.
+      delete settings.webhook_token;
+
       const trimmed = data.description.trim();
       if (trimmed) {
         settings.description = trimmed;

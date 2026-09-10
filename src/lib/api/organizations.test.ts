@@ -72,9 +72,15 @@ describe('organizationsAPI', () => {
 
       expect(posted).toMatchObject({
         name: 'Renamed',
-        settings: { webhook_token: 'tok', description: 'A real description' },
+        settings: { description: 'A real description' },
       });
       expect(posted).not.toHaveProperty('description');
+      // The ingest secret is not echoed back: the backend re-inserts an omitted
+      // webhook_token on a settings replace, so sending it adds exposure, not value.
+      // `posted` is only assigned inside the MSW handler, so control-flow analysis
+      // still has it narrowed to `null` here.
+      const postedSettings = (posted as unknown as { settings: Record<string, unknown> }).settings;
+      expect(postedSettings).not.toHaveProperty('webhook_token');
       expect(updated.description).toBe('A real description');
     });
 
