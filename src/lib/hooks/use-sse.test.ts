@@ -12,6 +12,7 @@ class MockEventSource {
   onerror: ((ev: Event) => void) | null = null;
   readyState = 0;
   closed = false;
+  private listeners: Record<string, Array<(ev: MessageEvent) => void>> = {};
 
   constructor(url: string) {
     this.url = url;
@@ -22,6 +23,11 @@ class MockEventSource {
         this.onopen(new Event('open'));
       }
     });
+  }
+
+  addEventListener(type: string, fn: EventListenerOrEventListenerObject) {
+    const handler = fn as (ev: MessageEvent) => void;
+    (this.listeners[type] ??= []).push(handler);
   }
 
   close() {
@@ -35,6 +41,13 @@ class MockEventSource {
         data: JSON.stringify(data),
       })
     );
+  }
+
+  emitNamed(type: string, data: unknown) {
+    const ev = new MessageEvent(type, { data: JSON.stringify(data) });
+    for (const fn of this.listeners[type] ?? []) {
+      fn(ev);
+    }
   }
 
   emitError() {
@@ -97,6 +110,30 @@ describe('useSSE', () => {
     });
 
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'job_completed' }));
+  });
+
+  it('handles named SSE frames the backend actually sends (event: job.status)', async () => {
+    const onEvent = vi.fn();
+    const { result } = renderHook(
+      () => useSSE('/api/v1/events/jobs/abc', { onEvent, reconnectDelay: 10 }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      MockEventSource.instances[0]?.emitNamed('job.status', {
+        type: 'JobStatusChange',
+        data: { job_id: 'abc', new_status: 'completed', timestamp: '2024-01-01T00:00:00Z' },
+      });
+    });
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'job_status_changed',
+        data: expect.objectContaining({ job_id: 'abc' }),
+      })
+    );
   });
 
   it('reconnect() resets attempts and opens a new EventSource', async () => {

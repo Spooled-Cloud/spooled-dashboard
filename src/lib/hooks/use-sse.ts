@@ -33,6 +33,44 @@ export interface SSEEvent {
   timestamp: string;
 }
 
+/** Backend `Event::default().event(...)` names. `onmessage` only sees unnamed `message` frames. */
+const SSE_NAMED_EVENTS = [
+  'job.status',
+  'job.created',
+  'job.completed',
+  'job.failed',
+  'queue.stats',
+  'error',
+] as const;
+
+/** Map internally-tagged JSON `type` / SSE event name onto names the UI already checks. */
+const SSE_TYPE_MAP: Record<string, string> = {
+  JobStatusChange: 'job_status_changed',
+  'job.status': 'job_status_changed',
+  job_status_changed: 'job_status_changed',
+  JobCompleted: 'job_completed',
+  'job.completed': 'job_completed',
+  job_completed: 'job_completed',
+  JobFailed: 'job_failed',
+  'job.failed': 'job_failed',
+  job_failed: 'job_failed',
+  QueueStats: 'queue_stats_updated',
+  'queue.stats': 'queue_stats_updated',
+  queue_stats_updated: 'queue_stats_updated',
+};
+
+function normalizeSseFrame(raw: unknown, sseEventName: string): SSEEvent {
+  const envelope = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const tagged = typeof envelope.type === 'string' ? envelope.type : sseEventName;
+  const type = SSE_TYPE_MAP[tagged] ?? tagged;
+  const inner = envelope.data !== undefined ? envelope.data : raw;
+  const innerObj =
+    inner !== null && typeof inner === 'object' ? (inner as Record<string, unknown>) : undefined;
+  const timestamp =
+    typeof innerObj?.timestamp === 'string' ? innerObj.timestamp : new Date().toISOString();
+  return { type, data: inner, timestamp };
+}
+
 export interface UseSSEReturn {
   isConnected: boolean;
   isConnecting: boolean;
@@ -131,12 +169,13 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
         onOpen?.();
       };
 
-      eventSource.onmessage = (event) => {
+      const handleFrame = (event: MessageEvent) => {
         try {
-          const data = JSON.parse(event.data) as SSEEvent;
+          const parsed: unknown = JSON.parse(event.data as string);
+          const data = normalizeSseFrame(parsed, event.type);
+
           onEvent?.(data);
 
-          // Invalidate relevant queries based on event type
           if (
             data.type === 'job_status_changed' ||
             data.type === 'job_completed' ||
@@ -151,6 +190,11 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
           console.warn('Failed to parse SSE event:', parseError);
         }
       };
+
+      eventSource.onmessage = handleFrame;
+      for (const name of SSE_NAMED_EVENTS) {
+        eventSource.addEventListener(name, handleFrame);
+      }
 
       eventSource.onerror = (_e) => {
         setIsConnected(false);

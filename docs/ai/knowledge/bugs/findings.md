@@ -24,3 +24,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-18 | P2  | Webhook delivery history hid non-object JSON payload (`!payload` / `Object.keys`) | `src/components/settings/WebhookDeliveriesDialog.tsx` | **FIXED** |
 | DB-19 | P2  | Bulk enqueue required `payload` to be a JSON object; API accepts any JSON | `src/components/jobs/BulkEnqueueDialog.tsx` | **FIXED** |
 | DB-20 | P2  | Create job/schedule/workflow spread non-object JSON payloads into `{0: ...}` when merging `job_type` | `src/lib/api/jobs.ts`; `schedules.ts`; `workflows.ts` | **FIXED** |
+| DB-21 | P1  | SSE `onmessage` never saw named frames (`event: job.status` / `queue.stats`); UI waited on poll | `src/lib/hooks/use-sse.ts`; backend `realtime.rs` | **FIXED** |
