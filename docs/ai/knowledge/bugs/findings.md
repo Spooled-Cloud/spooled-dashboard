@@ -19,3 +19,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-13 | P2  | Workers Idle card always 0: `healthy` mapped to `active` even when `current_jobs` is 0 | `src/lib/api/workers.ts`; `WorkersListPage.tsx` | **FIXED** |
 | DB-14 | P2  | Schedule history showed every successful run as failed: mapper required `status === 'success'` while the scheduler writes `completed`, and dropped failed runs with no `job_id` | `src/lib/api/schedules.ts`; `ScheduleDetailsPage.tsx` | **FIXED** |
 | DB-15 | P2  | Create job `timeout_ms` under 1000 became `timeout_seconds` 0 (422); workflow create already clamps to 1 | `src/lib/api/jobs.ts` | **FIXED** |
+| DB-16 | P2  | Queue create/update `job_timeout_ms` under 1000 became `default_timeout` 0 (422); job/workflow create already clamp to 1 | `src/lib/api/queues.ts` | **FIXED** |

@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { queuesAPI } from './queues';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 describe('queuesAPI', () => {
   describe('list', () => {
@@ -64,6 +68,35 @@ describe('queuesAPI', () => {
       expect(newQueue).toBeDefined();
       expect(newQueue.name).toBe('full-queue');
     });
+
+    it('clamps job_timeout_ms under one second to default_timeout 1', async () => {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.put(`${API_BASE}/api/v1/queues/:name/config`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: 'queue-timeout',
+            organization_id: 'org-1',
+            queue_name: 'timeout-queue',
+            max_retries: 3,
+            default_timeout: posted.default_timeout ?? 1,
+            rate_limit: null,
+            enabled: true,
+            settings: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        })
+      );
+
+      await queuesAPI.create({
+        name: 'timeout-queue',
+        job_timeout_ms: 500,
+      });
+
+      expect(posted?.default_timeout).toBe(1);
+      expect(posted).not.toHaveProperty('job_timeout_ms');
+    });
   });
 
   describe('update', () => {
@@ -74,6 +107,32 @@ describe('queuesAPI', () => {
 
       expect(updated).toBeDefined();
       expect(updated.concurrency).toBe(20);
+    });
+
+    it('clamps job_timeout_ms under one second to default_timeout 1', async () => {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.put(`${API_BASE}/api/v1/queues/default/config`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: 'queue-default',
+            organization_id: 'org-1',
+            queue_name: 'default',
+            max_retries: 3,
+            default_timeout: posted.default_timeout ?? 1,
+            rate_limit: null,
+            enabled: true,
+            settings: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        })
+      );
+
+      await queuesAPI.update('default', { job_timeout_ms: 500 });
+
+      expect(posted?.default_timeout).toBe(1);
+      expect(posted).not.toHaveProperty('job_timeout_ms');
     });
 
     it('should update queue with multiple fields', async () => {

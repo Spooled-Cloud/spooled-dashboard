@@ -154,7 +154,9 @@ function transformUpdateRequest(
   return {
     queue_name: name, // Required by backend UpsertQueueConfigRequest
     max_retries: data.max_retries,
-    default_timeout: data.job_timeout_ms ? Math.floor(data.job_timeout_ms / 1000) : undefined,
+    default_timeout: data.job_timeout_ms
+      ? Math.max(1, Math.floor(data.job_timeout_ms / 1000))
+      : undefined,
     settings: Object.keys(settings).length > 0 ? settings : undefined,
   };
 }
@@ -177,7 +179,9 @@ export const queuesAPI = {
     const backendData = {
       queue_name: data.name,
       max_retries: data.max_retries ?? 3,
-      default_timeout: data.job_timeout_ms ? Math.floor(data.job_timeout_ms / 1000) : 300,
+      default_timeout: data.job_timeout_ms
+        ? Math.max(1, Math.floor(data.job_timeout_ms / 1000))
+        : 300,
       settings: {
         description: data.description,
         concurrency: data.concurrency ?? 10,
