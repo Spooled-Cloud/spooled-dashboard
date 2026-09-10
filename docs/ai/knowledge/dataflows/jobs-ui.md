@@ -14,7 +14,7 @@ There is no `failed_at` column. The details mapper sets `Job.failed_at` from `co
 
 ## Workflows
 
-`POST /api/v1/workflows` returns `{ workflow_id, job_ids, status }`, not a full `Workflow`. The backend has no `job_type` column; the client writes it into each job `payload` (same as job create) and sends timeouts as `timeout_seconds`. `GET /workflows/{id}` still sends `job_type: "job"`; `workflowsAPI.get` maps `payload.job_type` onto the UI field.
+`POST /api/v1/workflows` returns `{ workflow_id, job_ids, status }`, not a full `Workflow`. The backend has no `job_type` column; the client writes it into each job `payload` when that payload is a JSON object (same as job/schedule create) and sends timeouts as `timeout_seconds`. Arrays, strings, and other JSON values are sent as-is — spreading them would turn `"hello"` into `{0:"h",...}`. `GET /workflows/{id}` still sends `job_type: "job"`; `workflowsAPI.get` maps `payload.job_type` onto the UI field.
 
 ## Organization settings
 

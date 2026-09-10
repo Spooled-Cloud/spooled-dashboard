@@ -124,7 +124,7 @@ export interface Job {
 export interface CreateJobRequest {
   queue: string;
   job_type: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
   priority?: number;
   max_retries?: number;
   backoff_type?: BackoffType;

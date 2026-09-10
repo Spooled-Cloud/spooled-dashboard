@@ -72,8 +72,7 @@ interface BackendCreateJobResponse {
   created: boolean;
 }
 
-const JOB_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function jobMatchesListFilters(job: Job, search?: string, jobType?: string): boolean {
   if (jobType && job.job_type !== jobType) return false;
@@ -100,10 +99,24 @@ function nextRetryAtFrom(
   return scheduledAt;
 }
 
-function extractJobTypeFromPayload(payload: Record<string, unknown> | undefined): string {
-  if (!payload) return '';
+function extractJobTypeFromPayload(payload: unknown): string {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return '';
   const jt = (payload as { job_type?: unknown }).job_type;
   return typeof jt === 'string' ? jt : '';
+}
+
+/** Persist dashboard `job_type` inside object payloads only. Spreading a string/array turns it into `{0: ...}`. */
+function payloadWithJobType(payload: unknown, jobType?: string): unknown {
+  const isPlainObject = payload !== null && typeof payload === 'object' && !Array.isArray(payload);
+  if (isPlainObject) {
+    const existing = (payload as { job_type?: unknown }).job_type;
+    if (!jobType || typeof existing === 'string') return payload;
+    return { ...(payload as Record<string, unknown>), job_type: jobType };
+  }
+  if (payload === undefined || payload === null) {
+    return jobType ? { job_type: jobType } : {};
+  }
+  return payload;
 }
 
 function transformBackendJobSummaryToFrontend(summary: BackendJobSummary): Job {
@@ -341,11 +354,9 @@ export const jobsAPI = {
    * Create a new job
    */
   create: (data: CreateJobRequest): Promise<BackendCreateJobResponse> => {
-    // Backend does not have a top-level `job_type` field; persist it inside payload for visibility.
-    const payload =
-      data.job_type && typeof (data.payload as { job_type?: unknown })?.job_type !== 'string'
-        ? { ...(data.payload || {}), job_type: data.job_type }
-        : data.payload || {};
+    // Backend payload is serde_json::Value. job_type is not a column; merge it
+    // only when payload is a JSON object so arrays/strings are not spread.
+    const payload = payloadWithJobType(data.payload, data.job_type);
 
     return apiClient.post<BackendCreateJobResponse>(API_ENDPOINTS.JOBS.CREATE, {
       queue_name: data.queue,

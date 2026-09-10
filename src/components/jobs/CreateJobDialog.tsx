@@ -105,8 +105,8 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
       return;
     }
 
-    // Parse payload JSON
-    let parsedPayload: Record<string, unknown>;
+    // Parse payload JSON (backend accepts any JSON, not only objects)
+    let parsedPayload: unknown;
     try {
       parsedPayload = JSON.parse(payload);
     } catch {

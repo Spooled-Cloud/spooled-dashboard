@@ -16,7 +16,7 @@ export interface WorkflowJob {
   key: string; // Unique key for this job (used for dependency references)
   queue_name: string;
   job_type: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
   priority?: number;
   max_retries?: number;
   timeout_ms?: number;
@@ -49,16 +49,25 @@ export interface CreateWorkflowResponse {
 export function toBackendWorkflowJob(job: WorkflowJob): {
   key: string;
   queue_name: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
   depends_on?: string[];
   priority?: number;
   max_retries?: number;
   timeout_seconds?: number;
 } {
-  const payload =
-    job.job_type && typeof job.payload?.job_type !== 'string'
-      ? { ...(job.payload || {}), job_type: job.job_type }
-      : job.payload || {};
+  const isPlainObject =
+    job.payload !== null && typeof job.payload === 'object' && !Array.isArray(job.payload);
+  let payload: unknown;
+  if (isPlainObject) {
+    payload =
+      job.job_type && typeof (job.payload as { job_type?: unknown }).job_type !== 'string'
+        ? { ...(job.payload as Record<string, unknown>), job_type: job.job_type }
+        : job.payload;
+  } else if (job.payload === undefined || job.payload === null) {
+    payload = job.job_type ? { job_type: job.job_type } : {};
+  } else {
+    payload = job.payload;
+  }
 
   return {
     key: job.key,

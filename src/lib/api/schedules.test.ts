@@ -51,6 +51,46 @@ describe('schedulesAPI', () => {
       expect(schedule).toHaveProperty('id');
       expect(schedule.name).toBe('New Schedule');
     });
+
+    it('sends non-object payload_template without spreading it into an object', async () => {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.post(`${API_BASE}/api/v1/schedules`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            { id: 'schedule-any-json', name: 'Any JSON', cron_expression: '0 * * * *' },
+            { status: 201 }
+          );
+        }),
+        http.get(`${API_BASE}/api/v1/schedules/schedule-any-json`, () =>
+          HttpResponse.json({
+            id: 'schedule-any-json',
+            organization_id: 'org-1',
+            name: 'Any JSON',
+            cron_expression: '0 * * * *',
+            timezone: 'UTC',
+            queue_name: 'default',
+            payload_template: 'hello',
+            priority: 0,
+            max_retries: 3,
+            timeout_seconds: 300,
+            is_active: true,
+            run_count: 0,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          })
+        )
+      );
+
+      await schedulesAPI.create({
+        name: 'Any JSON',
+        cron_expression: '0 * * * *',
+        queue_name: 'default',
+        job_type: 'scheduled_task',
+        payload: 'hello',
+      });
+      expect(posted?.payload_template).toBe('hello');
+    });
   });
 
   describe('update', () => {

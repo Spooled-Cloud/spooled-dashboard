@@ -143,7 +143,7 @@ export function CreateScheduleDialog({ trigger, onSuccess }: CreateScheduleDialo
 
     setFieldErrors({});
 
-    let parsedPayload: Record<string, unknown>;
+    let parsedPayload: unknown;
     try {
       parsedPayload = JSON.parse(payload);
     } catch {

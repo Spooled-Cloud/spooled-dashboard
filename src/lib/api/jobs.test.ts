@@ -89,6 +89,47 @@ describe('jobsAPI', () => {
       expect(typeof newJob.created).toBe('boolean');
     });
 
+    it('sends non-object JSON payloads without spreading them into objects', async () => {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ id: 'job-any-json', created: true }, { status: 201 });
+        })
+      );
+
+      await jobsAPI.create({
+        queue: 'default',
+        job_type: 'test_job',
+        payload: 'hello',
+      });
+      expect(posted?.payload).toBe('hello');
+
+      await jobsAPI.create({
+        queue: 'default',
+        job_type: 'test_job',
+        payload: [1, 2],
+      });
+      expect(posted?.payload).toEqual([1, 2]);
+    });
+
+    it('writes job_type into object payloads only', async () => {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ id: 'job-object', created: true }, { status: 201 });
+        })
+      );
+
+      await jobsAPI.create({
+        queue: 'default',
+        job_type: 'test_job',
+        payload: { test: true },
+      });
+      expect(posted?.payload).toEqual({ test: true, job_type: 'test_job' });
+    });
+
     it('clamps timeout_ms under one second to timeout_seconds 1', async () => {
       let posted: Record<string, unknown> | undefined;
       server.use(

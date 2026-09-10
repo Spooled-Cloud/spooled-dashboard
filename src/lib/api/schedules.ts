@@ -13,7 +13,7 @@ export interface CreateScheduleRequest {
   timezone?: string;
   queue_name: string;
   job_type: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
   enabled?: boolean; // kept for UI compatibility; backend uses is_active and defaults to true
   metadata?: Record<string, string>;
 }
@@ -25,7 +25,7 @@ export interface UpdateScheduleRequest {
   timezone?: string;
   queue_name?: string;
   job_type?: string; // stored inside payload_template.job_type
-  payload?: Record<string, unknown>; // stored as payload_template
+  payload?: unknown; // stored as payload_template
   metadata?: Record<string, string>;
 }
 
@@ -79,8 +79,10 @@ interface BackendScheduleRunRecord {
   completed_at: string | null;
 }
 
-function extractJobType(payloadTemplate: Record<string, unknown> | undefined): string {
-  if (!payloadTemplate) return '';
+function extractJobType(payloadTemplate: unknown): string {
+  if (!payloadTemplate || typeof payloadTemplate !== 'object' || Array.isArray(payloadTemplate)) {
+    return '';
+  }
   const jt = (payloadTemplate as { job_type?: unknown }).job_type;
   return typeof jt === 'string' ? jt : '';
 }
@@ -108,13 +110,17 @@ function transformBackendSchedule(schedule: BackendSchedule): Schedule {
   };
 }
 
-function buildPayloadTemplate(
-  payload: Record<string, unknown>,
-  jobType?: string
-): Record<string, unknown> {
-  if (!jobType) return payload;
-  const existing = (payload as { job_type?: unknown }).job_type;
-  return typeof existing === 'string' ? payload : { ...payload, job_type: jobType };
+function buildPayloadTemplate(payload: unknown, jobType?: string): unknown {
+  const isPlainObject = payload !== null && typeof payload === 'object' && !Array.isArray(payload);
+  if (isPlainObject) {
+    const existing = (payload as { job_type?: unknown }).job_type;
+    if (!jobType || typeof existing === 'string') return payload;
+    return { ...(payload as Record<string, unknown>), job_type: jobType };
+  }
+  if (payload === undefined || payload === null) {
+    return jobType ? { job_type: jobType } : {};
+  }
+  return payload;
 }
 
 export const schedulesAPI = {

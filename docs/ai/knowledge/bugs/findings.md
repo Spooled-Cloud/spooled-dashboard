@@ -23,3 +23,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-17 | P2  | Job details hid non-object JSON payload/result (`!data` / `Object.keys` treated false/0/""/[] as missing) | `src/components/jobs/JobDetailsPage.tsx` | **FIXED** |
 | DB-18 | P2  | Webhook delivery history hid non-object JSON payload (`!payload` / `Object.keys`) | `src/components/settings/WebhookDeliveriesDialog.tsx` | **FIXED** |
 | DB-19 | P2  | Bulk enqueue required `payload` to be a JSON object; API accepts any JSON | `src/components/jobs/BulkEnqueueDialog.tsx` | **FIXED** |
+| DB-20 | P2  | Create job/schedule/workflow spread non-object JSON payloads into `{0: ...}` when merging `job_type` | `src/lib/api/jobs.ts`; `schedules.ts`; `workflows.ts` | **FIXED** |

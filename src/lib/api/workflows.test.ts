@@ -43,6 +43,25 @@ describe('toBackendWorkflowJob', () => {
     expect(body).not.toHaveProperty('dependency_type');
   });
 
+  it('does not spread a non-object payload when adding job_type', () => {
+    expect(
+      toBackendWorkflowJob({
+        key: 'step',
+        queue_name: 'default',
+        job_type: 'extract_data',
+        payload: 'plain-string',
+      }).payload
+    ).toBe('plain-string');
+    expect(
+      toBackendWorkflowJob({
+        key: 'step',
+        queue_name: 'default',
+        job_type: 'extract_data',
+        payload: [1, 2],
+      }).payload
+    ).toEqual([1, 2]);
+  });
+
   it('does not overwrite an existing payload.job_type', () => {
     const body = toBackendWorkflowJob({
       key: 'step',
