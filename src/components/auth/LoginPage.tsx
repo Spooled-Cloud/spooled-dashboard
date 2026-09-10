@@ -7,7 +7,29 @@ import { AlertCircle, Loader2, Key, Mail } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
-import type { EmailLoginStartResponse, EmailLoginVerifyResponse, LoginResponse } from '@/lib/types';
+import type { EmailLoginStartResponse, LoginResponse } from '@/lib/types';
+
+/** POST /auth/email/verify is a tagged union: login tokens or a signup token. */
+export function loginTokensFromEmailVerify(response: {
+  type?: string;
+  access_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  expires_in?: number;
+  refresh_expires_in?: number;
+}): LoginResponse | 'signup' | null {
+  if (response.type === 'signup') return 'signup';
+  if (typeof response.access_token !== 'string' || response.access_token.length === 0) {
+    return null;
+  }
+  return {
+    access_token: response.access_token,
+    refresh_token: response.refresh_token ?? '',
+    token_type: response.token_type ?? 'Bearer',
+    expires_in: response.expires_in ?? 0,
+    refresh_expires_in: response.refresh_expires_in ?? 0,
+  };
+}
 
 export function LoginPage() {
   const [apiKey, setApiKey] = useState('');
@@ -87,20 +109,24 @@ export function LoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      const response = await apiClient.post<EmailLoginVerifyResponse>(
-        API_ENDPOINTS.AUTH.EMAIL_VERIFY,
-        { email, code },
-        { skipAuth: true }
-      );
+      const response = await apiClient.post<{
+        type?: string;
+        access_token?: string;
+        refresh_token?: string;
+        token_type?: string;
+        expires_in?: number;
+        refresh_expires_in?: number;
+      }>(API_ENDPOINTS.AUTH.EMAIL_VERIFY, { email, code }, { skipAuth: true });
 
-      // Email auth returns the same token shape as normal login
-      const login: LoginResponse = {
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-        token_type: response.token_type,
-        expires_in: response.expires_in,
-        refresh_expires_in: response.refresh_expires_in,
-      };
+      const login = loginTokensFromEmailVerify(response);
+      if (login === 'signup') {
+        setError('No account found for this email. Sign in with an API key instead.');
+        return;
+      }
+      if (!login) {
+        setError('Invalid email or code.');
+        return;
+      }
 
       setAuth(login);
       setTimeout(() => {
