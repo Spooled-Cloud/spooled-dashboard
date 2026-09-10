@@ -90,7 +90,7 @@ export interface WebhookDelivery {
   id: string;
   webhook_id: string;
   event: WebhookEvent;
-  payload: Record<string, unknown>;
+  payload: unknown;
   status: 'pending' | 'success' | 'failed';
   status_code?: number;
   response_body?: string;

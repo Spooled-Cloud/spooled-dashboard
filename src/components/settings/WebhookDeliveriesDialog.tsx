@@ -23,6 +23,16 @@ interface WebhookDeliveriesDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** Backend delivery payload is serde_json::Value. `!payload` hid false/0/"" and Object.keys hid []. */
+export function hasJsonPayload(payload: unknown): boolean {
+  if (payload === undefined || payload === null) return false;
+  return !(
+    typeof payload === 'object' &&
+    !Array.isArray(payload) &&
+    Object.keys(payload as object).length === 0
+  );
+}
+
 function DeliveryStatusBadge({ status }: { status: WebhookDelivery['status'] }) {
   switch (status) {
     case 'success':
@@ -171,7 +181,7 @@ export function WebhookDeliveriesDialog({
                           </div>
                         )}
 
-                        {delivery.payload && Object.keys(delivery.payload).length > 0 && (
+                        {hasJsonPayload(delivery.payload) && (
                           <details className="mt-2">
                             <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
                               View Payload
