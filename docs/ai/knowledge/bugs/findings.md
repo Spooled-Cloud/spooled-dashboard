@@ -22,3 +22,4 @@ No new P0/P1 dashboard-specific defects proven in this cartography pass beyond d
 | DB-16 | P2  | Queue create/update `job_timeout_ms` under 1000 became `default_timeout` 0 (422); job/workflow create already clamp to 1 | `src/lib/api/queues.ts` | **FIXED** |
 | DB-17 | P2  | Job details hid non-object JSON payload/result (`!data` / `Object.keys` treated false/0/""/[] as missing) | `src/components/jobs/JobDetailsPage.tsx` | **FIXED** |
 | DB-18 | P2  | Webhook delivery history hid non-object JSON payload (`!payload` / `Object.keys`) | `src/components/settings/WebhookDeliveriesDialog.tsx` | **FIXED** |
+| DB-19 | P2  | Bulk enqueue required `payload` to be a JSON object; API accepts any JSON | `src/components/jobs/BulkEnqueueDialog.tsx` | **FIXED** |

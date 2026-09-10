@@ -24,6 +24,11 @@ interface BulkEnqueueDialogProps {
   onSuccess?: (result: { success_count: number; failure_count: number }) => void;
 }
 
+/** Backend BulkJobItem.payload is serde_json::Value; only the key is required. */
+export function jobHasRequiredPayload(job: unknown): boolean {
+  return typeof job === 'object' && job !== null && 'payload' in job;
+}
+
 export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -98,8 +103,8 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
         throw new Error('Maximum 100 jobs per request');
       }
       for (const job of jobs) {
-        if (!job.payload || typeof job.payload !== 'object') {
-          throw new Error('Each job must have a payload object');
+        if (!jobHasRequiredPayload(job)) {
+          throw new Error('Each job must have a payload field');
         }
       }
     } catch (err) {
@@ -201,7 +206,7 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
               placeholder='[{ "payload": { ... } }, ...]'
             />
             <p className="text-xs text-muted-foreground">
-              Each job object must have a &quot;payload&quot; field. Optional: priority,
+              Each job object must have a &quot;payload&quot; field (any JSON). Optional: priority,
               idempotency_key, scheduled_at
             </p>
           </div>

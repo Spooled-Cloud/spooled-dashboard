@@ -162,7 +162,7 @@ function transformBackendJobToFrontend(job: BackendJob): Job {
 }
 
 export interface BulkJobItem {
-  payload: Record<string, unknown>;
+  payload: unknown;
   priority?: number;
   idempotency_key?: string;
   scheduled_at?: string;
