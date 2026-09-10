@@ -344,7 +344,9 @@ export const jobsAPI = {
         statuses.length <= 1
           ? await fetchPage(statuses[0], scanOffset, chunkLimit)
           : mergeByRecency(
-              await Promise.all(statuses.map((status) => fetchPage(status, scanOffset, chunkLimit))),
+              await Promise.all(
+                statuses.map((status) => fetchPage(status, scanOffset, chunkLimit))
+              ),
               chunkLimit
             );
 

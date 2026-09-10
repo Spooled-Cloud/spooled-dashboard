@@ -40,13 +40,7 @@ interface JobDetailsContentProps {
   jobId: string;
 }
 
-export function JsonDisplay({
-  data,
-  title,
-}: {
-  data: unknown;
-  title: string;
-}) {
+export function JsonDisplay({ data, title }: { data: unknown; title: string }) {
   const [copied, setCopied] = useState(false);
 
   // Backend payload/result is serde_json::Value. `!data` hid false/0/"" and
