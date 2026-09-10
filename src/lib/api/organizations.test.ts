@@ -77,6 +77,41 @@ describe('organizationsAPI', () => {
       expect(posted).not.toHaveProperty('description');
       expect(updated.description).toBe('A real description');
     });
+
+    it('does not spread array settings into numeric keys when writing description', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.get(`${API_BASE}/api/v1/organizations/:id`, () => {
+          return HttpResponse.json({
+            id: 'org-1',
+            name: 'Test Organization',
+            slug: 'test-org',
+            plan_tier: 'free',
+            settings: ['theme'],
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          });
+        }),
+        http.put(`${API_BASE}/api/v1/organizations/:id`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: 'org-1',
+            name: 'Test Organization',
+            slug: 'test-org',
+            plan_tier: 'free',
+            settings: posted.settings,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          });
+        })
+      );
+
+      await organizationsAPI.update('org-1', { description: 'A real description' });
+
+      expect(posted).toEqual({
+        settings: { description: 'A real description' },
+      });
+    });
   });
 
   describe('getMembers', () => {

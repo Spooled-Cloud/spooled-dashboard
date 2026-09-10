@@ -58,9 +58,13 @@ export interface CreateOrganizationResponse {
   api_key: InitialApiKey;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function descriptionFromSettings(settings: unknown): string | undefined {
-  if (!settings || typeof settings !== 'object') return undefined;
-  const value = (settings as { description?: unknown }).description;
+  if (!isPlainObject(settings)) return undefined;
+  const value = settings.description;
   return typeof value === 'string' ? value : undefined;
 }
 
@@ -123,10 +127,9 @@ export const organizationsAPI = {
 
     if (data.description !== undefined) {
       const current = await apiClient.get<Organization>(API_ENDPOINTS.ORGANIZATIONS.GET(id));
+      // Settings is serde_json::Value. Spreading an array/string becomes `{0: ...}`.
       const settings: Record<string, unknown> = {
-        ...(current.settings && typeof current.settings === 'object'
-          ? (current.settings as Record<string, unknown>)
-          : {}),
+        ...(isPlainObject(current.settings) ? current.settings : {}),
       };
       const trimmed = data.description.trim();
       if (trimmed) {

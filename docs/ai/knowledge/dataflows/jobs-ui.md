@@ -18,7 +18,7 @@ There is no `failed_at` column. The details mapper sets `Job.failed_at` from `co
 
 ## Organization settings
 
-`PUT /api/v1/organizations/{id}` accepts `name`, `billing_email`, `settings`. There is no `description` column; the settings page stores it in `settings.description`. The backend preserves `webhook_token` when settings are replaced.
+`PUT /api/v1/organizations/{id}` accepts `name`, `billing_email`, `settings`. There is no `description` column; the settings page stores it in `settings.description`. The backend preserves `webhook_token` when settings are replaced. `settings` is `serde_json::Value`; description writes merge only a plain object (spreading an array/string would become `{0: ...}`).
 
 ## Workers
 
