@@ -36,6 +36,9 @@ describe('formatRelativeTime', () => {
 describe('formatDuration', () => {
   it('should format milliseconds', () => {
     expect(formatDuration(500)).toBe('500ms');
+    // Averages come back as floats from the API.
+    expect(formatDuration(493.77257692307694)).toBe('494ms');
+    expect(formatDuration(999.6)).toBe('1000ms');
   });
 
   it('should format seconds', () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,6 +105,21 @@ function WebhooksListContent() {
     queryKey: queryKeys.webhooks.list(),
     queryFn: () => webhooksAPI.list(),
   });
+
+  // Deep link: /settings/webhooks/{id} redirects here with ?webhook={id}; open
+  // that webhook's delivery history (its detail view) once the list is loaded.
+  useEffect(() => {
+    if (!webhooks) return;
+    const wanted = new URLSearchParams(window.location.search).get('webhook');
+    if (!wanted) return;
+    const match = webhooks.find((w) => w.id === wanted);
+    if (match) {
+      setViewingDeliveries(match);
+    } else {
+      toast.error('Webhook not found', { description: 'It may have been deleted.' });
+    }
+    window.history.replaceState({}, '', '/settings/webhooks');
+  }, [webhooks]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => webhooksAPI.delete(id),

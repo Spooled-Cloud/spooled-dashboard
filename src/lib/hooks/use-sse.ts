@@ -34,15 +34,27 @@ export interface SSEEvent {
 }
 
 /**
- * Every `Event::default().event(...)` name the backend actually sends
- * (`api/handlers/realtime.rs`): `job.status` on `/events/jobs/{id}`, `queue.stats`
- * on `/events/queues/{name}`, `system.health` on `/events`, and `error` on failure.
- * `onmessage` only sees unnamed `message` frames, so each name needs its own listener.
+ * Every SSE event name the backend sends (`api/handlers/realtime.rs`): `job.status`
+ * on `/events/jobs/{id}`, `queue.stats` on `/events/queues/{name}`, and on `/events`
+ * (API 0.1.114+) `job.created` / `job.status` / `job.completed` / `job.failed` plus
+ * `system.health`; `error` on failure. `onmessage` only sees unnamed `message`
+ * frames, so each name needs its own listener.
  */
-const SSE_NAMED_EVENTS = ['job.status', 'queue.stats', 'system.health', 'error'] as const;
+const SSE_NAMED_EVENTS = [
+  'job.created',
+  'job.status',
+  'job.completed',
+  'job.failed',
+  'queue.stats',
+  'system.health',
+  'error',
+] as const;
 
 /** Map internally-tagged JSON `type` / SSE event name onto names the UI already checks. */
 const SSE_TYPE_MAP: Record<string, string> = {
+  JobCreated: 'job_created',
+  'job.created': 'job_created',
+  job_created: 'job_created',
   JobStatusChange: 'job_status_changed',
   'job.status': 'job_status_changed',
   job_status_changed: 'job_status_changed',

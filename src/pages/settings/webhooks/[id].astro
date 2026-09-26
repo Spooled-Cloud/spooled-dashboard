@@ -1,0 +1,10 @@
+---
+// /settings/webhooks/{id} had no page and rendered the 404. There is no separate
+// webhook page: the list opens that webhook's delivery history instead.
+export const prerender = false;
+
+const { id } = Astro.params;
+const target = id ? `/settings/webhooks?webhook=${encodeURIComponent(id)}` : '/settings/webhooks';
+
+return Astro.redirect(target);
+---

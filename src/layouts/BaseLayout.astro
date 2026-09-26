@@ -12,7 +12,10 @@ const {
   title,
   description = 'Manage job queues, workers, workflows, and schedules with the Spooled Cloud Dashboard. Real-time monitoring, powerful scheduling, and enterprise-grade reliability.',
   image = '/og.webp',
-  noindex = false,
+  // The dashboard is a signed-in app: its login and onboarding screens were the
+  // only indexable pages and just produced a login-form search result. Pages
+  // must opt back in explicitly.
+  noindex = true,
 } = Astro.props;
 
 const siteUrl = 'https://dashboard.spooled.cloud';

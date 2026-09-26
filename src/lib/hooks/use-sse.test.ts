@@ -136,6 +136,34 @@ describe('useSSE', () => {
     );
   });
 
+  it('handles job events from the global /events stream (API 0.1.114+)', async () => {
+    const onEvent = vi.fn();
+    const { result } = renderHook(() => useSSE('/api/v1/events', { onEvent, reconnectDelay: 10 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      MockEventSource.instances[0]?.emitNamed('job.created', {
+        type: 'JobCreated',
+        data: { job_id: 'new-1', queue_name: 'emails', priority: 0 },
+      });
+      MockEventSource.instances[0]?.emitNamed('job.completed', {
+        type: 'JobCompleted',
+        data: { job_id: 'new-1', queue_name: 'emails', duration_ms: 42 },
+      });
+    });
+
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'job_created' }));
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'job_completed',
+        data: expect.objectContaining({ duration_ms: 42 }),
+      })
+    );
+  });
+
   it('reconnect() resets attempts and opens a new EventSource', async () => {
     const { result } = renderHook(
       () => useSSE('/api/v1/events/queues/default', { maxReconnectAttempts: 1, reconnectDelay: 5 }),

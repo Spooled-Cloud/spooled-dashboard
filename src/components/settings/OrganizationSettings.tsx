@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizationsAPI } from '@/lib/api/organizations';
-import type { UpdateOrganizationRequest, OrganizationMember } from '@/lib/api/organizations';
+import type { UpdateOrganizationRequest } from '@/lib/api/organizations';
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
@@ -18,9 +18,6 @@ import {
   Loader2,
   Building,
   Users,
-  Crown,
-  Shield,
-  User,
   Webhook,
   Copy,
   RefreshCw,
@@ -40,32 +37,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-
-function MemberRoleBadge({ role }: { role: OrganizationMember['role'] }) {
-  switch (role) {
-    case 'owner':
-      return (
-        <Badge className="border-amber-500 bg-amber-500/10 text-amber-700">
-          <Crown className="mr-1 h-3 w-3" />
-          Owner
-        </Badge>
-      );
-    case 'admin':
-      return (
-        <Badge className="border-blue-500 bg-blue-500/10 text-blue-700">
-          <Shield className="mr-1 h-3 w-3" />
-          Admin
-        </Badge>
-      );
-    default:
-      return (
-        <Badge variant="outline">
-          <User className="mr-1 h-3 w-3" />
-          Member
-        </Badge>
-      );
-  }
-}
 
 function WebhookTokenSection({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient();
@@ -312,9 +283,7 @@ function OrganizationSettingsContent() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Organization Settings</h1>
-        <p className="text-muted-foreground">
-          Organization details and members (member list is read-only)
-        </p>
+        <p className="text-muted-foreground">Organization details and who can access it</p>
       </div>
 
       {/* Organization Details */}
@@ -412,52 +381,40 @@ function OrganizationSettingsContent() {
       <UsageWidget />
 
       {/* Members */}
+      {/* Access. Spooled has no per-person user accounts: the members endpoint
+          returns the org's active API keys, and listing them here as "people"
+          showed key names like "Initial Admin Key" as members. */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Members
-              </CardTitle>
-              <CardDescription>
-                People with access (view only — invites not available here)
-              </CardDescription>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Access
+          </CardTitle>
+          <CardDescription>
+            Spooled has no per-person accounts. Signing in to the dashboard uses an email code sent
+            to the billing email; everything else authenticates with an API key.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {membersLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
+        <CardContent className="space-y-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Sign-in email</p>
+            <p className="text-sm font-medium">{org?.billing_email || 'Not set'}</p>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Active API keys</p>
+              {membersLoading ? (
+                <Skeleton className="mt-1 h-5 w-10" />
+              ) : (
+                <p className="text-sm font-medium" data-testid="active-api-key-count">
+                  {members?.length ?? 0}
+                </p>
+              )}
             </div>
-          ) : members && members.length > 0 ? (
-            <div className="divide-y">
-              {members.map((member) => (
-                <div key={member.id} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{member.name}</p>
-                        <MemberRoleBadge role={member.role} />
-                      </div>
-                      <p className="text-sm text-muted-foreground">{member.email}</p>
-                    </div>
-                    <div className="text-right text-xs text-muted-foreground">
-                      <p>Joined {formatRelativeTime(member.joined_at)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-8 text-center text-muted-foreground">
-              <Users className="mx-auto mb-2 h-8 w-8 opacity-50" />
-              <p>No members found</p>
-            </div>
-          )}
+            <Button asChild variant="outline" size="sm">
+              <a href="/settings/api-keys">Manage API keys</a>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

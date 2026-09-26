@@ -35,7 +35,8 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
  * Format duration in milliseconds
  */
 export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
+  // Averages arrive as floats (e.g. 493.77257692307694); never print raw digits.
+  if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
   if (ms < 3600000) return `${(ms / 60000).toFixed(2)}m`;
   return `${(ms / 3600000).toFixed(2)}h`;
