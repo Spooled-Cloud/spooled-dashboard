@@ -57,11 +57,10 @@ function ApiKeysListContent() {
   });
 
   const handleRevoke = (apiKey: APIKey) => {
-    if (
-      confirm(
-        `Revoke API key "${apiKey.name}"? This action cannot be undone and will immediately invalidate the key.`
-      )
-    ) {
+    const message = apiKey.is_system
+      ? `Revoke system API key "${apiKey.name}"? This key was created for dashboard sign-in. Revoking it ends dashboard sessions and you will need to sign in again. This action cannot be undone.`
+      : `Revoke API key "${apiKey.name}"? This action cannot be undone and will immediately invalidate the key.`;
+    if (confirm(message)) {
       revokeMutation.mutate(apiKey.id);
     }
   };
@@ -180,6 +179,14 @@ function ApiKeysListContent() {
                       <div className="mb-2 flex items-center gap-3">
                         <span className="text-lg font-semibold">{apiKey.name}</span>
                         <ApiKeyStatusBadge apiKey={apiKey} />
+                        {apiKey.is_system && (
+                          <Badge
+                            variant="secondary"
+                            title="Created for dashboard sign-in; does not count toward your key limit"
+                          >
+                            System
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="mt-3 flex items-center gap-6">
@@ -201,7 +208,7 @@ function ApiKeysListContent() {
                         {apiKey.rate_limit && (
                           <div>
                             <p className="text-xs text-muted-foreground">Rate Limit</p>
-                            <p className="mt-1 text-sm">{apiKey.rate_limit} req/s</p>
+                            <p className="mt-1 text-sm">{apiKey.rate_limit} requests/min</p>
                           </div>
                         )}
                       </div>

@@ -62,6 +62,7 @@ import {
   type CreateApiKeyResponse,
 } from '@/lib/api/admin';
 import { formatRelativeTime } from '@/lib/utils/format';
+import { mergeCustomLimits } from '@/lib/utils/custom-limits';
 
 interface Props {
   orgId: string;
@@ -89,6 +90,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
   // Custom limits state
   const [customLimitsOpen, setCustomLimitsOpen] = useState(false);
   const [editingLimits, setEditingLimits] = useState<Record<string, string>>({});
+  const [initialLimits, setInitialLimits] = useState<Record<string, string>>({});
   const [savingLimits, setSavingLimits] = useState(false);
   const [limitsSuccess, setLimitsSuccess] = useState(false);
 
@@ -237,12 +239,16 @@ export function AdminOrganizationDetail({ orgId }: Props) {
       'max_webhooks',
       'max_payload_size_bytes',
       'rate_limit_requests_per_second',
+      'rate_limit_burst',
+      'job_retention_days',
+      'history_retention_days',
     ];
     for (const field of limitFields) {
       const value = (current as Record<string, number | null>)[field];
       limits[field] = value !== undefined && value !== null ? String(value) : '';
     }
     setEditingLimits(limits);
+    setInitialLimits(limits);
     setCustomLimitsOpen(true);
   };
 
@@ -252,19 +258,9 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     setSavingLimits(true);
     setError('');
     try {
-      // Build custom_limits object - only include non-empty values
-      const customLimits: Record<string, number | null> = {};
-      for (const [key, value] of Object.entries(editingLimits)) {
-        if (value.trim() !== '') {
-          const num = parseInt(value, 10);
-          if (!isNaN(num) && num >= 0) {
-            customLimits[key] = num;
-          }
-        }
-      }
-
-      // If all fields are empty, set to null to reset to plan defaults
-      const limitsToSave = Object.keys(customLimits).length === 0 ? null : customLimits;
+      // Start from the org's existing overrides and change only the keys that were edited,
+      // so keys the form does not show (or explicit nulls) are not dropped on save.
+      const limitsToSave = mergeCustomLimits(org.custom_limits, initialLimits, editingLimits);
 
       await adminAPI.updateOrganization(orgId, { custom_limits: limitsToSave });
       setLimitsSuccess(true);
@@ -824,6 +820,42 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                     }
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rate_limit_burst">Rate Limit Burst</Label>
+                  <Input
+                    id="rate_limit_burst"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.rate_limit_burst)}
+                    value={editingLimits.rate_limit_burst || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, rate_limit_burst: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="job_retention_days">Job Retention (days)</Label>
+                  <Input
+                    id="job_retention_days"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.job_retention_days)}
+                    value={editingLimits.job_retention_days || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, job_retention_days: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="history_retention_days">History Retention (days)</Label>
+                  <Input
+                    id="history_retention_days"
+                    type="number"
+                    placeholder={String(org.usage_info.limits.history_retention_days)}
+                    value={editingLimits.history_retention_days || ''}
+                    onChange={(e) =>
+                      setEditingLimits({ ...editingLimits, history_retention_days: e.target.value })
+                    }
+                  />
+                </div>
               </div>
               <DialogFooter className="flex-col gap-2 sm:flex-row">
                 <Button
@@ -932,7 +964,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
             <UsageBar label="Workers" usage={usage.workers} />
             <UsageBar label="API Keys" usage={usage.api_keys} />
             <UsageBar label="Schedules" usage={usage.schedules} />
-            <UsageBar label="Workflows" usage={usage.workflows} />
+            <UsageBar label="Active Workflows" usage={usage.workflows} />
             <UsageBar label="Webhooks" usage={usage.webhooks} />
           </div>
         </CardContent>

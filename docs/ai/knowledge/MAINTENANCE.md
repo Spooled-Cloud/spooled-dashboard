@@ -8,4 +8,5 @@
 | Workflows create/UI      | `dataflows/jobs-ui.md` (Workflows section)                    |
 | Workers GET/list         | `dataflows/jobs-ui.md` (Workers section)                      |
 | Org settings/description | `dataflows/jobs-ui.md` (Organization settings)                |
+| API keys / admin limits  | `dataflows/jobs-ui.md` (API keys and admin custom limits)     |
 | Version                  | `package.json` + lock roots + tag (`RELEASE_VERSION_SYNC.md`) |

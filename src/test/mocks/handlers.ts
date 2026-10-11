@@ -375,11 +375,23 @@ export const mockApiKeys = [
     id: 'key-1',
     name: 'Production API Key',
     queues: ['default', 'printer'],
-    rate_limit: null,
+    rate_limit: null, // requests per MINUTE; can only lower the plan limit
+    is_system: false,
     is_active: true,
     expires_at: null,
     created_at: '2024-01-01T00:00:00Z',
     last_used: '2024-01-01T12:00:00Z',
+  },
+  {
+    id: 'key-2',
+    name: 'Dashboard session',
+    queues: ['*'],
+    rate_limit: 120,
+    is_system: true,
+    is_active: true,
+    expires_at: null,
+    created_at: '2024-01-02T00:00:00Z',
+    last_used: null,
   },
 ];
 

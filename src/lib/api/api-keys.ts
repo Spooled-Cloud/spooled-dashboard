@@ -9,7 +9,10 @@ export interface APIKey {
   id: string;
   name: string;
   queues: string[];
+  /** Requests per minute; can only lower the plan's limit */
   rate_limit: number | null;
+  /** True only for the key the email-login flow creates for dashboard sessions */
+  is_system?: boolean;
   is_active: boolean;
   created_at: string;
   /**
@@ -39,7 +42,7 @@ export interface CreateAPIKeyRequest {
   name: string;
   /** Allowed queues; omit/empty => all queues. Supports wildcard '*' */
   queues?: string[];
-  /** Optional override rate limit (1-10000) */
+  /** Optional requests-per-minute cap (1-10000); can only lower the plan's limit, never raise it */
   rate_limit?: number;
   /** ISO datetime string */
   expires_at?: string;
@@ -56,6 +59,7 @@ export interface CreateAPIKeyResponse {
 export interface UpdateAPIKeyRequest {
   name?: string;
   queues?: string[];
+  /** Requests per minute */
   rate_limit?: number;
   is_active?: boolean;
 }

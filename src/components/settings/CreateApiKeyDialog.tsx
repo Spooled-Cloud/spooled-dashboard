@@ -261,7 +261,7 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
 
             {/* Rate limit */}
             <div className="grid gap-2">
-              <Label htmlFor="rateLimit">Rate limit (optional)</Label>
+              <Label htmlFor="rateLimit">Rate limit, requests/min (optional)</Label>
               <Input
                 id="rateLimit"
                 inputMode="numeric"
@@ -270,7 +270,8 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
                 onChange={(e) => setRateLimit(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Override rate limit for this key (1-10000)
+                Requests per minute for this key (1-10000). This can only lower your plan's limit,
+                never raise it.
               </p>
             </div>
           </div>

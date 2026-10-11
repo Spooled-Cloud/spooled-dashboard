@@ -189,7 +189,7 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
             isFree={isFree}
           />
           <UsageBar
-            label="Workflows"
+            label="Active workflows"
             icon={<GitBranch className="h-4 w-4" />}
             usage={usage.usage.workflows}
             isFree={isFree}

@@ -16,11 +16,23 @@ There is no `failed_at` column. The details mapper sets `Job.failed_at` from `co
 
 `POST /api/v1/workflows` returns `{ workflow_id, job_ids, status }`, not a full `Workflow`. The backend has no `job_type` column; the client writes it into each job `payload` when that payload is a JSON object (same as job/schedule create) and sends timeouts as `timeout_seconds`. Arrays, strings, and other JSON values are sent as-is — spreading them would turn `"hello"` into `{0:"h",...}`. `GET /workflows/{id}` still sends `job_type: "job"`; `workflowsAPI.get` maps `payload.job_type` onto the UI field.
 
+Usage meter: the workflows row in `UsageWidget` is labelled **Active workflows** (`src/components/usage/UsageWidget.tsx:192`); the admin org usage list says **Active Workflows** (`src/components/admin/AdminOrganizationDetail.tsx:967`). The backend counts only pending/running workflows against `max_workflows` (`spooled-backend/src/api/handlers/workflows.rs:643`), so the meter is not a total of all workflows.
+
 ## Organization settings
 
 `PUT /api/v1/organizations/{id}` accepts `name`, `billing_email`, `settings`. There is no `description` column; the settings page stores it in `settings.description`. The backend preserves `webhook_token` when settings are replaced. `settings` is `serde_json::Value`; description writes merge only a plain object (spreading an array/string would become `{0: ...}`).
 
 Billing email confirmation (backend 0.1.117): email sign-in only resolves an org by a **confirmed** billing email (`billing_email_verified_at`). An address set through the API or at onboarding (`POST /organizations`) starts unconfirmed. `BillingEmailVerification` (`components/settings/OrganizationSettings.tsx`, Access card) calls `POST /organizations/billing-email/verification` to send a code and `POST /organizations/billing-email/verify` to confirm it, then invalidates the org detail query.
+
+## API keys and admin custom limits
+
+Settings page `/settings/api-keys` → `ApiKeysListPage.tsx` (+ `CreateApiKeyDialog.tsx`); client `src/lib/api/api-keys.ts`.
+
+API key `rate_limit` is requests per minute (1-10000). The create dialog says it can only lower the plan's limit, never raise it (`CreateApiKeyDialog.tsx:264,273`; type comments `src/lib/api/api-keys.ts:12`, `:45`, `:62`). The list shows it as `requests/min` (`ApiKeysListPage.tsx:211`).
+
+Keys with `is_system: true` are the ones the email-login flow creates for dashboard sessions (`src/lib/api/api-keys.ts:14-15`). They show a **System** badge (`ApiKeysListPage.tsx:182-189`), and revoking one warns that dashboard sessions end (`ApiKeysListPage.tsx:59-63`).
+
+Admin Custom Limits (`AdminOrganizationDetail.tsx`) edits Rate Limit Burst, Job Retention (days) and History Retention (days) alongside the existing limits (inputs `:824-858`). Save goes through `mergeCustomLimits(existing, initial, edited)` (`src/lib/utils/custom-limits.ts:17-40`, called at `AdminOrganizationDetail.tsx:263`). It starts from the org's current `custom_limits` and changes only the fields the operator edited, because the backend replaces the stored object on save (`spooled-backend/src/api/handlers/admin.rs:452-459`). A per-key `null` means unlimited and is kept (`src/lib/utils/custom-limits.ts:6`).
 
 ## Workers
 
