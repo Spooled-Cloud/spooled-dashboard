@@ -151,6 +151,12 @@ export function OnboardingPage() {
                   <li>
                     <strong>Go to login</strong> and paste your API key to sign in
                   </li>
+                  {result.organization.billing_email && (
+                    <li>
+                      <strong>Confirm your billing email</strong> in Settings → Organization to sign
+                      in with an email code later
+                    </li>
+                  )}
                   <li>
                     <strong>Create additional API keys</strong> in Settings → API Keys
                   </li>

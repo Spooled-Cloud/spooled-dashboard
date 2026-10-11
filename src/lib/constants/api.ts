@@ -128,6 +128,8 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/v1/organizations/${id}`,
     MEMBERS: (id: string) => `/api/v1/organizations/${id}/members`,
     INVITE: (id: string) => `/api/v1/organizations/${id}/members`,
+    BILLING_EMAIL_VERIFICATION: '/api/v1/organizations/billing-email/verification',
+    BILLING_EMAIL_VERIFY: '/api/v1/organizations/billing-email/verify',
   },
 
   // Billing

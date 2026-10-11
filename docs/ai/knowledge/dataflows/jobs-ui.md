@@ -20,6 +20,8 @@ There is no `failed_at` column. The details mapper sets `Job.failed_at` from `co
 
 `PUT /api/v1/organizations/{id}` accepts `name`, `billing_email`, `settings`. There is no `description` column; the settings page stores it in `settings.description`. The backend preserves `webhook_token` when settings are replaced. `settings` is `serde_json::Value`; description writes merge only a plain object (spreading an array/string would become `{0: ...}`).
 
+Billing email confirmation (backend 0.1.117): email sign-in only resolves an org by a **confirmed** billing email (`billing_email_verified_at`). An address set through the API or at onboarding (`POST /organizations`) starts unconfirmed. `BillingEmailVerification` (`components/settings/OrganizationSettings.tsx`, Access card) calls `POST /organizations/billing-email/verification` to send a code and `POST /organizations/billing-email/verify` to confirm it, then invalidates the org detail query.
+
 ## Workers
 
 `GET /api/v1/workers/{id}` returns `WorkerResponse` (`max_concurrency`, `current_jobs`, `registered_at`), not the DB `Worker` row (`max_concurrent_jobs`, `current_job_count`, `created_at`). List uses `WorkerSummary` (`max_concurrency` / `current_jobs`). Backend status is `healthy`/`degraded`/`offline`/`draining`; the UI maps `healthy` with `current_jobs === 0` to `idle` and other healthy/degraded workers to `active`.

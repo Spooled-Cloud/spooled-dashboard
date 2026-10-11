@@ -43,6 +43,13 @@ export interface CreateOrganizationOptions {
   adminKey?: string;
 }
 
+/** State returned by both billing-email verification routes */
+export interface BillingEmailVerificationResponse {
+  status: 'code_sent' | 'verified';
+  /** Masked address the code went to (only with `code_sent`) */
+  email_sent_to?: string;
+}
+
 /** Initial API key returned during organization creation */
 export interface InitialApiKey {
   id: string;
@@ -105,6 +112,27 @@ export const organizationsAPI = {
    */
   list: (): Promise<Organization[]> => {
     return apiClient.get<Organization[]>(API_ENDPOINTS.ORGANIZATIONS.LIST);
+  },
+
+  /**
+   * POST /api/v1/organizations/billing-email/verification
+   * Send a confirmation code to the organization's unconfirmed billing email
+   */
+  startBillingEmailVerification: (): Promise<BillingEmailVerificationResponse> => {
+    return apiClient.post<BillingEmailVerificationResponse>(
+      API_ENDPOINTS.ORGANIZATIONS.BILLING_EMAIL_VERIFICATION
+    );
+  },
+
+  /**
+   * POST /api/v1/organizations/billing-email/verify
+   * Confirm the billing email with the code that was sent to it
+   */
+  verifyBillingEmail: (code: string): Promise<BillingEmailVerificationResponse> => {
+    return apiClient.post<BillingEmailVerificationResponse>(
+      API_ENDPOINTS.ORGANIZATIONS.BILLING_EMAIL_VERIFY,
+      { code }
+    );
   },
 
   /**

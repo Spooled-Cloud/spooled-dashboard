@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizationsAPI } from '@/lib/api/organizations';
 import type { UpdateOrganizationRequest } from '@/lib/api/organizations';
+import type { Organization } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
@@ -37,6 +38,121 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+
+/**
+ * Email sign-in only resolves an organization by a confirmed billing email, so
+ * an address set through the API (or at onboarding) has to be confirmed with a
+ * code sent to it before it can be used to sign in.
+ */
+export function BillingEmailVerification({ org }: { org: Organization }) {
+  const queryClient = useQueryClient();
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+
+  const sendMutation = useMutation({
+    mutationFn: () => organizationsAPI.startBillingEmailVerification(),
+    onSuccess: (result) => {
+      if (result.status === 'verified') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.organizations.detail(org.id) });
+        return;
+      }
+      setCodeSentTo(result.email_sent_to ?? org.billing_email ?? '');
+      toast.success('Confirmation code sent');
+    },
+    onError: (error) => {
+      toast.error('Could not send the confirmation code', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (value: string) => organizationsAPI.verifyBillingEmail(value),
+    onSuccess: () => {
+      toast.success('Billing email confirmed');
+      setCodeSentTo(null);
+      setCode('');
+      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.detail(org.id) });
+    },
+    onError: (error) => {
+      toast.error('Could not confirm the billing email', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    },
+  });
+
+  if (!org.billing_email) return null;
+
+  if (org.billing_email_verified_at) {
+    return (
+      <Badge variant="outline" className="mt-1" data-testid="billing-email-verified">
+        Confirmed
+      </Badge>
+    );
+  }
+
+  const trimmed = code.trim();
+  return (
+    <div className="mt-2 space-y-2" data-testid="billing-email-unverified">
+      <p className="text-sm text-muted-foreground">
+        Not confirmed yet. Email sign-in with this address starts working once you confirm it with
+        the code we send there.
+      </p>
+      {codeSentTo === null ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => sendMutation.mutate()}
+          disabled={sendMutation.isPending}
+        >
+          {sendMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Send confirmation code
+        </Button>
+      ) : (
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (/^\d{6}$/.test(trimmed)) verifyMutation.mutate(trimmed);
+          }}
+        >
+          <Input
+            aria-label="Confirmation code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            placeholder="6-digit code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="w-36 font-mono"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!/^\d{6}$/.test(trimmed) || verifyMutation.isPending}
+          >
+            {verifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Confirm
+          </Button>
+          <span className="text-xs text-muted-foreground">Sent to {codeSentTo}</span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={() => {
+              setCode('');
+              sendMutation.mutate();
+            }}
+            disabled={sendMutation.isPending}
+          >
+            Send a new code
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
 
 function WebhookTokenSection({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient();
@@ -399,6 +515,7 @@ function OrganizationSettingsContent() {
           <div>
             <p className="text-sm text-muted-foreground">Sign-in email</p>
             <p className="text-sm font-medium">{org?.billing_email || 'Not set'}</p>
+            {org && <BillingEmailVerification org={org} />}
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>

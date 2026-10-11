@@ -50,4 +50,13 @@ describe('loginTokensFromEmailVerify', () => {
       })
     ).toBe('signup');
   });
+
+  it('reports an unconfirmed org instead of a plain signup', () => {
+    expect(
+      loginTokensFromEmailVerify({
+        type: 'signup',
+        unverified_org_exists: true,
+      })
+    ).toBe('unconfirmed');
+  });
 });

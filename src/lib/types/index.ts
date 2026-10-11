@@ -294,6 +294,11 @@ export interface Organization {
   description?: string;
   plan_tier: string;
   billing_email?: string;
+  /**
+   * When the billing email was confirmed. Email sign-in only resolves the
+   * organization by a confirmed address; null means sign-in by email is off.
+   */
+  billing_email_verified_at?: string | null;
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;

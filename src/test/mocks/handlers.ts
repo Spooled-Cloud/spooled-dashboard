@@ -1149,6 +1149,21 @@ export const handlers = [
   }),
 
   // Organizations
+  http.post(`${API_BASE}/api/v1/organizations/billing-email/verification`, () => {
+    return HttpResponse.json({ status: 'code_sent', email_sent_to: 'o***r@example.com' });
+  }),
+
+  http.post(`${API_BASE}/api/v1/organizations/billing-email/verify`, async ({ request }) => {
+    const body = (await request.json()) as { code?: string };
+    if (body.code !== '123456') {
+      return HttpResponse.json(
+        { code: 'AUTHENTICATION_FAILED', message: 'Invalid or expired code' },
+        { status: 401 }
+      );
+    }
+    return HttpResponse.json({ status: 'verified' });
+  }),
+
   http.get(`${API_BASE}/api/v1/organizations/:id`, () => {
     return HttpResponse.json(mockOrganization);
   }),

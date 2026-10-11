@@ -17,8 +17,13 @@ export function loginTokensFromEmailVerify(response: {
   token_type?: string;
   expires_in?: number;
   refresh_expires_in?: number;
-}): LoginResponse | 'signup' | null {
-  if (response.type === 'signup') return 'signup';
+  unverified_org_exists?: boolean;
+}): LoginResponse | 'signup' | 'unconfirmed' | null {
+  if (response.type === 'signup') {
+    // An org uses this address but never confirmed it, so email login cannot
+    // open it (backend 0.1.117). Its owner signs in with an API key instead.
+    return response.unverified_org_exists ? 'unconfirmed' : 'signup';
+  }
   if (typeof response.access_token !== 'string' || response.access_token.length === 0) {
     return null;
   }
@@ -116,9 +121,16 @@ export function LoginPage() {
         token_type?: string;
         expires_in?: number;
         refresh_expires_in?: number;
+        unverified_org_exists?: boolean;
       }>(API_ENDPOINTS.AUTH.EMAIL_VERIFY, { email, code }, { skipAuth: true });
 
       const login = loginTokensFromEmailVerify(response);
+      if (login === 'unconfirmed') {
+        setError(
+          'An organization uses this email but has not confirmed it yet, so email sign-in cannot open it. Sign in with its API key, then confirm the address under Settings → Organization.'
+        );
+        return;
+      }
       if (login === 'signup') {
         setError('No account found for this email. Sign in with an API key instead.');
         return;
