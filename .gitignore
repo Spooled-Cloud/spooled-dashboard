@@ -46,3 +46,6 @@ next-env.d.ts
 
 # IDE
 .idea/
+
+# astro: rewritten by every astro check / build / dev sync
+/.astro/content.d.ts
