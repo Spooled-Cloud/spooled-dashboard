@@ -1,11 +1,14 @@
 /**
- * Tests for the runtime configuration endpoint (GET /api/config)
+ * Tests for the runtime configuration endpoint (GET /api/config, src/pages/api/config.ts).
+ *
+ * This file lives outside src/pages on purpose: Astro turns every module under src/pages into a
+ * route, so a test there was built as GET /api/config.test (a 500 with a vitest stack trace).
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { GET, resolveWsUrl, type RuntimeConfig } from './config';
+import { GET, resolveWsUrl, type RuntimeConfig } from '@/pages/api/config';
 
 const HOSTED_API = 'https://api.spooled.cloud';
 const HOSTED_WS = 'wss://api.spooled.cloud';

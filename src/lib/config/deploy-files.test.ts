@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ROOT = resolve(__dirname, '../../..');
@@ -42,6 +42,24 @@ describe('.dockerignore', () => {
       expect(pattern.startsWith('!')).toBe(false);
       expect(pattern).not.toBe('*');
     }
+  });
+});
+
+describe('src/pages', () => {
+  /** Every file under src/pages, as a path relative to it. */
+  function pageFiles(dir = resolve(ROOT, 'src/pages'), prefix = ''): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory()
+        ? pageFiles(resolve(dir, entry.name), `${prefix}${entry.name}/`)
+        : [`${prefix}${entry.name}`]
+    );
+  }
+
+  it('holds no test or spec file: Astro would build each one as a public route', () => {
+    // GET /api/config.test used to answer 500 with a vitest stack trace. Keep tests next to the
+    // code under src/lib (or src/test) and import the route module from there.
+    const stray = pageFiles().filter((file) => /.(test|spec).[cm]?[jt]sx?$/.test(file));
+    expect(stray).toEqual([]);
   });
 });
 
