@@ -16,19 +16,19 @@ npm install
 
 ## Configuration
 
+The browser gets its API and WebSocket URLs from `GET /api/config`, which reads the environment of the server process. Under `npm run dev` a `.env` file is **not** read by that endpoint, so set the variables in the shell that starts the server (without them the dashboard talks to the hosted API, `https://api.spooled.cloud`):
+
 ```bash
-cp .env.example .env
+# Backend API URL and WebSocket URL (bash)
+PUBLIC_API_URL=http://localhost:8080 PUBLIC_WS_URL=ws://localhost:8080 npm run dev
 ```
 
-Edit `.env`:
-
-```env
-# Backend API URL
-PUBLIC_API_URL=http://localhost:8080
-
-# WebSocket URL
-PUBLIC_WS_URL=ws://localhost:8080
+```powershell
+# PowerShell
+$env:PUBLIC_API_URL='http://localhost:8080'; $env:PUBLIC_WS_URL='ws://localhost:8080'; npm run dev
 ```
+
+Docker Compose does read `.env` (`cp .env.example .env`) and passes the values into the container.
 
 For the admin portal to work, ensure the backend has `ADMIN_API_KEY` configured. The dashboard itself does not need this key as an environment variable; an authorized operator enters it on `/admin/login`.
 

@@ -11,16 +11,16 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 
 - **Real-time Dashboard** - Live KPIs, job statistics, and system health
 - **Jobs Management** - Create, monitor, retry, cancel jobs; set priority levels; search and filter by status, type, tag and date; per-job event timeline
-- **Queue Management** - Configure queues, pause/resume, view stats, set rate limits
-- **Worker Monitoring** - Track worker status, jobs processed and failed, and job distribution
-- **Workflows** - Create DAG workflows with job dependencies (visual dependency graph)
+- **Queue Management** - Create and edit queues (description, max retries, job timeout), pause/resume, delete, view stats. Per-queue rate limits, concurrency and backoff are not configurable here
+- **Worker Monitoring** - Track worker status, current load, jobs processed and failed, and deregister workers
+- **Workflows** - Create workflows whose jobs each depend on one earlier job, follow progress, and see the dependencies in a layered diagram
 - **Schedules** - Cron-based recurring jobs with timezone support (daily reports, cleanups, renewals)
-- **API Keys** - Manage programmatic access with queue restrictions and rate limits
+- **API Keys** - Create, rename, activate and revoke API keys, with queue restrictions and a per-key rate limit
 - **Outgoing Webhooks** - Configure HTTP notifications from Spooled to your URLs (JSON, Slack, Discord, Microsoft Teams), retry failed deliveries, and read the incoming webhook log
-- **WebSocket** - Live updates across the dashboard (job status, queue stats, worker activity)
+- **Live updates** - WebSocket updates across the dashboard (job status, queue stats, worker activity) and server-sent events on job and queue detail pages
 - **Usage Tracking** - Monitor plan limits, API usage, and resource consumption
-- **Dead-Letter Queue** - Review failed jobs, inspect errors, bulk retry or purge
-- **Admin Portal** - Create organizations, manage plans, reset usage counters
+- **Dead-Letter Queue** - Review dead-lettered jobs, inspect errors, bulk retry, or purge all (typed confirmation)
+- **Admin Portal** - Create organizations, change an organization's plan and custom limits, reset usage counters, and view the plan tiers (needs the backend admin key)
 
 ## Official SDKs
 
@@ -77,15 +77,17 @@ The dashboard will be available at `http://localhost:4321`
 
 ### Environment Variables
 
-Create a `.env` file:
+The browser gets its API and WebSocket URLs from `GET /api/config`, which reads the environment of the server process. Under `npm run dev` a `.env` file is **not** read by that endpoint, so set the variables in the shell that starts the server (without them the dashboard talks to the hosted API, `https://api.spooled.cloud`):
 
-```env
-# Backend API URL
-PUBLIC_API_URL=http://localhost:8080
+```bash
+# Backend API URL and WebSocket URL (bash)
+PUBLIC_API_URL=http://localhost:8080 PUBLIC_WS_URL=ws://localhost:8080 npm run dev
 
-# WebSocket URL
-PUBLIC_WS_URL=ws://localhost:8080
+# PowerShell
+$env:PUBLIC_API_URL='http://localhost:8080'; $env:PUBLIC_WS_URL='ws://localhost:8080'; npm run dev
 ```
+
+Docker Compose does read `.env` (copy `.env.example`) and passes the values into the container. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for every variable.
 
 ## Development
 
@@ -123,14 +125,17 @@ npm run analyze
 ```
 src/
 ├── components/           # React components
+│   ├── admin/           # Admin portal
 │   ├── auth/            # Authentication (Login, AuthGuard)
 │   ├── dashboard/       # Dashboard views
+│   ├── error/           # Error boundary
 │   ├── jobs/            # Jobs management
 │   ├── queues/          # Queues management
 │   ├── workers/         # Workers management
 │   ├── workflows/       # Workflows management
 │   ├── schedules/       # Schedules management
 │   ├── settings/        # Settings pages
+│   ├── usage/           # Plan usage widget
 │   ├── realtime/        # WebSocket components
 │   ├── layout/          # Layout components
 │   ├── providers/       # Context providers
@@ -138,7 +143,10 @@ src/
 ├── layouts/             # Astro layouts
 ├── lib/                 # Utilities and APIs
 │   ├── api/             # API client modules
+│   ├── config/          # Runtime configuration (/api/config bootstrap)
 │   ├── constants/       # Constants and config
+│   ├── hooks/           # Data and SSE hooks
+│   ├── sentry/          # Optional error reporting
 │   ├── types/           # TypeScript types
 │   ├── utils/           # Utility functions
 │   └── websocket/       # WebSocket client
@@ -154,9 +162,10 @@ src/
 # Build the image
 docker build -t spooled-dashboard .
 
-# Run the container. The current browser bundle uses build-time/static API and
-# WebSocket defaults; runtime PUBLIC_* overrides are not yet wired at startup.
-docker run -p 4321:4321 spooled-dashboard
+# Run the container. PUBLIC_API_URL / PUBLIC_WS_URL (and the other PUBLIC_* values) are
+# read when the container starts and served to the browser by GET /api/config, so no
+# rebuild is needed. Without them the hosted API (https://api.spooled.cloud) is used.
+docker run -p 4321:4321 -e PUBLIC_API_URL=http://localhost:8080 spooled-dashboard
 ```
 
 ### Using Docker Compose
@@ -198,7 +207,7 @@ docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 | `/schedules`             | Schedules list                         |
 | `/schedules/[id]`        | Schedule details                       |
 | `/settings`              | Settings navigation                    |
-| `/settings/profile`      | User profile                           |
+| `/settings/profile`      | Session details (read-only)            |
 | `/settings/organization` | Organization settings (with usage)     |
 | `/settings/api-keys`     | API keys management                    |
 | `/settings/billing`      | Subscription status and billing portal |
