@@ -13,7 +13,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  // Live specs sign in against a real backend that allows 5 logins per minute per IP.
+  workers: isLive ? 1 : process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   timeout: 60_000,
   expect: { timeout: 10_000 },

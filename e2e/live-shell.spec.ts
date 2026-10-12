@@ -1,77 +1,26 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, accessToken, apiBase, gotoApp, hasLiveEnv } from './live-session';
 
 /**
  * Authenticated shell + settings route smoke.
- * Requires SPOOLED_E2E_BASE_URL + SPOOLED_E2E_API_KEY.
+ * Requires SPOOLED_E2E_BASE_URL + SPOOLED_E2E_API_KEY, and SPOOLED_E2E_API_URL when the
+ * backend is not https://api.spooled.cloud.
  *
- * Single login per worker — production auth is rate-limited under parallel logins.
+ * The session is signed in once per worker (live-session.ts): the backend allows only
+ * 5 logins per minute per IP.
  */
-const apiKey = process.env.SPOOLED_E2E_API_KEY;
-const liveBase = process.env.SPOOLED_E2E_BASE_URL;
-const apiBase = process.env.SPOOLED_E2E_API_URL || 'https://api.spooled.cloud';
-
-async function waitReady(page: import('@playwright/test').Page) {
-  await expect(page.getByText('Loading runtime configuration')).toHaveCount(0, {
-    timeout: 30_000,
-  });
-}
-
-async function login(page: import('@playwright/test').Page) {
-  await page.goto(liveBase! + '/', { waitUntil: 'domcontentloaded' });
-  await waitReady(page);
-  await page
-    .getByLabel(/api key/i)
-    .or(page.locator('input[type="password"]').first())
-    .first()
-    .fill(apiKey!);
-  const signIn = page.getByRole('button', { name: /^Sign In$/i });
-  await expect(signIn).toBeEnabled({ timeout: 10_000 });
-  await signIn.click();
-  await expect(page.getByRole('heading', { name: 'Sign In' })).toHaveCount(0, { timeout: 45_000 });
-  await expect(page).toHaveURL(/\/(dashboard|jobs|queues)/, { timeout: 30_000 });
-  await page.waitForFunction(() => {
-    try {
-      const raw = localStorage.getItem('auth-storage');
-      if (!raw) return false;
-      const parsed = JSON.parse(raw) as {
-        state?: { accessToken?: string; isAuthenticated?: boolean };
-      };
-      return Boolean(parsed?.state?.accessToken || parsed?.state?.isAuthenticated);
-    } catch {
-      return false;
-    }
-  });
-  await waitReady(page);
-}
-
-async function gotoApp(page: import('@playwright/test').Page, path: string) {
-  await page.goto(liveBase! + path, { waitUntil: 'domcontentloaded' });
-  await waitReady(page);
-}
-
-async function accessToken(page: import('@playwright/test').Page): Promise<string> {
-  return page.evaluate(() => {
-    const raw = localStorage.getItem('auth-storage');
-    if (!raw) throw new Error('missing auth-storage');
-    const parsed = JSON.parse(raw) as { state?: { accessToken?: string } };
-    const token = parsed.state?.accessToken;
-    if (!token) throw new Error('missing access token');
-    return token;
-  });
-}
-
 test.describe('live shell surfaces', () => {
-  test.skip(!apiKey || !liveBase, 'Requires SPOOLED_E2E_BASE_URL and SPOOLED_E2E_API_KEY');
+  test.skip(!hasLiveEnv, 'Requires SPOOLED_E2E_BASE_URL and SPOOLED_E2E_API_KEY');
   test.describe.configure({ mode: 'serial' });
 
   test('settings, filters, workers/dlq, and realtime job list', async ({ page, request }) => {
     test.setTimeout(180_000);
-    await login(page);
-
     await gotoApp(page, '/settings');
     await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Session' }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Billing' }).first()).toBeVisible();
+    // Scope to the page content: on a phone the sidebar's own links are in a closed drawer
+    // and `.first()` would pick one of those hidden links.
+    const content = page.getByRole('main');
+    await expect(content.getByRole('link', { name: 'Session' }).first()).toBeVisible();
+    await expect(content.getByRole('link', { name: 'Billing' }).first()).toBeVisible();
 
     await gotoApp(page, '/settings/profile');
     await expect(page.getByRole('heading', { level: 1, name: 'Session' })).toBeVisible();
