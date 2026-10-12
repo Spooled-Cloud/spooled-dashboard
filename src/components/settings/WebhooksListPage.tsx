@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { webhooksAPI, WEBHOOK_AUTO_DISABLE_THRESHOLD, isAutoDisabled } from '@/lib/api/webhooks';
+import {
+  webhooksAPI,
+  WEBHOOK_AUTO_DISABLE_THRESHOLD,
+  isAutoDisabled,
+  webhookFormatLabel,
+} from '@/lib/api/webhooks';
 import type { Webhook } from '@/lib/api/webhooks';
 import { APIError } from '@/lib/api/client';
 import { queryKeys } from '@/lib/query-client';
@@ -27,6 +32,7 @@ import { toast } from 'sonner';
 import { CreateWebhookDialog } from './CreateWebhookDialog';
 import { EditWebhookDialog } from './EditWebhookDialog';
 import { WebhookDeliveriesDialog } from './WebhookDeliveriesDialog';
+import { InboundWebhookLog } from './InboundWebhookLog';
 
 function WebhookStatusBadge({ webhook }: { webhook: Webhook }) {
   if (isAutoDisabled(webhook)) {
@@ -262,6 +268,16 @@ function WebhooksListContent() {
                       <div className="mb-2 flex items-center gap-3">
                         <span className="text-lg font-semibold">{webhook.name}</span>
                         <WebhookStatusBadge webhook={webhook} />
+                        {webhook.format && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs"
+                            title="What Spooled sends to this endpoint"
+                            data-testid={`webhook-format-${webhook.id}`}
+                          >
+                            {webhookFormatLabel(webhook.format)}
+                          </Badge>
+                        )}
                         {webhook.failure_count > 0 && (
                           <Badge
                             variant="outline"
@@ -385,6 +401,9 @@ function WebhooksListContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Incoming webhook log (hidden for queue-scoped keys and for older backends) */}
+      <InboundWebhookLog />
 
       {/* Edit Dialog */}
       {editingWebhook && (

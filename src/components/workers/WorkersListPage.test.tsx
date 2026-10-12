@@ -7,10 +7,16 @@ import { render, screen, waitFor } from '@/test/utils';
 import { WorkersListPage } from './WorkersListPage';
 import { mockAuthenticatedState } from '@/test/utils';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
+import { queryClient } from '@/lib/query-client';
+import { mockWorkersSummary, withoutWorkerCounters } from '@/test/mocks/handlers';
 
 describe('WorkersListPage', () => {
   beforeEach(async () => {
     await mockAuthenticatedState();
+    // Pages share the app-wide query client: start every test from an empty cache.
+    queryClient.clear();
   });
 
   describe('Page Layout', () => {
@@ -116,7 +122,23 @@ describe('WorkersListPage', () => {
       );
     });
 
-    it('does not show per-worker counters or a start time the backend does not provide', async () => {
+    it('shows the processed and failed counters the backend sends (0.1.122)', async () => {
+      render(<WorkersListPage />);
+
+      expect(await screen.findByTestId('worker-processed-worker-1')).toHaveTextContent('1,280');
+      expect(screen.getByTestId('worker-failed-worker-1')).toHaveTextContent('20');
+      // A real 0 is shown as 0
+      expect(screen.getByTestId('worker-processed-worker-2')).toHaveTextContent('0');
+      expect(screen.getByTestId('worker-failed-worker-2')).toHaveTextContent('0');
+      expect(screen.queryByText(/^Started /)).not.toBeInTheDocument();
+    });
+
+    it('shows no counters, and no made-up zeros, against a backend without them (0.1.121)', async () => {
+      server.use(
+        http.get('https://api.spooled.cloud/api/v1/workers', () =>
+          HttpResponse.json(mockWorkersSummary.map(withoutWorkerCounters))
+        )
+      );
       render(<WorkersListPage />);
 
       await waitFor(() => {
@@ -124,9 +146,9 @@ describe('WorkersListPage', () => {
       });
 
       expect(screen.queryByText('Processed')).not.toBeInTheDocument();
-      expect(screen.queryByText(/^Started /)).not.toBeInTheDocument();
-      // 'Failed' only appears as a per-worker counter label; none is rendered.
       expect(screen.queryByText('Failed')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('worker-processed-worker-1')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Started /)).not.toBeInTheDocument();
     });
 
     it('should display Last heartbeat timestamp', async () => {

@@ -398,6 +398,72 @@ describe('apiClient', () => {
     });
   });
 
+  describe('getWithHeaders', () => {
+    it('returns the parsed body together with the response headers', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/paged`, () =>
+          HttpResponse.json([{ id: 1 }], { headers: { 'X-Has-More': 'true' } })
+        )
+      );
+
+      const { data, headers } = await apiClient.getWithHeaders<Array<{ id: number }>>(
+        '/api/v1/paged',
+        { limit: 1 }
+      );
+
+      expect(data).toEqual([{ id: 1 }]);
+      expect(headers.get('x-has-more')).toBe('true');
+    });
+
+    it('reads a missing header as null', async () => {
+      server.use(http.get(`${API_BASE}/api/v1/unpaged`, () => HttpResponse.json([])));
+      const { headers } = await apiClient.getWithHeaders('/api/v1/unpaged');
+      expect(headers.get('x-has-more')).toBeNull();
+    });
+
+    it('keeps the single-flight refresh and returns the headers of the retried response', async () => {
+      const refreshHandler = vi.fn().mockResolvedValue(undefined);
+      let calls = 0;
+      apiClient.setTokenGetter(() => 'token');
+      apiClient.setRefreshHandler(refreshHandler);
+      server.use(
+        http.get(`${API_BASE}/api/v1/paged-protected`, () => {
+          calls++;
+          if (calls === 1) return HttpResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 });
+          return HttpResponse.json({ ok: true }, { headers: { 'X-Has-More': 'false' } });
+        })
+      );
+
+      const { data, headers } = await apiClient.getWithHeaders('/api/v1/paged-protected');
+
+      expect(refreshHandler).toHaveBeenCalledOnce();
+      expect(data).toEqual({ ok: true });
+      expect(headers.get('x-has-more')).toBe('false');
+      apiClient.setTokenGetter(() => null);
+    });
+
+    it('throws an APIError for an error response, like get()', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/paged-missing`, () =>
+          HttpResponse.json({ code: 'NOT_FOUND', message: 'Job not found' }, { status: 404 })
+        )
+      );
+      const error = await apiClient
+        .getWithHeaders('/api/v1/paged-missing')
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(APIError);
+      expect((error as APIError).isNotFound()).toBe(true);
+    });
+
+    it('returns an undefined body for 204', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/paged-empty`, () => new HttpResponse(null, { status: 204 }))
+      );
+      const { data } = await apiClient.getWithHeaders('/api/v1/paged-empty');
+      expect(data).toBeUndefined();
+    });
+  });
+
   describe('Error handling', () => {
     it('should throw APIError with proper message', async () => {
       server.use(

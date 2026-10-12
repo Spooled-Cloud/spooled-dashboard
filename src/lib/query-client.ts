@@ -66,6 +66,9 @@ export const queryKeys = {
     details: () => [...queryKeys.jobs.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.jobs.details(), id] as const,
     stats: () => [...queryKeys.jobs.all, 'stats'] as const,
+    /** `version` (status and attempt) makes a state change a fresh read of the history. */
+    history: (id: string, version?: string) =>
+      [...queryKeys.jobs.all, 'history', id, ...(version ? [version] : [])] as const,
   },
 
   // Exact job counts behind list pagination. Deliberately NOT under `jobs`: realtime job
@@ -119,6 +122,13 @@ export const queryKeys = {
     list: () => [...queryKeys.webhooks.all, 'list'] as const,
     detail: (id: string) => [...queryKeys.webhooks.all, 'detail', id] as const,
     deliveries: (id: string) => [...queryKeys.webhooks.all, 'deliveries', id] as const,
+  },
+
+  // Incoming webhook log (requests Spooled received), apart from the outgoing webhooks
+  inboundWebhooks: {
+    all: ['inbound-webhooks'] as const,
+    list: (filters: Record<string, unknown>) =>
+      [...queryKeys.inboundWebhooks.all, 'list', filters] as const,
   },
 
   // Usage & plan limits

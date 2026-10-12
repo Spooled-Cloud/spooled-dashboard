@@ -179,6 +179,19 @@ export const organizationsAPI = {
   },
 
   /**
+   * DELETE /api/v1/organizations/{id}
+   * Delete the organization (204). Only an unrestricted API key may, and only for its own
+   * organization. The backend refuses with 409 `CONFLICT` while the organization still has
+   * active jobs (pending, scheduled, processing), active workers (healthy, degraded, draining)
+   * or active schedules, and when its Stripe subscription cannot be canceled first; the
+   * reason is in the error message. 403 `ACCESS_DENIED` for a queue-scoped key, 404 for an
+   * id that is not the caller's organization.
+   */
+  delete: (id: string): Promise<void> => {
+    return apiClient.delete<void>(API_ENDPOINTS.ORGANIZATIONS.DELETE(id));
+  },
+
+  /**
    * GET /api/v1/organizations/{id}/members
    * Get organization members
    */

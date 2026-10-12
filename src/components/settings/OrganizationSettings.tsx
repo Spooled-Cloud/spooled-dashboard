@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizationsAPI } from '@/lib/api/organizations';
 import type { UpdateOrganizationRequest } from '@/lib/api/organizations';
@@ -15,6 +17,8 @@ import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { copyText } from '@/lib/utils/clipboard';
+import { isUnrestrictedKey } from '@/lib/utils/key-scope';
+import { APIError } from '@/lib/api/client';
 import {
   Save,
   Loader2,
@@ -25,6 +29,8 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
+  Trash2,
+  AlertCircle,
 } from 'lucide-react';
 import { UsageWidget } from '@/components/usage/UsageWidget';
 import { toast } from 'sonner';
@@ -279,7 +285,14 @@ export function WebhookTokenSection({ orgId }: { orgId: string }) {
                   <p className="text-xs text-muted-foreground">
                     Include this token in the{' '}
                     <code className="rounded bg-muted px-1">X-Webhook-Token</code> header when
-                    sending webhooks
+                    sending webhooks.{' '}
+                    <a
+                      href="/settings/webhooks#incoming-webhook-log"
+                      className="underline hover:text-primary"
+                    >
+                      See the incoming webhook log
+                    </a>
+                    .
                   </p>
                 </>
               ) : (
@@ -329,10 +342,129 @@ export function WebhookTokenSection({ orgId }: { orgId: string }) {
   );
 }
 
+/**
+ * What the delete-organization request needs, in words. The backend decides; this only
+ * turns its refusals into something that says what to do next.
+ */
+export function describeDeleteOrganizationError(error: unknown): string {
+  if (error instanceof APIError) {
+    if (error.status === 403) {
+      return 'Only an unrestricted API key can delete the organization. Sign in with one and try again.';
+    }
+    if (error.status === 404) {
+      return 'This organization no longer exists, or is not the one your key belongs to.';
+    }
+    // 409: still has active jobs, workers or schedules, or the subscription could not be
+    // canceled. The message names which and how many.
+    return error.message;
+  }
+  return error instanceof Error ? error.message : 'The organization could not be deleted.';
+}
+
+/**
+ * Delete the organization, behind a typed confirmation. Shown to unrestricted keys only; the
+ * backend refuses everyone else with 403. Success ends the session: the organization's keys
+ * stop working at once.
+ */
+export function DeleteOrganizationSection({ org }: { org: Organization }) {
+  const queryClient = useQueryClient();
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const confirmText = org.slug || org.name;
+
+  const deleteMutation = useMutation({
+    mutationFn: () => organizationsAPI.delete(org.id),
+    onSuccess: () => {
+      toast.success('Organization deleted', { description: 'You have been signed out.' });
+      setOpen(false);
+      queryClient.clear();
+      clearAuth();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+    },
+    onError: (err) => {
+      // Close the dialog so the reason, which can be long, stays readable on the page.
+      setOpen(false);
+      setError(describeDeleteOrganizationError(err));
+    },
+  });
+
+  return (
+    <Card className="border-destructive/50" data-testid="delete-organization">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-destructive">
+          <Trash2 className="h-5 w-5" />
+          Delete organization
+        </CardTitle>
+        <CardDescription>
+          Permanently deletes <strong>{org.name}</strong> with its jobs, queues, schedules, API keys
+          and webhooks. This cannot be undone.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>
+            Nothing is deleted while the organization has active jobs (pending, scheduled or
+            processing), registered workers that are not offline, or active schedules. Cancel the
+            jobs, deregister the workers and pause or delete the schedules first.
+          </li>
+          <li>
+            A paid subscription is canceled first. If Stripe cannot cancel it, nothing is deleted
+            and you can try again.
+          </li>
+          <li>Every API key of the organization stops working, and you are signed out.</li>
+        </ul>
+
+        {error && (
+          <Alert variant="destructive" data-testid="delete-organization-error">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setError(null);
+            setOpen(true);
+          }}
+          disabled={deleteMutation.isPending}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete organization
+        </Button>
+      </CardContent>
+
+      <DangerConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete organization"
+        description={
+          <>
+            This permanently deletes <strong>{org.name}</strong> and everything in it.
+          </>
+        }
+        confirmText={confirmText}
+        confirmLabel="Delete organization"
+        isLoading={deleteMutation.isPending}
+        warnings={[
+          'All jobs, queues, schedules, workflows and webhooks are deleted',
+          'All API keys stop working and you are signed out',
+          'Refused while active jobs, workers or schedules exist',
+        ]}
+      />
+    </Card>
+  );
+}
+
 function OrganizationSettingsContent() {
   const queryClient = useQueryClient();
   const currentOrganization = useAuthStore((s) => s.currentOrganization);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const keyQueues = useAuthStore((s) => s.user?.queues);
   const fetchCurrentUser = useAuthStore((s) => s.fetchCurrentUser);
   const orgId = currentOrganization?.id;
 
@@ -568,6 +700,9 @@ function OrganizationSettingsContent() {
 
       {/* Incoming Webhooks */}
       <WebhookTokenSection orgId={orgId} />
+
+      {/* Danger zone: unrestricted keys only (the backend refuses everyone else) */}
+      {org && isUnrestrictedKey(keyQueues) && <DeleteOrganizationSection org={org} />}
     </div>
   );
 }

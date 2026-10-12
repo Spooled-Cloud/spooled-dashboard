@@ -12,7 +12,7 @@ import { DataTableLoading } from '@/components/ui/data-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workersAPI } from '@/lib/api/workers';
 import { queryKeys } from '@/lib/query-client';
-import { formatRelativeTime } from '@/lib/utils/format';
+import { formatNumber, formatRelativeTime } from '@/lib/utils/format';
 import { RefreshCw, Trash2, Server, Activity, Circle, Cpu } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Worker, WorkerStatus } from '@/lib/types';
@@ -182,7 +182,7 @@ function WorkersListContent() {
                         <WorkerStatusBadge status={worker.status} />
                       </div>
 
-                      <div className="mb-3 grid grid-cols-2 gap-4 md:grid-cols-3">
+                      <div className="mb-3 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
                         <div>
                           <p className="text-xs font-medium text-muted-foreground">Queues</p>
                           <div className="mt-1 flex flex-wrap gap-1">
@@ -211,6 +211,29 @@ function WorkersListContent() {
                             </span>
                           </p>
                         </div>
+                        {/* Counters exist from backend 0.1.122; an older backend sends none. */}
+                        {worker.jobs_processed !== undefined && (
+                          <div
+                            className="bg-muted/50 rounded-lg p-2"
+                            data-testid={`worker-processed-${worker.id}`}
+                          >
+                            <p className="text-xs font-medium text-muted-foreground">Processed</p>
+                            <p className="text-lg font-semibold">
+                              {formatNumber(worker.jobs_processed)}
+                            </p>
+                          </div>
+                        )}
+                        {worker.jobs_failed !== undefined && (
+                          <div
+                            className="bg-muted/50 rounded-lg p-2"
+                            data-testid={`worker-failed-${worker.id}`}
+                          >
+                            <p className="text-xs font-medium text-muted-foreground">Failed</p>
+                            <p className="text-lg font-semibold">
+                              {formatNumber(worker.jobs_failed)}
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">

@@ -5,7 +5,12 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
-import { workersAPI } from './workers';
+import { workersAPI, workerSuccessRate } from './workers';
+import {
+  mockWorkersSummary,
+  mockWorkerDetails,
+  withoutWorkerCounters,
+} from '@/test/mocks/handlers';
 
 const API_BASE = 'https://api.spooled.cloud';
 
@@ -43,13 +48,62 @@ describe('workersAPI', () => {
       }
     });
 
-    it('carries no per-worker counters the backend does not send', async () => {
+    it('maps jobs_processed and jobs_failed from the list and the detail (backend 0.1.122)', async () => {
       const [summary] = await workersAPI.list();
       const detail = await workersAPI.get('worker-1');
       for (const w of [summary, detail]) {
-        expect(w).not.toHaveProperty('jobs_processed');
-        expect(w).not.toHaveProperty('jobs_failed');
+        expect(w.jobs_processed).toBe(1280);
+        expect(w.jobs_failed).toBe(20);
       }
+    });
+
+    it('keeps a real 0 from the backend as 0', async () => {
+      const workers = await workersAPI.list();
+      const idle = workers.find((w) => w.id === 'worker-2');
+      expect(idle?.jobs_processed).toBe(0);
+      expect(idle?.jobs_failed).toBe(0);
+    });
+
+    it('leaves the counters undefined when the backend does not send them (0.1.121)', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/workers`, () =>
+          HttpResponse.json(mockWorkersSummary.map(withoutWorkerCounters))
+        ),
+        http.get(`${API_BASE}/api/v1/workers/:id`, () =>
+          HttpResponse.json(withoutWorkerCounters(mockWorkerDetails['worker-1']))
+        )
+      );
+      const [summary] = await workersAPI.list();
+      const detail = await workersAPI.get('worker-1');
+      for (const w of [summary, detail]) {
+        expect(w.jobs_processed).toBeUndefined();
+        expect(w.jobs_failed).toBeUndefined();
+      }
+    });
+
+    it('ignores a counter that is not a non-negative number', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/workers`, () =>
+          HttpResponse.json([{ ...mockWorkersSummary[0], jobs_processed: '12', jobs_failed: -1 }])
+        )
+      );
+      const [worker] = await workersAPI.list();
+      expect(worker.jobs_processed).toBeUndefined();
+      expect(worker.jobs_failed).toBeUndefined();
+    });
+  });
+
+  describe('workerSuccessRate', () => {
+    it('is processed / (processed + failed) in percent', () => {
+      expect(workerSuccessRate({ jobs_processed: 90, jobs_failed: 10 })).toBe(90);
+      expect(workerSuccessRate({ jobs_processed: 0, jobs_failed: 4 })).toBe(0);
+      expect(workerSuccessRate({ jobs_processed: 7, jobs_failed: 0 })).toBe(100);
+    });
+
+    it('is undefined before the worker finished anything, or without counters', () => {
+      expect(workerSuccessRate({ jobs_processed: 0, jobs_failed: 0 })).toBeUndefined();
+      expect(workerSuccessRate({})).toBeUndefined();
+      expect(workerSuccessRate({ jobs_processed: 5 })).toBeUndefined();
     });
   });
 

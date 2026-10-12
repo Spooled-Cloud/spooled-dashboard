@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { webhooksAPI } from '@/lib/api/webhooks';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { webhooksAPI, WEBHOOK_MANUAL_RETRY_MAX_ATTEMPTS } from '@/lib/api/webhooks';
 import type { Webhook, WebhookDelivery } from '@/lib/api/webhooks';
 import { usageAPI } from '@/lib/api/usage';
 import { queryKeys } from '@/lib/query-client';
@@ -15,7 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, XCircle, Clock, RefreshCw, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, RefreshCw, RotateCw, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface WebhookDeliveriesDialogProps {
   webhook: Webhook;
@@ -66,6 +67,7 @@ export function WebhookDeliveriesDialog({
   open,
   onOpenChange,
 }: WebhookDeliveriesDialogProps) {
+  const queryClient = useQueryClient();
   const {
     data: deliveries,
     isLoading,
@@ -75,6 +77,28 @@ export function WebhookDeliveriesDialog({
     queryKey: queryKeys.webhooks.deliveries(webhook.id),
     queryFn: () => webhooksAPI.getDeliveries(webhook.id),
     enabled: open,
+  });
+
+  // A manual retry is one real request to the endpoint: HTTP 200 only says it was attempted,
+  // `success` says whether the endpoint took it. Refused retries (400: already delivered, or
+  // out of attempts) come back as errors with the reason in the message.
+  const retryMutation = useMutation({
+    mutationFn: (deliveryId: string) => webhooksAPI.retryDelivery(webhook.id, deliveryId),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success('Delivery retried', { description: result.message });
+      } else {
+        toast.error('The endpoint did not accept the retry', { description: result.message });
+      }
+      // The delivery row, and the webhook's failure count and last status, have changed.
+      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all });
+    },
+    onError: (err) => {
+      toast.error('Could not retry the delivery', {
+        description: err instanceof Error ? err.message : 'An error occurred',
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.deliveries(webhook.id) });
+    },
   });
 
   // Delivery rows are swept once they pass the plan's history retention window, so the plan
@@ -162,6 +186,34 @@ export function WebhookDeliveriesDialog({
                             <span className="text-xs text-muted-foreground">
                               HTTP {delivery.status_code}
                             </span>
+                          )}
+                          {delivery.status === 'failed' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-auto h-7"
+                              onClick={() => retryMutation.mutate(delivery.id)}
+                              disabled={
+                                retryMutation.isPending ||
+                                delivery.attempts >= WEBHOOK_MANUAL_RETRY_MAX_ATTEMPTS
+                              }
+                              title={
+                                delivery.attempts >= WEBHOOK_MANUAL_RETRY_MAX_ATTEMPTS
+                                  ? `This delivery already made ${WEBHOOK_MANUAL_RETRY_MAX_ATTEMPTS} attempts, the most a manual retry allows`
+                                  : 'Send this delivery to the endpoint again'
+                              }
+                            >
+                              <RotateCw
+                                className={`mr-1 h-3 w-3 ${
+                                  retryMutation.isPending && retryMutation.variables === delivery.id
+                                    ? 'animate-spin'
+                                    : ''
+                                }`}
+                              />
+                              {retryMutation.isPending && retryMutation.variables === delivery.id
+                                ? 'Retrying...'
+                                : 'Retry'}
+                            </Button>
                           )}
                         </div>
 

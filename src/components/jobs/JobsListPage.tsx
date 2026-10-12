@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { JobStatusBadge } from '@/components/ui/status-badge';
 import {
@@ -20,57 +21,50 @@ import {
   CopyButton,
 } from '@/components/ui/data-table';
 import { useQuery } from '@tanstack/react-query';
-import { jobsAPI, withExactTotal, JOBS_LIST_MAX_PAGE } from '@/lib/api/jobs';
+import {
+  jobsAPI,
+  withExactTotal,
+  JOBS_FILTER_UNSUPPORTED_MESSAGE,
+  JOBS_LIST_MAX_PAGE,
+} from '@/lib/api/jobs';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime, formatJobId } from '@/lib/utils/format';
-import { Search, RefreshCw, X } from 'lucide-react';
+import { Info, Search, RefreshCw, X } from 'lucide-react';
 import { CreateJobDialog } from './CreateJobDialog';
 import { BulkEnqueueDialog } from './BulkEnqueueDialog';
 import { QuickStatusLookup } from './QuickStatusLookup';
 import { useDebouncedValue } from './useDebouncedValue';
-import type { JobStatus } from '@/lib/types';
+import {
+  JOB_FILTER_STATUSES,
+  createdRange,
+  hasUncountableFilters,
+  jobFiltersToQueryString,
+  parseJobFilters,
+} from './job-list-filters';
+import type { JobFilters } from './job-list-filters';
 
-interface JobFilters {
-  status?: JobStatus;
-  queue?: string;
-  job_type?: string;
-  search?: string;
-}
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  scheduled: 'Scheduled',
+  processing: 'Processing',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  deadletter: 'Dead Letter',
+};
 
-const JOB_STATUSES: JobStatus[] = [
-  'pending',
-  'scheduled',
-  'processing',
-  'completed',
-  'failed',
-  'cancelled',
-  'deadletter',
-];
+/** The filters typed into text boxes: applied once typing pauses. */
+type TextFilterKey = 'search' | 'queue' | 'job_type' | 'tag';
+const TEXT_FILTER_KEYS: TextFilterKey[] = ['search', 'queue', 'job_type', 'tag'];
+type TextInputs = Record<TextFilterKey, string>;
 
-function parseFiltersFromUrl(): JobFilters {
+function initialFilters(): JobFilters {
   if (typeof window === 'undefined') return {};
-  const params = new URLSearchParams(window.location.search);
-  const statusParam = params.get('status');
-  const status =
-    statusParam && (JOB_STATUSES as string[]).includes(statusParam)
-      ? (statusParam as JobStatus)
-      : undefined;
-  return {
-    status,
-    queue: params.get('queue') || undefined,
-    job_type: params.get('job_type') || undefined,
-    search: params.get('search') || params.get('q') || undefined,
-  };
+  return parseJobFilters(window.location.search);
 }
 
 function syncFiltersToUrl(filters: JobFilters) {
   if (typeof window === 'undefined') return;
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.queue) params.set('queue', filters.queue);
-  if (filters.job_type) params.set('job_type', filters.job_type);
-  if (filters.search) params.set('search', filters.search);
-  const qs = params.toString();
+  const qs = jobFiltersToQueryString(filters);
   const next = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
   window.history.replaceState({}, '', next);
 }
@@ -79,26 +73,41 @@ function syncFiltersToUrl(filters: JobFilters) {
 const JOB_TOTAL_STALE_MS = 60_000;
 
 function JobsListContent() {
-  const [filters, setFilters] = useState<JobFilters>(() => parseFiltersFromUrl());
+  const [filters, setFilters] = useState<JobFilters>(initialFilters);
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
-  // Search scans several 100-row requests, so only query once typing pauses.
-  const [searchInput, setSearchInput] = useState(() => filters.search ?? '');
-  const debouncedSearch = useDebouncedValue(searchInput.trim());
+  // The text filters are sent to the server, so a request per keystroke would be a request
+  // per keystroke: they apply once typing pauses.
+  const [inputs, setInputs] = useState<TextInputs>(() => ({
+    search: filters.search ?? '',
+    queue: filters.queue ?? '',
+    job_type: filters.job_type ?? '',
+    tag: filters.tag ?? '',
+  }));
+  const debouncedInputs = useDebouncedValue(inputs);
 
   useEffect(() => {
-    setFilters((prev) =>
-      (prev.search ?? '') === debouncedSearch
-        ? prev
-        : { ...prev, search: debouncedSearch || undefined }
-    );
+    setFilters((prev) => {
+      const next = { ...prev };
+      for (const key of TEXT_FILTER_KEYS) next[key] = debouncedInputs[key].trim() || undefined;
+      return TEXT_FILTER_KEYS.every((key) => prev[key] === next[key]) ? prev : next;
+    });
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedInputs]);
 
   useEffect(() => {
     syncFiltersToUrl(filters);
   }, [filters]);
+
+  const listParams = {
+    status: filters.status,
+    queue: filters.queue,
+    job_type: filters.job_type,
+    search: filters.search,
+    tag: filters.tag,
+    ...createdRange(filters.from, filters.to),
+  };
 
   const {
     data: pageData,
@@ -107,42 +116,43 @@ function JobsListContent() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: queryKeys.jobs.list({ ...filters, page, per_page: pageSize }),
-    queryFn: () => jobsAPI.list({ ...filters, page, per_page: pageSize }),
+    queryKey: queryKeys.jobs.list({ ...listParams, page, per_page: pageSize }),
+    queryFn: () => jobsAPI.list({ ...listParams, page, per_page: pageSize }),
     refetchInterval: 10000,
   });
 
   // `GET /jobs` has no total, so the exact count is its own query: a long staleTime, no
-  // polling, and a key outside `jobs` so realtime invalidations leave it alone. The queue
-  // filter is applied per keystroke, so the count follows its debounced value and is only
-  // used once it matches. A search scans client-side and brings its own total.
-  const totalQueue = useDebouncedValue(filters.queue);
-  const totalIsCurrent = totalQueue === filters.queue;
+  // polling, and a key outside `jobs` so realtime invalidations leave it alone. Stats count by
+  // queue and by one status only; with a search, type, tag or date filter (or when the count
+  // is not available) the page has no exact total and paginates by `hasMore` alone.
+  const uncountable = hasUncountableFilters(filters);
   const { data: exactTotal } = useQuery({
-    queryKey: queryKeys.jobTotals.count({ queue: totalQueue, status: filters.status }),
-    queryFn: () => jobsAPI.getListTotal({ queue: totalQueue, status: filters.status }),
-    enabled: !filters.search && !filters.job_type,
+    queryKey: queryKeys.jobTotals.count({ queue: filters.queue, status: filters.status }),
+    queryFn: () => jobsAPI.getListTotal({ queue: filters.queue, status: filters.status }),
+    enabled: !uncountable,
     staleTime: JOB_TOTAL_STALE_MS,
     refetchOnMount: true,
     retry: false,
   });
-  const data =
-    pageData && totalIsCurrent && !filters.search && !filters.job_type
-      ? withExactTotal(pageData, exactTotal)
-      : pageData;
+  const data = pageData && !uncountable ? withExactTotal(pageData, exactTotal) : pageData;
 
-  const handleFilterChange = (key: Exclude<keyof JobFilters, 'search'>, value: string) => {
+  const handleFilterChange = (key: 'status' | 'from' | 'to', value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
     setPage(1);
   };
 
+  const handleTextChange = (key: TextFilterKey, value: string) => {
+    setInputs((prev) => ({ ...prev, [key]: value }));
+  };
+
   const clearFilters = () => {
     setFilters({});
-    setSearchInput('');
+    setInputs({ search: '', queue: '', job_type: '', tag: '' });
     setPage(1);
   };
 
-  const hasFilters = Object.values(filters).some((v) => v) || searchInput !== '';
+  const hasFilters =
+    Object.values(filters).some((v) => v) || TEXT_FILTER_KEYS.some((key) => inputs[key] !== '');
 
   return (
     <div className="space-y-6">
@@ -170,38 +180,82 @@ function JobsListContent() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative min-w-[16rem] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by job ID or type..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search by job ID prefix, type or queue..."
+                aria-label="Search jobs"
+                maxLength={255}
+                value={inputs.search}
+                onChange={(e) => handleTextChange('search', e.target.value)}
                 className="pl-10"
               />
             </div>
 
             <select
+              aria-label="Status"
               className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={filters.status || ''}
               onChange={(e) => handleFilterChange('status', e.target.value)}
             >
               <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="deadletter">Dead Letter</option>
+              {JOB_FILTER_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABELS[status] ?? status}
+                </option>
+              ))}
             </select>
 
             <Input
               placeholder="Queue..."
-              value={filters.queue || ''}
-              onChange={(e) => handleFilterChange('queue', e.target.value)}
+              aria-label="Queue"
+              value={inputs.queue}
+              onChange={(e) => handleTextChange('queue', e.target.value)}
               className="w-40"
             />
+
+            <Input
+              placeholder="Type..."
+              aria-label="Job type (exact)"
+              title="Exact job type"
+              maxLength={255}
+              value={inputs.job_type}
+              onChange={(e) => handleTextChange('job_type', e.target.value)}
+              className="w-40"
+            />
+
+            <Input
+              placeholder="Tag..."
+              aria-label="Tag"
+              title="Jobs carrying this tag"
+              value={inputs.tag}
+              onChange={(e) => handleTextChange('tag', e.target.value)}
+              className="w-32"
+            />
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="jobs-created-from" className="text-xs text-muted-foreground">
+                Created from
+              </label>
+              <Input
+                id="jobs-created-from"
+                type="date"
+                value={filters.from ?? ''}
+                max={filters.to || undefined}
+                onChange={(e) => handleFilterChange('from', e.target.value)}
+                className="w-40"
+              />
+              <span className="text-xs text-muted-foreground">to</span>
+              <Input
+                type="date"
+                aria-label="Created to"
+                value={filters.to ?? ''}
+                min={filters.from || undefined}
+                onChange={(e) => handleFilterChange('to', e.target.value)}
+                className="w-40"
+              />
+            </div>
 
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -219,6 +273,18 @@ function JobsListContent() {
           <DataTableLoading rows={5} columns={7} />
         ) : error ? (
           <DataTableError error={error} onRetry={() => refetch()} isRetrying={isFetching} />
+        ) : data?.filtersUnsupported ? (
+          // The server ignored the search, type or date filter: the rows it sent are not results.
+          <div className="p-4">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>{JOBS_FILTER_UNSUPPORTED_MESSAGE}</AlertTitle>
+              <AlertDescription>
+                Remove the search, type and date filters to list jobs. Queue, status and tag filters
+                still work.
+              </AlertDescription>
+            </Alert>
+          </div>
         ) : !data?.data || data.data.length === 0 ? (
           <DataTableEmpty
             title="No jobs found"
@@ -298,6 +364,9 @@ function JobsListContent() {
                 totalItems={data.total}
                 pageSize={pageSize}
                 onPageChange={setPage}
+                totalExact={data.totalExact}
+                hasMore={data.hasMore}
+                itemCount={data.data.length}
               />
             )}
             {data.total > JOBS_LIST_MAX_PAGE * pageSize && (

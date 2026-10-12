@@ -6,10 +6,67 @@ import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { organizationsAPI } from './organizations';
+import { APIError } from './client';
 
 const API_BASE = 'https://api.spooled.cloud';
 
 describe('organizationsAPI', () => {
+  describe('delete', () => {
+    it('sends DELETE /organizations/{id} and resolves on 204', async () => {
+      let method: string | undefined;
+      let path: string | undefined;
+      server.use(
+        http.delete(`${API_BASE}/api/v1/organizations/:id`, ({ request }) => {
+          method = request.method;
+          path = new URL(request.url).pathname;
+          return new HttpResponse(null, { status: 204 });
+        })
+      );
+      await expect(organizationsAPI.delete('org-1')).resolves.toBeUndefined();
+      expect(method).toBe('DELETE');
+      expect(path).toBe('/api/v1/organizations/org-1');
+    });
+
+    it('rejects with the backend reason when it refuses (409)', async () => {
+      server.use(
+        http.delete(`${API_BASE}/api/v1/organizations/:id`, () =>
+          HttpResponse.json(
+            {
+              code: 'CONFLICT',
+              message:
+                'Cannot delete organization with 2 active jobs. Cancel or complete all jobs first.',
+            },
+            { status: 409 }
+          )
+        )
+      );
+      const error = await organizationsAPI.delete('org-1').catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(APIError);
+      expect((error as APIError).status).toBe(409);
+      expect((error as APIError).code).toBe('CONFLICT');
+      expect((error as APIError).message).toMatch(/2 active jobs/);
+    });
+
+    it('rejects with 403 for a queue-scoped key and 404 for another organization', async () => {
+      server.use(
+        http.delete(`${API_BASE}/api/v1/organizations/:id`, ({ params }) =>
+          params.id === 'org-1'
+            ? HttpResponse.json({ code: 'ACCESS_DENIED', message: 'no' }, { status: 403 })
+            : HttpResponse.json(
+                { code: 'NOT_FOUND', message: 'Resource not found' },
+                { status: 404 }
+              )
+        )
+      );
+      expect(
+        ((await organizationsAPI.delete('org-1').catch((e) => e)) as APIError).isForbidden()
+      ).toBe(true);
+      expect(
+        ((await organizationsAPI.delete('org-2').catch((e) => e)) as APIError).isNotFound()
+      ).toBe(true);
+    });
+  });
+
   describe('get', () => {
     it('passes through pending_billing_email', async () => {
       server.use(

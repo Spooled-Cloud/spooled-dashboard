@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { webhooksAPI, WEBHOOK_EVENTS } from '@/lib/api/webhooks';
-import type { CreateWebhookRequest, WebhookEvent } from '@/lib/api/webhooks';
+import { webhooksAPI, WEBHOOK_EVENTS, DEFAULT_WEBHOOK_FORMAT } from '@/lib/api/webhooks';
+import type { CreateWebhookRequest, WebhookEvent, WebhookFormat } from '@/lib/api/webhooks';
 import { queryKeys } from '@/lib/query-client';
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, AlertCircle, Webhook } from 'lucide-react';
 import { toast } from 'sonner';
+import { WebhookFormatField } from './WebhookFormatField';
 
 interface CreateWebhookDialogProps {
   trigger?: React.ReactNode;
@@ -35,11 +36,19 @@ export function CreateWebhookDialog({ trigger, onSuccess }: CreateWebhookDialogP
   const [url, setUrl] = useState('');
   const [secret, setSecret] = useState('');
   const [selectedEvents, setSelectedEvents] = useState<WebhookEvent[]>([]);
+  const [format, setFormat] = useState<WebhookFormat>(DEFAULT_WEBHOOK_FORMAT);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateWebhookRequest) => webhooksAPI.create(data),
-    onSuccess: (webhook) => {
+    onSuccess: (webhook, request) => {
       toast.success('Webhook created', { description: webhook.name });
+      // A backend older than 0.1.122 drops the field and answers without it: say so rather
+      // than leave a webhook that sends JSON to a chat URL looking like a chat webhook.
+      if (request.format && webhook.format !== request.format) {
+        toast.warning('This server does not support webhook formats yet', {
+          description: 'The webhook was created with the JSON format.',
+        });
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all });
       setOpen(false);
       resetForm();
@@ -55,6 +64,7 @@ export function CreateWebhookDialog({ trigger, onSuccess }: CreateWebhookDialogP
     setUrl('');
     setSecret('');
     setSelectedEvents([]);
+    setFormat(DEFAULT_WEBHOOK_FORMAT);
     setError(null);
   };
 
@@ -86,6 +96,8 @@ export function CreateWebhookDialog({ trigger, onSuccess }: CreateWebhookDialogP
       events: selectedEvents,
       secret: secret.trim() || undefined,
       enabled: true,
+      // JSON is the default: leaving it out keeps the request valid for older backends.
+      format: format === DEFAULT_WEBHOOK_FORMAT ? undefined : format,
     };
 
     createMutation.mutate(request);
@@ -168,6 +180,9 @@ export function CreateWebhookDialog({ trigger, onSuccess }: CreateWebhookDialogP
                 Must be an HTTPS URL that accepts POST requests
               </p>
             </div>
+
+            {/* Format */}
+            <WebhookFormatField id="format" value={format} onChange={setFormat} />
 
             {/* Secret */}
             <div className="grid gap-2">

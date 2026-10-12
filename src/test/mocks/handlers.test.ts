@@ -108,4 +108,127 @@ describe('mock backend contract', () => {
     expect(list[0]).toMatchObject({ total_jobs: 2, completed_jobs: expect.any(Number) });
     expect(list[0]).not.toHaveProperty('jobs');
   });
+
+  it('GET /jobs takes a status list, q, job_type, tag and a created window, and sends X-Has-More', async () => {
+    const { data, headers } = await apiClient.getWithHeaders<Array<Record<string, string>>>(
+      '/api/v1/jobs',
+      { status: 'completed,pending', limit: 2, offset: 0 }
+    );
+    expect(data.map((j) => j.id)).toEqual(['job-1', 'job-2']);
+    // job-4 (pending) matches too and follows this page
+    expect(headers.get('x-has-more')).toBe('true');
+
+    const first = await apiClient.getWithHeaders('/api/v1/jobs', { limit: 1 });
+    expect(first.headers.get('x-has-more')).toBe('true');
+
+    const byWindow = await apiClient.get<Array<Record<string, string>>>('/api/v1/jobs', {
+      created_after: '2024-01-01T00:02:00Z',
+      created_before: '2024-01-01T00:04:00Z',
+    });
+    expect(byWindow.map((j) => j.id)).toEqual(['job-2', 'job-3']);
+  });
+
+  it('GET /jobs answers 400 naming an unknown status entry', async () => {
+    const error = await apiClient
+      .get('/api/v1/jobs', { status: 'pending,bogus' })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(APIError);
+    expect((error as APIError).status).toBe(400);
+    expect((error as APIError).message).toContain("'bogus'");
+  });
+
+  it('GET /jobs/{id}/history returns job_history rows and 404 for an unknown job', async () => {
+    const rows = await apiClient.get<Array<Record<string, unknown>>>('/api/v1/jobs/job-1/history');
+    expect(rows[0]).toMatchObject({
+      id: 'hist-1',
+      job_id: 'job-1',
+      event_type: 'processing',
+      worker_id: 'worker-1',
+    });
+    expect(Object.keys(rows[0]).sort()).toEqual(
+      ['created_at', 'details', 'event_type', 'id', 'job_id', 'worker_id'].sort()
+    );
+
+    const desc = await apiClient.get<Array<{ id: string }>>('/api/v1/jobs/job-1/history', {
+      order_dir: 'desc',
+    });
+    expect(desc[0].id).toBe('hist-4');
+
+    const error = await apiClient.get('/api/v1/jobs/nope/history').catch((e: unknown) => e);
+    expect((error as APIError).status).toBe(404);
+  });
+
+  it('workers carry jobs_processed and jobs_failed (backend 0.1.122)', async () => {
+    const list = await apiClient.get<Array<Record<string, unknown>>>('/api/v1/workers');
+    const detail = await apiClient.get<Record<string, unknown>>('/api/v1/workers/worker-1');
+    for (const worker of [list[0], detail]) {
+      expect(typeof worker.jobs_processed).toBe('number');
+      expect(typeof worker.jobs_failed).toBe('number');
+    }
+  });
+
+  it('outgoing webhooks carry format; create defaults it to json', async () => {
+    const list = await apiClient.get<Array<Record<string, unknown>>>('/api/v1/outgoing-webhooks');
+    expect(list[0].format).toBe('slack');
+
+    const created = await apiClient.post<Record<string, unknown>>('/api/v1/outgoing-webhooks', {
+      name: 'n',
+      url: 'https://example.com',
+      events: ['job.deadlettered'],
+    });
+    expect(created.format).toBe('json');
+  });
+
+  it('POST /outgoing-webhooks/{id}/retry/{delivery_id}: 200 {success, message}, 400 for a delivered one', async () => {
+    const ok = await apiClient.post<Record<string, unknown>>(
+      '/api/v1/outgoing-webhooks/webhook-1/retry/delivery-2'
+    );
+    expect(ok).toEqual({ success: true, message: 'Delivery retried successfully' });
+
+    const error = await apiClient
+      .post('/api/v1/outgoing-webhooks/webhook-1/retry/delivery-1')
+      .catch((e: unknown) => e);
+    expect((error as APIError).status).toBe(400);
+  });
+
+  it('GET /webhooks/deliveries is the inbound log: summaries without payload, newest first', async () => {
+    const rows = await apiClient.get<Array<Record<string, unknown>>>('/api/v1/webhooks/deliveries');
+    expect(rows.map((r) => r.id)).toEqual(['inbound-3', 'inbound-2', 'inbound-1']);
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual(
+        ['created_at', 'event_type', 'id', 'job_id', 'matched_queue', 'provider', 'status'].sort()
+      );
+      expect(row).not.toHaveProperty('payload');
+      expect(row).not.toHaveProperty('signature');
+    }
+    // entries from before 0.1.122 have no job and no outcome
+    expect(rows[2]).toMatchObject({ job_id: null, status: null });
+  });
+
+  it('GET /webhooks/deliveries answers 400 for an unknown status', async () => {
+    const error = await apiClient
+      .get('/api/v1/webhooks/deliveries', { status: 'weird' })
+      .catch((e: unknown) => e);
+    expect((error as APIError).status).toBe(400);
+  });
+
+  it('PUT /api-keys/{id} merges name and is_active into the key', async () => {
+    const key = await apiClient.put<Record<string, unknown>>('/api/v1/api-keys/key-1', {
+      name: 'x',
+    });
+    expect(key).toMatchObject({ id: 'key-1', name: 'x', is_active: true });
+  });
+
+  it('DELETE /organizations/{id} is 204 for the caller and 404 for another organization', async () => {
+    await expect(apiClient.delete('/api/v1/organizations/org-1')).resolves.toBeUndefined();
+    const error = await apiClient.delete('/api/v1/organizations/other').catch((e: unknown) => e);
+    expect((error as APIError).status).toBe(404);
+  });
+
+  it('GET /organizations/usage is the plan usage, not the organization', async () => {
+    const usage = await apiClient.get<Record<string, unknown>>('/api/v1/organizations/usage');
+    expect(usage).toHaveProperty('limits');
+    expect(usage).toHaveProperty('usage');
+    expect(usage).not.toHaveProperty('slug');
+  });
 });

@@ -13,9 +13,10 @@ import { SSEIndicator } from '@/components/ui/sse-indicator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { jobsAPI } from '@/lib/api/jobs';
+import { APIError } from '@/lib/api/client';
 import { useJobSSE } from '@/lib/hooks/use-sse';
 import { queryKeys } from '@/lib/query-client';
-import { formatRelativeTime, formatJobId } from '@/lib/utils/format';
+import { formatRelativeTime, formatDateTime, formatJobId } from '@/lib/utils/format';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw,
@@ -30,9 +31,12 @@ import {
   Loader2,
   Play,
   Pause,
+  Circle,
 } from 'lucide-react';
 import type { Job } from '@/lib/types';
 import type { LucideIcon } from 'lucide-react';
+import { buildJobTimeline } from './job-timeline';
+import type { TimelineIcon, TimelineVariant } from './job-timeline';
 import { toast } from 'sonner';
 import { copyText } from '@/lib/utils/clipboard';
 
@@ -104,123 +108,124 @@ export function JsonDisplay({ data, title }: { data: unknown; title: string }) {
   );
 }
 
-interface TimelineEvent {
-  label: string;
-  time: string;
-  icon: LucideIcon;
-  active: boolean;
-  variant?: 'default' | 'success' | 'danger' | 'warning';
+const TIMELINE_ICONS: Record<TimelineIcon, LucideIcon> = {
+  created: Clock,
+  scheduled: Pause,
+  started: Play,
+  completed: CheckCircle,
+  cancelled: XCircle,
+  failed: AlertCircle,
+  retry: RefreshCw,
+  event: Circle,
+};
+
+const TIMELINE_COLORS: Record<TimelineVariant, string> = {
+  default: 'bg-primary/10 text-primary',
+  success: 'bg-emerald-500/10 text-emerald-600',
+  danger: 'bg-red-500/10 text-red-600',
+  warning: 'bg-amber-500/10 text-amber-600',
+};
+
+/** The backend's default page of `GET /jobs/{id}/history` (it allows up to 500). */
+const HISTORY_PAGE_LIMIT = 100;
+
+function absoluteTime(value: string): string | undefined {
+  try {
+    return formatDateTime(value);
+  } catch {
+    return undefined;
+  }
 }
 
+/**
+ * The job's recorded events (`GET /jobs/{id}/history`): what happened, when, on which worker,
+ * with a line about the details. The history is a nice-to-have: a backend that predates the
+ * route (404), an empty history or any other failure falls back, without an error, to the
+ * timeline derived from the job's own fields.
+ */
 function JobTimeline({ job }: { job: Job }) {
-  const events: TimelineEvent[] = [
-    {
-      label: 'Created',
-      time: job.created_at,
-      icon: Clock,
-      active: true,
-    },
-    ...(job.scheduled_at && !job.next_retry_at
-      ? [
-          {
-            label: 'Scheduled',
-            time: job.scheduled_at,
-            icon: Pause,
-            active: true,
-          },
-        ]
-      : []),
-    ...(job.started_at
-      ? [
-          {
-            label: 'Started',
-            time: job.started_at,
-            icon: Play,
-            active: true,
-          },
-        ]
-      : []),
-    ...(job.status === 'completed' && job.completed_at
-      ? [
-          {
-            label: 'Completed',
-            time: job.completed_at,
-            icon: CheckCircle,
-            active: true,
-            variant: 'success' as const,
-          },
-        ]
-      : []),
-    ...(job.status === 'cancelled' && job.completed_at
-      ? [
-          {
-            label: 'Cancelled',
-            time: job.completed_at,
-            icon: XCircle,
-            active: true,
-            variant: 'warning' as const,
-          },
-        ]
-      : []),
-    ...((job.status === 'failed' || job.status === 'deadletter') && job.failed_at
-      ? [
-          {
-            label: 'Failed',
-            time: job.failed_at,
-            icon: AlertCircle,
-            active: true,
-            variant: 'danger' as const,
-          },
-        ]
-      : []),
-    ...(job.next_retry_at
-      ? [
-          {
-            label: 'Next Retry',
-            time: job.next_retry_at,
-            icon: RefreshCw,
-            active: false,
-            variant: 'warning' as const,
-          },
-        ]
-      : []),
-  ];
+  const isTerminal = ['completed', 'failed', 'cancelled', 'deadletter'].includes(job.status);
 
-  const variantColors = {
-    default: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-500/10 text-emerald-600',
-    danger: 'bg-red-500/10 text-red-600',
-    warning: 'bg-amber-500/10 text-amber-600',
-  };
+  const { data, isError, error } = useQuery({
+    // Status and attempt in the key: a new state is a new history to read, and the previous
+    // rows stay on screen meanwhile. It sits under `jobs`, so realtime events refresh it too.
+    queryKey: queryKeys.jobs.history(job.id, `${job.status}:${job.attempt}`),
+    queryFn: async () => {
+      try {
+        return await jobsAPI.getHistory(job.id, { limit: HISTORY_PAGE_LIMIT });
+      } catch (err) {
+        if (err instanceof APIError && err.isNotFound()) return null;
+        throw err;
+      }
+    },
+    placeholderData: (previous) => previous,
+    retry: false,
+    staleTime: 15_000,
+    refetchInterval: isTerminal ? false : 10_000,
+  });
+
+  const events = buildJobTimeline(job, data?.events);
+  const truncated = Boolean(data && (data.hasMore ?? data.events.length >= HISTORY_PAGE_LIMIT));
+  const historyFailed = isError && !(error instanceof APIError && error.isNotFound());
 
   return (
-    <div className="space-y-3">
-      {events.map((event, idx) => (
-        <motion.div
-          key={idx}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: idx * 0.1 }}
-          className="flex gap-3"
-        >
-          <div className="flex flex-col items-center">
-            <div
-              className={`rounded-full p-1.5 ${
-                event.active
-                  ? variantColors[event.variant || 'default']
-                  : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              <event.icon className="h-3 w-3" />
+    <div className="space-y-3" data-testid="job-timeline">
+      {events.map((event, idx) => {
+        const Icon = TIMELINE_ICONS[event.icon];
+        return (
+          <motion.div
+            key={event.key}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: Math.min(idx, 10) * 0.05 }}
+            className="flex gap-3"
+          >
+            <div className="flex flex-col items-center">
+              <div
+                className={`rounded-full p-1.5 ${
+                  event.active
+                    ? TIMELINE_COLORS[event.variant || 'default']
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                <Icon className="h-3 w-3" />
+              </div>
+              {idx < events.length - 1 && <div className="mt-1 min-h-6 w-px flex-1 bg-border" />}
             </div>
-            {idx < events.length - 1 && <div className="mt-1 h-6 w-px bg-border" />}
-          </div>
-          <div className="flex-1 pb-2">
-            <p className="text-sm font-medium">{event.label}</p>
-            <p className="text-xs text-muted-foreground">{formatRelativeTime(event.time)}</p>
-          </div>
-        </motion.div>
-      ))}
+            <div className="min-w-0 flex-1 pb-2">
+              <p className="text-sm font-medium">{event.label}</p>
+              <p className="text-xs text-muted-foreground" title={absoluteTime(event.time)}>
+                {formatRelativeTime(event.time)}
+                {event.workerId && (
+                  <>
+                    {' · worker '}
+                    <a
+                      href={`/workers/${encodeURIComponent(event.workerId)}`}
+                      className="font-mono hover:text-primary hover:underline"
+                      title={event.workerId}
+                    >
+                      {formatJobId(event.workerId, 12)}
+                    </a>
+                  </>
+                )}
+              </p>
+              {event.summary && (
+                <p className="mt-0.5 break-words text-xs text-muted-foreground">{event.summary}</p>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
+      {truncated && (
+        <p className="text-xs text-muted-foreground">
+          Showing the first {HISTORY_PAGE_LIMIT} recorded events.
+        </p>
+      )}
+      {historyFailed && (
+        <p className="text-xs text-muted-foreground">
+          Recorded events could not be loaded; showing what the job itself reports.
+        </p>
+      )}
     </div>
   );
 }

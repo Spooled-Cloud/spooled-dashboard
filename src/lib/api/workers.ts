@@ -18,6 +18,10 @@ interface BackendWorkerSummary {
   current_jobs: number;
   max_concurrency: number;
   last_heartbeat: string;
+  /** Backend 0.1.122+ */
+  jobs_processed?: number;
+  /** Backend 0.1.122+ */
+  jobs_failed?: number;
 }
 
 /** GET /api/v1/workers/{id} — `WorkerResponse`, not the DB `Worker` row. */
@@ -36,6 +40,15 @@ interface BackendWorker {
   version?: string;
   registered_at: string;
   updated_at: string;
+  /** Backend 0.1.122+ */
+  jobs_processed?: number;
+  /** Backend 0.1.122+ */
+  jobs_failed?: number;
+}
+
+/** A counter the backend sent, or `undefined` (older backend: nothing to show). */
+function counterFrom(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 /**
@@ -66,8 +79,10 @@ function transformWorkerSummary(backend: BackendWorkerSummary): Worker {
     current_jobs: backend.current_jobs,
     status: mapWorkerStatus(backend.status, backend.current_jobs),
     last_heartbeat: backend.last_heartbeat,
-    // The list summary carries neither a registration time nor per-worker counters,
-    // so started_at stays undefined rather than borrowing another timestamp.
+    // The list summary carries no registration time, so started_at stays undefined rather
+    // than borrowing another timestamp. The counters exist from backend 0.1.122 on.
+    jobs_processed: counterFrom(backend.jobs_processed),
+    jobs_failed: counterFrom(backend.jobs_failed),
   };
 }
 
@@ -86,7 +101,23 @@ function transformWorker(backend: BackendWorker): Worker {
     last_heartbeat: backend.last_heartbeat,
     started_at: backend.registered_at,
     metadata: backend.metadata as Record<string, string>,
+    jobs_processed: counterFrom(backend.jobs_processed),
+    jobs_failed: counterFrom(backend.jobs_failed),
   };
+}
+
+/**
+ * Share of finished attempts that succeeded: processed / (processed + failed), in percent.
+ * `undefined` when the backend sends no counters (before 0.1.122) or the worker has not
+ * finished anything yet, so the UI shows a dash instead of a made-up 0% or 100%.
+ */
+export function workerSuccessRate(
+  worker: Pick<Worker, 'jobs_processed' | 'jobs_failed'>
+): number | undefined {
+  const { jobs_processed: processed, jobs_failed: failed } = worker;
+  if (processed === undefined || failed === undefined) return undefined;
+  const total = processed + failed;
+  return total > 0 ? (processed / total) * 100 : undefined;
 }
 
 export const workersAPI = {

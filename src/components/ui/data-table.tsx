@@ -262,6 +262,16 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   className?: string;
   showFirstLast?: boolean;
+  /**
+   * False when `totalItems` and `totalPages` are only floors derived from the rows read (a
+   * filtered view with no exact count). Neither is printed then, and Next follows `hasMore`.
+   * Defaults to true.
+   */
+  totalExact?: boolean;
+  /** Whether another page follows; only used when `totalExact` is false. */
+  hasMore?: boolean;
+  /** Rows on this page; only used when `totalExact` is false, for the end of "Showing 1–25". */
+  itemCount?: number;
 }
 
 export function DataTablePagination({
@@ -272,17 +282,26 @@ export function DataTablePagination({
   onPageChange,
   className,
   showFirstLast = false,
+  totalExact = true,
+  hasMore = false,
+  itemCount,
 }: PaginationProps) {
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
+  const lastShown = itemCount !== undefined ? startItem + Math.max(itemCount, 1) - 1 : endItem;
+  const canGoNext = totalExact ? currentPage < totalPages : hasMore;
 
   return (
     <div className={cn('flex items-center justify-between border-t px-4 py-3', className)}>
-      <p className="text-sm text-muted-foreground">
-        Showing <span className="font-medium">{startItem}</span> to{' '}
-        <span className="font-medium">{endItem}</span> of{' '}
-        <span className="font-medium">{totalItems}</span> results
-      </p>
+      {totalExact ? (
+        <p className="text-sm text-muted-foreground">
+          Showing <span className="font-medium">{startItem}</span> to{' '}
+          <span className="font-medium">{endItem}</span> of{' '}
+          <span className="font-medium">{totalItems}</span> results
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{`Showing ${startItem}–${lastShown}`}</p>
+      )}
       <div className="flex items-center gap-1">
         {showFirstLast && (
           <Button
@@ -305,18 +324,18 @@ export function DataTablePagination({
           Previous
         </Button>
         <div className="mx-2 text-sm text-muted-foreground">
-          Page {currentPage} of {totalPages}
+          {totalExact ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`}
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage >= totalPages}
+          disabled={!canGoNext}
         >
           Next
           <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
-        {showFirstLast && (
+        {showFirstLast && totalExact && (
           <Button
             variant="outline"
             size="icon"

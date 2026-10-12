@@ -211,6 +211,16 @@ export interface Worker {
   /** Registration time. The list summary does not carry it; only the detail response does. */
   started_at?: string;
   metadata?: Record<string, string>;
+  /**
+   * Jobs this worker completed while holding a live lease. Sent by backend 0.1.122 and later;
+   * `undefined` against an older backend, which has no counters (never show a made-up 0).
+   */
+  jobs_processed?: number;
+  /**
+   * Failures this worker reported while holding a live lease: each retry it scheduled and each
+   * dead-letter. Disjoint from `jobs_processed`. `undefined` against an older backend.
+   */
+  jobs_failed?: number;
 }
 
 // ============================================================================

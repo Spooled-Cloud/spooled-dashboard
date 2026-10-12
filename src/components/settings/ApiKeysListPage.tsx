@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,9 +10,11 @@ import type { APIKey } from '@/lib/api/api-keys';
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
-import { RefreshCw, Trash2, Key, Shield, Clock } from 'lucide-react';
+import { RefreshCw, Trash2, Key, Shield, Clock, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateApiKeyDialog } from './CreateApiKeyDialog';
+import { EditApiKeyDialog } from './EditApiKeyDialog';
+import { SESSION_KEY_UNKNOWN_MESSAGE, resolveCurrentKeyId } from './current-session-key';
 
 function ApiKeyStatusBadge({ apiKey }: { apiKey: APIKey }) {
   const status = getApiKeyStatus(apiKey);
@@ -34,6 +37,8 @@ function ApiKeyStatusBadge({ apiKey }: { apiKey: APIKey }) {
 function ApiKeysListContent() {
   const queryClient = useQueryClient();
   const currentKeyId = useAuthStore((s) => s.user?.api_key_id);
+  const [editingKey, setEditingKey] = useState<APIKey | null>(null);
+  const [checkingSession, setCheckingSession] = useState(false);
 
   const {
     data: apiKeys,
@@ -58,9 +63,24 @@ function ApiKeysListContent() {
     },
   });
 
-  const handleRevoke = (apiKey: APIKey) => {
-    // Revoking the key behind this dashboard session would lock the user out mid-action.
-    if (currentKeyId && apiKey.id === currentKeyId) {
+  const handleRevoke = async (apiKey: APIKey) => {
+    // Revoking the key behind this dashboard session would lock the user out mid-action. If
+    // /auth/me did not load, the session key is unknown, and an unknown key must not pass:
+    // ask again first, and refuse when it is still unknown.
+    setCheckingSession(true);
+    let sessionKeyId: string | undefined;
+    try {
+      sessionKeyId = await resolveCurrentKeyId();
+    } finally {
+      setCheckingSession(false);
+    }
+    if (!sessionKeyId) {
+      toast.error('Cannot tell which key is your current session', {
+        description: SESSION_KEY_UNKNOWN_MESSAGE,
+      });
+      return;
+    }
+    if (apiKey.id === sessionKeyId) {
       toast.error('This key is your current session', {
         description: 'Sign out instead, or revoke it from another session.',
       });
@@ -242,12 +262,25 @@ function ApiKeysListContent() {
                     </div>
 
                     <div className="ml-4 flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingKey(apiKey)}
+                        title="Rename this key or switch it on or off"
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </Button>
                       {apiKey.is_active && (
                         <Button
                           variant="destructive"
                           size="sm"
                           onClick={() => handleRevoke(apiKey)}
-                          disabled={revokeMutation.isPending || currentKeyId === apiKey.id}
+                          disabled={
+                            revokeMutation.isPending ||
+                            checkingSession ||
+                            currentKeyId === apiKey.id
+                          }
                           title={
                             currentKeyId === apiKey.id
                               ? 'This key is your current dashboard session'
@@ -266,6 +299,16 @@ function ApiKeysListContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      {editingKey && (
+        <EditApiKeyDialog
+          apiKey={editingKey}
+          open={!!editingKey}
+          onOpenChange={(open) => !open && setEditingKey(null)}
+          isCurrentSession={currentKeyId === editingKey.id}
+        />
+      )}
     </div>
   );
 }

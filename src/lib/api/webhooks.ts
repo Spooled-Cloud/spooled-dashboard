@@ -12,6 +12,11 @@ export interface Webhook {
   url: string;
   secret?: string;
   events: WebhookEvent[];
+  /**
+   * Body Spooled sends. Absent on a backend older than 0.1.122, which only knows `json`:
+   * treat a missing value as "formats are not supported here", not as `json`.
+   */
+  format?: WebhookFormat;
   enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -54,7 +59,18 @@ export type WebhookEvent =
   | 'queue.resumed'
   | 'worker.registered'
   | 'worker.deregistered'
-  | 'schedule.triggered';
+  | 'schedule.triggered'
+  // Added in backend 0.1.122
+  | 'job.deadlettered'
+  | 'job.retried'
+  | 'workflow.completed'
+  | 'workflow.failed';
+
+/**
+ * What an outgoing webhook delivers. `json` is the signed Spooled envelope; the others turn
+ * an event into the message a chat service's incoming-webhook URL accepts.
+ */
+export type WebhookFormat = 'json' | 'slack' | 'discord' | 'teams';
 
 export interface CreateWebhookRequest {
   name: string;
@@ -62,12 +78,16 @@ export interface CreateWebhookRequest {
   events: WebhookEvent[];
   secret?: string;
   enabled?: boolean;
+  /** Omit for `json`: a backend older than 0.1.122 does not know the field. */
+  format?: WebhookFormat;
 }
 
 export interface UpdateWebhookRequest {
   name?: string;
   url?: string;
   events?: WebhookEvent[];
+  /** Omit to keep the current format. */
+  format?: WebhookFormat;
   /**
    * Signing secret. Three-state, and the states are NOT interchangeable:
    *
@@ -105,6 +125,56 @@ export interface TestWebhookResponse {
   status_code?: number;
   response_time_ms: number;
   error?: string;
+}
+
+/** `POST /outgoing-webhooks/{id}/retry/{delivery_id}`: `success` is whether the endpoint accepted it. */
+export interface RetryDeliveryResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * The backend refuses a manual retry of a delivery that already made this many attempts
+ * (`MAX_MANUAL_RETRY_ATTEMPTS`), and of a delivery that succeeded.
+ */
+export const WEBHOOK_MANUAL_RETRY_MAX_ATTEMPTS = 10;
+
+/** What happened to a request on `POST /webhooks/{org_id}/custom`. */
+export type InboundDeliveryStatus = 'created' | 'duplicate';
+
+/** One accepted request of the inbound webhook log (`GET /webhooks/deliveries`). */
+export interface InboundWebhookDelivery {
+  id: string;
+  provider: string;
+  event_type: string;
+  /** Queue of the job the request created or matched. */
+  matched_queue: string | null;
+  /** `null` for entries recorded before 0.1.122. */
+  job_id: string | null;
+  /** `created` (new job) or `duplicate` (idempotency key matched); `null` before 0.1.122. */
+  status: InboundDeliveryStatus | null;
+  created_at: string;
+}
+
+export interface InboundDeliveriesParams {
+  status?: InboundDeliveryStatus;
+  /** RFC 3339 instant; only entries received at or after it. */
+  since?: string;
+  /** Only requests whose job went to this queue. */
+  queue_name?: string;
+  /** 1..100 (default 50). */
+  limit?: number;
+  offset?: number;
+}
+
+interface BackendInboundDelivery {
+  id: string;
+  provider: string;
+  event_type: string;
+  matched_queue?: string | null;
+  job_id?: string | null;
+  status?: string | null;
+  created_at: string;
 }
 
 export const webhooksAPI = {
@@ -167,6 +237,52 @@ export const webhooksAPI = {
   getDeliveries: (id: string): Promise<WebhookDelivery[]> => {
     return apiClient.get<WebhookDelivery[]>(API_ENDPOINTS.WEBHOOKS.DELIVERIES(id));
   },
+
+  /**
+   * POST /api/v1/outgoing-webhooks/{id}/retry/{delivery_id}
+   * Send a failed delivery again, once, now. HTTP 200 means the retry was attempted: whether
+   * the endpoint accepted it is `success`. A successful delivery, or one that already made
+   * {@link WEBHOOK_MANUAL_RETRY_MAX_ATTEMPTS} attempts, is a 400 with the reason in `message`.
+   */
+  retryDelivery: (id: string, deliveryId: string): Promise<RetryDeliveryResponse> => {
+    return apiClient.post<RetryDeliveryResponse>(
+      API_ENDPOINTS.WEBHOOKS.RETRY_DELIVERY(id, deliveryId)
+    );
+  },
+};
+
+function toInboundStatus(value: unknown): InboundDeliveryStatus | null {
+  return value === 'created' || value === 'duplicate' ? value : null;
+}
+
+export const inboundWebhooksAPI = {
+  /**
+   * GET /api/v1/webhooks/deliveries
+   * The inbound webhook log: accepted requests to `POST /webhooks/{org_id}/custom`, newest
+   * first. A bare array with no total. Unrestricted API keys only (403 for a queue-scoped key);
+   * a backend older than 0.1.122 has no such route (404).
+   */
+  listDeliveries: async (params?: InboundDeliveriesParams): Promise<InboundWebhookDelivery[]> => {
+    const rows = await apiClient.get<BackendInboundDelivery[]>(
+      API_ENDPOINTS.INBOUND_WEBHOOKS.DELIVERIES,
+      {
+        status: params?.status,
+        since: params?.since,
+        queue_name: params?.queue_name,
+        limit: params?.limit,
+        offset: params?.offset,
+      }
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      provider: row.provider,
+      event_type: row.event_type,
+      matched_queue: row.matched_queue ?? null,
+      job_id: row.job_id ?? null,
+      status: toInboundStatus(row.status),
+      created_at: row.created_at,
+    }));
+  },
 };
 
 /**
@@ -199,4 +315,58 @@ export const WEBHOOK_EVENTS: { value: WebhookEvent; label: string; description: 
     label: 'Schedule Triggered',
     description: 'When a scheduled job is triggered',
   },
+  {
+    value: 'job.deadlettered',
+    label: 'Job Dead-lettered',
+    description: 'When a job runs out of retries and moves to the dead-letter queue',
+  },
+  {
+    value: 'job.retried',
+    label: 'Job Retried',
+    description: 'When a failed or dead-lettered job is put back in the queue by a retry',
+  },
+  {
+    value: 'workflow.completed',
+    label: 'Workflow Completed',
+    description: 'When every job of a workflow has completed (sent within about 10 seconds)',
+  },
+  {
+    value: 'workflow.failed',
+    label: 'Workflow Failed',
+    description: 'When a workflow ends with a failed job (sent within about 10 seconds)',
+  },
 ];
+
+/** The format a webhook has unless one is chosen. */
+export const DEFAULT_WEBHOOK_FORMAT: WebhookFormat = 'json';
+
+/** Body formats of an outgoing webhook (backend 0.1.122). */
+export const WEBHOOK_FORMATS: { value: WebhookFormat; label: string; description: string }[] = [
+  {
+    value: 'json',
+    label: 'JSON',
+    description: 'The signed Spooled envelope: id, event, created_at and data.',
+  },
+  {
+    value: 'slack',
+    label: 'Slack',
+    description: 'A Slack message ({"text": ...}). Use a Slack incoming webhook URL.',
+  },
+  {
+    value: 'discord',
+    label: 'Discord',
+    description:
+      'A Discord message ({"content": ...}, at most 2000 characters, mentions never ping). Use a Discord webhook URL.',
+  },
+  {
+    value: 'teams',
+    label: 'Microsoft Teams',
+    description:
+      'A Teams MessageCard. It works with Office 365 connector webhook URLs; Power Automate Workflows URLs reject it.',
+  },
+];
+
+/** Display name of a format; unknown values (a newer backend) are shown as they are. */
+export function webhookFormatLabel(format: string): string {
+  return WEBHOOK_FORMATS.find((f) => f.value === format)?.label ?? format;
+}

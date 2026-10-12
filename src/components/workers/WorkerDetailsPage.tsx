@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { workersAPI } from '@/lib/api/workers';
+import { workersAPI, workerSuccessRate } from '@/lib/api/workers';
 import { queryKeys } from '@/lib/query-client';
-import { formatRelativeTime } from '@/lib/utils/format';
+import { formatNumber, formatPercentage, formatRelativeTime } from '@/lib/utils/format';
 import { ArrowLeft, RefreshCw, Trash2, Activity, Circle, AlertCircle } from 'lucide-react';
 import type { WorkerStatus } from '@/lib/types';
 import { toast } from 'sonner';
@@ -99,6 +99,9 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
 
   const utilization =
     worker.concurrency > 0 ? Math.min(100, (worker.current_jobs / worker.concurrency) * 100) : 0;
+  // Counters exist from backend 0.1.122; an older backend sends none and nothing is shown.
+  const hasCounters = worker.jobs_processed !== undefined || worker.jobs_failed !== undefined;
+  const successRate = workerSuccessRate(worker);
 
   return (
     <div className="space-y-6">
@@ -243,6 +246,36 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
                   />
                 </div>
               </div>
+              {hasCounters && (
+                <div className="space-y-2 border-t pt-4" data-testid="worker-counters">
+                  {worker.jobs_processed !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Jobs processed</span>
+                      <span className="text-sm font-medium">
+                        {formatNumber(worker.jobs_processed)}
+                      </span>
+                    </div>
+                  )}
+                  {worker.jobs_failed !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Jobs failed</span>
+                      <span className="text-sm font-medium">
+                        {formatNumber(worker.jobs_failed)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Success rate</span>
+                    <span className="text-sm font-medium">
+                      {successRate === undefined ? '—' : formatPercentage(successRate)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Counted while this worker holds a job lease: each completion, and each retry or
+                    dead-letter it reports. Jobs released after a lease expiry are not counted.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

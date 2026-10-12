@@ -2,7 +2,7 @@
  * Jobs API
  */
 
-import { APIError, apiClient } from './client';
+import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
 import type {
   Job,
@@ -15,13 +15,22 @@ import type {
 export interface JobListParams {
   page?: number;
   per_page?: number;
+  /** One status or several. Several go out as ONE comma-joined `status` value. */
   status?: JobStatus | JobStatus[];
   queue?: string;
+  /** Exact match on `payload.job_type` (server-side). */
   job_type?: string;
-  /** Client-side: job id substring or job_type. Backend list has no search. */
+  /**
+   * Free-text search, sent as `q`. The backend matches, case-insensitively, a job id PREFIX,
+   * or a substring of the queue name or of `payload.job_type`. `%`, `_` and `\` are literal.
+   */
   search?: string;
-  from_date?: string;
-  to_date?: string;
+  /** One tag: an element of a tags array or a key of a tags object. */
+  tag?: string;
+  /** RFC 3339 instant; only jobs created at or after it. */
+  created_after?: string;
+  /** RFC 3339 instant; only jobs created before it. */
+  created_before?: string;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
 }
@@ -72,12 +81,51 @@ interface BackendCreateJobResponse {
   created: boolean;
 }
 
-const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * One page of the jobs list. `GET /jobs` returns a bare array with no total, so `total` and
+ * `total_pages` are floors derived from the rows read unless `totalExact` says otherwise.
+ */
+export interface JobListPage extends PaginatedResponse<Job> {
+  /**
+   * True only when `total` is the exact number of jobs behind the view (`withExactTotal`, from
+   * `GET /jobs/stats`). When false, `total` and `total_pages` are guesses: never print them as
+   * "of N results" / "of M pages", page by `hasMore` instead.
+   */
+  totalExact: boolean;
+  /** Whether another page follows (`X-Has-More`, or the extra probe row); false past the page cap. */
+  hasMore: boolean;
+  /**
+   * The server ignored a search, type or date filter (backend before 0.1.122 answers with an
+   * unfiltered list and no `X-Has-More`). `data` is empty on purpose: those rows are not results.
+   */
+  filtersUnsupported: boolean;
+}
+
+/** Shown instead of rows when the server did not apply a search, type or date filter. */
+export const JOBS_FILTER_UNSUPPORTED_MESSAGE =
+  'This server version cannot filter by search, type or date yet';
 
 /** `MAX_JOBS_PER_PAGE` on the backend — a larger `limit` is clamped, not honoured. */
-const SEARCH_CHUNK = 100;
-/** Upper bound on rows a client-side search will pull before giving up. */
-const SEARCH_MAX_SCAN = 500;
+const BACKEND_MAX_PAGE_SIZE = 100;
+
+/**
+ * True while list responses carry a readable `X-Has-More` header. The backend (0.1.122) sends
+ * it, but a browser only reads it cross-origin once the API's CORS layer exposes it. Until a
+ * response proves it, the list asks for one row more than the page and counts the extra row.
+ */
+let hasMoreHeaderReadable = false;
+
+/** Forget what earlier list responses showed about `X-Has-More` (tests). */
+export function resetHasMoreProbe(): void {
+  hasMoreHeaderReadable = false;
+}
+
+/** `X-Has-More: true|false` as a boolean, `undefined` when the header is absent or not exposed. */
+export function parseHasMore(headers: Headers): boolean | undefined {
+  const value = headers.get('x-has-more');
+  if (value === null) return undefined;
+  return value.trim().toLowerCase() === 'true';
+}
 
 /**
  * Deepest page the jobs list will request. The backend pages with OFFSET, so a jump to
@@ -88,23 +136,19 @@ export const JOBS_LIST_MAX_PAGE = 200;
 /**
  * Apply the exact total from `GET /jobs/stats` (see `jobsAPI.getListTotal`) to a page
  * whose own total is derived from the rows it fetched. Never reports fewer jobs than the
- * page already proves exist, and never offers pages beyond `JOBS_LIST_MAX_PAGE`.
+ * page already proves exist, and never offers pages beyond `JOBS_LIST_MAX_PAGE`. This is the
+ * only place a page becomes `totalExact`; without a usable figure the page is returned as is.
  */
-export function withExactTotal(
-  page: PaginatedResponse<Job>,
-  exactTotal: number | undefined
-): PaginatedResponse<Job> {
+export function withExactTotal(page: JobListPage, exactTotal: number | undefined): JobListPage {
   if (typeof exactTotal !== 'number' || !Number.isFinite(exactTotal)) return page;
   const total = Math.max(exactTotal, page.total);
   const totalPages = Math.max(page.total_pages, Math.ceil(total / page.per_page), 1);
-  return { ...page, total, total_pages: Math.min(totalPages, JOBS_LIST_MAX_PAGE) };
-}
-
-function jobMatchesListFilters(job: Job, search?: string, jobType?: string): boolean {
-  if (jobType && job.job_type !== jobType) return false;
-  if (!search) return true;
-  const q = search.toLowerCase();
-  return job.id.toLowerCase().includes(q) || job.job_type.toLowerCase().includes(q);
+  return {
+    ...page,
+    total,
+    total_pages: Math.min(totalPages, JOBS_LIST_MAX_PAGE),
+    totalExact: true,
+  };
 }
 
 function failedAtFrom(
@@ -261,6 +305,48 @@ export interface JobDependencies {
   dependencies_met: boolean;
 }
 
+interface BackendJobHistoryEvent {
+  id: string;
+  job_id: string;
+  event_type: string;
+  worker_id?: string | null;
+  details?: unknown;
+  created_at: string;
+}
+
+/** One row of `GET /jobs/{id}/history` (`job_history`). */
+export interface JobHistoryEvent {
+  id: string;
+  job_id: string;
+  /** `created`, `processing`, `completed`, `retry_scheduled`, `deadlettered`, ... */
+  event_type: string;
+  worker_id: string | null;
+  /** Event-specific object (error, retry_count, next_run, lease_id, organization_id, ...). */
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface JobHistoryPage {
+  events: JobHistoryEvent[];
+  /** `X-Has-More`; `undefined` when the browser cannot read it. */
+  hasMore: boolean | undefined;
+}
+
+function transformJobHistoryEvent(event: BackendJobHistoryEvent): JobHistoryEvent {
+  const details =
+    event.details && typeof event.details === 'object' && !Array.isArray(event.details)
+      ? (event.details as Record<string, unknown>)
+      : {};
+  return {
+    id: event.id,
+    job_id: event.job_id,
+    event_type: event.event_type,
+    worker_id: typeof event.worker_id === 'string' && event.worker_id ? event.worker_id : null,
+    details,
+    created_at: event.created_at,
+  };
+}
+
 /** Backend cap on one DLQ purge request (`MAX_PURGE_LIMIT`). */
 export const DLQ_PURGE_MAX_LIMIT = 10000;
 /** Backend cap on one DLQ retry request (`MAX_DLQ_RETRY_LIMIT`). */
@@ -293,138 +379,81 @@ export interface PurgeDlqResponse {
 export const jobsAPI = {
   /**
    * GET /api/v1/jobs
-   * List jobs with filtering and pagination
+   * List jobs with server-side filtering (status list, q, job_type, tag, created window) and
+   * offset paging. The body is a bare array with no total; whether another page follows comes
+   * from `X-Has-More` when the browser can read it, else from one extra probe row. The exact
+   * count comes from `getListTotal`, which callers fetch as a separate, slowly refreshed query.
    */
-  list: async (params?: JobListParams): Promise<PaginatedResponse<Job>> => {
+  list: async (params?: JobListParams): Promise<JobListPage> => {
     const perPage = params?.per_page ?? 25;
     // A page jump is capped (see JOBS_LIST_MAX_PAGE): never an OFFSET scan past that depth.
     const page = Math.min(Math.max(1, Math.floor(params?.page ?? 1)), JOBS_LIST_MAX_PAGE);
     const offset = (page - 1) * perPage;
 
-    const queue_name = params?.queue || undefined;
-
-    // Backend supports only a single status filter.
-    // If an array is provided (e.g. failed+deadletter), fetch and merge for page=1 use-cases.
     const statusParam = params?.status;
     const statuses = Array.isArray(statusParam) ? statusParam : statusParam ? [statusParam] : [];
 
-    const limit = perPage + 1; // fetch one extra to detect "has next page"
+    // Ask for exactly one page when the has-more header is readable, else for one row more.
+    const probe = !hasMoreHeaderReadable && perPage < BACKEND_MAX_PAGE_SIZE;
+    const limit = probe ? perPage + 1 : perPage;
 
-    const fetchPage = (
-      status: string | undefined,
-      pageOffset: number,
-      pageLimit: number
-    ): Promise<BackendJobSummary[]> =>
-      apiClient.get<BackendJobSummary[]>(API_ENDPOINTS.JOBS.LIST, {
-        queue_name,
-        status,
-        limit: pageLimit,
-        offset: pageOffset,
-      } as Record<string, string | number | boolean | undefined>);
+    const q = params?.search?.trim() || undefined;
+    const jobType = params?.job_type?.trim() || undefined;
+    const createdAfter = params?.created_after || undefined;
+    const createdBefore = params?.created_before || undefined;
 
-    /** Newest-first merge of per-status lists, de-duped by id. */
-    const mergeByRecency = (lists: BackendJobSummary[][], cap: number): BackendJobSummary[] => {
-      const merged = lists.flat();
-      merged.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-      const seen = new Set<string>();
-      return merged.filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true))).slice(0, cap);
-    };
-
-    const search = params?.search?.trim();
-    const jobType = params?.job_type?.trim();
-    const hasSearch = Boolean(search || jobType);
-
-    if (!hasSearch) {
-      let summaries: BackendJobSummary[] = [];
-
-      // `GET /jobs` returns a bare array (no total), so this total only covers what the
-      // page itself proves. The exact count comes from `getListTotal`, which callers fetch
-      // as a separate, slowly refreshed query: a stats call on every list refetch (every
-      // realtime event, every 10 s) is wasted load.
-      if (statuses.length <= 1) {
-        summaries = await fetchPage(statuses[0], offset, limit);
-      } else if (page === 1 && offset === 0) {
-        // Merge results for dashboard widgets / first page. Not perfect pagination, but avoids a broken UI.
-        summaries = mergeByRecency(
-          await Promise.all(statuses.map((status) => fetchPage(status, 0, limit))),
-          limit
-        );
-      } else {
-        // Fallback: use the first status for pagination
-        summaries = await fetchPage(statuses[0], offset, limit);
+    const { data: rows, headers } = await apiClient.getWithHeaders<BackendJobSummary[]>(
+      API_ENDPOINTS.JOBS.LIST,
+      {
+        queue_name: params?.queue || undefined,
+        status: statuses.length > 0 ? statuses.join(',') : undefined,
+        q,
+        job_type: jobType,
+        tag: params?.tag?.trim() || undefined,
+        created_after: createdAfter,
+        created_before: createdBefore,
+        limit,
+        offset,
       }
+    );
 
-      const pageItems = summaries.slice(0, perPage).map(transformBackendJobSummaryToFrontend);
-      const hasMore = summaries.length > perPage;
-      const seen = offset + pageItems.length;
+    const headerHasMore = parseHasMore(headers);
+    hasMoreHeaderReadable = headerHasMore !== undefined;
 
+    // Backend 0.1.121 ignores q, job_type and the created window and answers with the
+    // unfiltered list; only a 0.1.122+ response carries X-Has-More. Those rows are not the
+    // results of the search, so none are returned (queue, status and tag work on both).
+    if ((q || jobType || createdAfter || createdBefore) && headerHasMore === undefined) {
       return {
-        data: pageItems,
+        data: [],
         page,
         per_page: perPage,
-        total: seen + (hasMore ? 1 : 0),
-        total_pages: Math.min(hasMore ? page + 1 : page, JOBS_LIST_MAX_PAGE),
+        total: 0,
+        total_pages: 1,
+        totalExact: false,
+        hasMore: false,
+        filtersUnsupported: true,
       };
     }
 
-    // `ListJobsQuery` on the backend is queue/status/tag only — there is no search or
-    // job_type filter — so the dashboard filters rows itself. Scan a bounded window from
-    // the newest job rather than only the requested page: filtering one page of 25 makes
-    // a match three pages deep read as "no results".
-    const scanned: BackendJobSummary[] = [];
-    const scannedIds = new Set<string>();
-    for (let scanOffset = 0; scanOffset < SEARCH_MAX_SCAN; scanOffset += SEARCH_CHUNK) {
-      const chunkLimit = Math.min(SEARCH_CHUNK, SEARCH_MAX_SCAN - scanOffset);
-      const chunk =
-        statuses.length <= 1
-          ? await fetchPage(statuses[0], scanOffset, chunkLimit)
-          : mergeByRecency(
-              await Promise.all(
-                statuses.map((status) => fetchPage(status, scanOffset, chunkLimit))
-              ),
-              chunkLimit
-            );
+    const hasMore = probe
+      ? rows.length > perPage
+      : // A full page may be followed by another when the answer cannot be read.
+        (headerHasMore ?? rows.length >= perPage);
 
-      for (const row of chunk) {
-        if (!scannedIds.has(row.id)) {
-          scannedIds.add(row.id);
-          scanned.push(row);
-        }
-      }
-
-      if (chunk.length < chunkLimit) break; // exhausted the result set
-    }
-
-    let matches = scanned
-      .map(transformBackendJobSummaryToFrontend)
-      .filter((job) => jobMatchesListFilters(job, search, jobType));
-
-    // A job older than the scan window is still reachable when the query is its exact id.
-    if (matches.length === 0 && search && JOB_ID_RE.test(search)) {
-      try {
-        const job = await jobsAPI.get(search);
-        if (jobMatchesListFilters(job, search, jobType)) {
-          if (!queue_name || job.queue === queue_name) {
-            if (statuses.length === 0 || statuses.includes(job.status)) {
-              matches = [job];
-            }
-          }
-        }
-      } catch (err) {
-        if (!(err instanceof APIError && err.isNotFound())) {
-          throw err;
-        }
-      }
-    }
-
-    const matchOffset = (page - 1) * perPage;
+    const pageItems = rows.slice(0, perPage).map(transformBackendJobSummaryToFrontend);
+    const seen = offset + pageItems.length;
 
     return {
-      data: matches.slice(matchOffset, matchOffset + perPage),
+      data: pageItems,
       page,
       per_page: perPage,
-      total: matches.length,
-      total_pages: Math.max(1, Math.ceil(matches.length / perPage)),
+      total: seen + (hasMore ? 1 : 0),
+      total_pages: Math.min(hasMore ? page + 1 : page, JOBS_LIST_MAX_PAGE),
+      // The figures above are floors from the rows read; `withExactTotal` makes them exact.
+      totalExact: false,
+      hasMore: hasMore && page < JOBS_LIST_MAX_PAGE,
+      filtersUnsupported: false,
     };
   },
 
@@ -537,6 +566,27 @@ export const jobsAPI = {
    */
   getDependencies: (id: string): Promise<JobDependencies> => {
     return apiClient.get<JobDependencies>(API_ENDPOINTS.JOBS.DEPENDENCIES(id));
+  },
+
+  /**
+   * GET /api/v1/jobs/{id}/history
+   * Recorded lifecycle events of a job, oldest first by default. Only code paths that write
+   * `job_history` rows appear (REST claim, complete and fail, the scheduler's dead-letter
+   * sweeps), so a job processed over gRPC has fewer events than it went through.
+   * A 404 means the job is unknown or the backend predates the route (before 0.1.122).
+   */
+  getHistory: async (
+    id: string,
+    params?: { order_dir?: 'asc' | 'desc'; limit?: number; offset?: number }
+  ): Promise<JobHistoryPage> => {
+    const { data, headers } = await apiClient.getWithHeaders<BackendJobHistoryEvent[]>(
+      API_ENDPOINTS.JOBS.HISTORY(id),
+      { order_dir: params?.order_dir, limit: params?.limit, offset: params?.offset }
+    );
+    return {
+      events: (Array.isArray(data) ? data : []).map(transformJobHistoryEvent),
+      hasMore: parseHasMore(headers),
+    };
   },
 
   /**

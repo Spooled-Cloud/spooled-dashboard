@@ -4,9 +4,15 @@ import {
   webhooksAPI,
   WEBHOOK_EVENTS,
   WEBHOOK_AUTO_DISABLE_THRESHOLD,
+  DEFAULT_WEBHOOK_FORMAT,
   isAutoDisabled,
 } from '@/lib/api/webhooks';
-import type { UpdateWebhookRequest, WebhookEvent, Webhook } from '@/lib/api/webhooks';
+import type {
+  UpdateWebhookRequest,
+  WebhookEvent,
+  WebhookFormat,
+  Webhook,
+} from '@/lib/api/webhooks';
 import { APIError } from '@/lib/api/client';
 import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
@@ -24,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle, Save, ShieldOff } from 'lucide-react';
+import { WebhookFormatField } from './WebhookFormatField';
 
 interface EditWebhookDialogProps {
   webhook: Webhook;
@@ -56,6 +63,9 @@ export function EditWebhookDialog({
   const [removeSecret, setRemoveSecret] = useState(false);
   const [selectedEvents, setSelectedEvents] = useState<WebhookEvent[]>(webhook.events);
   const [enabled, setEnabled] = useState(webhook.enabled);
+  const [format, setFormat] = useState<WebhookFormat>(webhook.format ?? DEFAULT_WEBHOOK_FORMAT);
+  // A backend older than 0.1.122 sends no format: there is nothing to choose there.
+  const supportsFormat = webhook.format !== undefined;
 
   const autoDisabled = isAutoDisabled(webhook);
   const isReEnabling = !webhook.enabled && enabled;
@@ -68,6 +78,7 @@ export function EditWebhookDialog({
     setRemoveSecret(false);
     setSelectedEvents(webhook.events);
     setEnabled(webhook.enabled);
+    setFormat(webhook.format ?? DEFAULT_WEBHOOK_FORMAT);
     setError(null);
   }, [webhook]);
 
@@ -120,6 +131,10 @@ export function EditWebhookDialog({
       events: selectedEvents,
       enabled,
     };
+    // Only a changed format is sent; omitted keeps the current one.
+    if (supportsFormat && format !== webhook.format) {
+      request.format = format;
+    }
 
     // The secret field is three-state on the backend, and the difference is destructive:
     // omitting it keeps the stored secret, a string replaces it, and an explicit null wipes it.
@@ -244,6 +259,11 @@ export function EditWebhookDialog({
                 Must be an HTTPS URL that accepts POST requests
               </p>
             </div>
+
+            {/* Format */}
+            {supportsFormat && (
+              <WebhookFormatField id="format" value={format} onChange={setFormat} />
+            )}
 
             {/* Secret */}
             <div className="grid gap-2">

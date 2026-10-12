@@ -87,8 +87,8 @@ test.describe('live shell surfaces', () => {
     await gotoApp(page, '/jobs/dlq');
     await expect(page.getByRole('heading', { level: 1, name: /Dead.?Letter|DLQ/i })).toBeVisible();
 
-    await gotoApp(page, '/jobs?status=failed');
-    await expect(page.locator('select').first()).toHaveValue('failed', { timeout: 15_000 });
+    await gotoApp(page, '/jobs?status=deadletter');
+    await expect(page.locator('select').first()).toHaveValue('deadletter', { timeout: 15_000 });
 
     const token = await accessToken(page);
     const suffix = Date.now().toString(36);

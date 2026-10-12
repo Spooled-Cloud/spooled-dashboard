@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
     RETRY: (id: string) => `/api/v1/jobs/${id}/retry`,
     PRIORITY: (id: string) => `/api/v1/jobs/${id}/priority`,
     DEPENDENCIES: (id: string) => `/api/v1/jobs/${id}/dependencies`,
+    HISTORY: (id: string) => `/api/v1/jobs/${id}/history`,
     STATS: '/api/v1/jobs/stats',
     STATUS: '/api/v1/jobs/status', // GET with ?ids=... for batch lookup
     BULK: '/api/v1/jobs/bulk',
@@ -116,6 +117,13 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/v1/outgoing-webhooks/${id}`,
     TEST: (id: string) => `/api/v1/outgoing-webhooks/${id}/test`,
     DELIVERIES: (id: string) => `/api/v1/outgoing-webhooks/${id}/deliveries`,
+    RETRY_DELIVERY: (id: string, deliveryId: string) =>
+      `/api/v1/outgoing-webhooks/${id}/retry/${deliveryId}`,
+  },
+
+  // Incoming webhooks (requests Spooled received on /webhooks/{org_id}/custom)
+  INBOUND_WEBHOOKS: {
+    DELIVERIES: '/api/v1/webhooks/deliveries',
   },
 
   // Organizations

@@ -184,6 +184,19 @@ export const mockQueueConfigs: Record<
   },
 };
 
+/**
+ * A WorkerSummary / WorkerResponse as backend 0.1.121 sends it: the counters do not exist
+ * there, so a dashboard that shows them must show nothing instead of a made-up 0.
+ */
+export function withoutWorkerCounters<T extends object>(
+  worker: T
+): Omit<T, 'jobs_processed' | 'jobs_failed'> {
+  const rest = { ...worker } as Record<string, unknown>;
+  delete rest.jobs_processed;
+  delete rest.jobs_failed;
+  return rest as Omit<T, 'jobs_processed' | 'jobs_failed'>;
+}
+
 // Frontend format for backwards compatibility with existing tests
 export const mockQueues = [
   {
@@ -226,6 +239,9 @@ export const mockWorkersSummary = [
     current_jobs: 3,
     max_concurrency: 10,
     last_heartbeat: new Date().toISOString(),
+    // Backend 0.1.122: counters kept while the worker holds a live lease
+    jobs_processed: 1280,
+    jobs_failed: 20,
   },
   {
     id: 'worker-2',
@@ -235,6 +251,8 @@ export const mockWorkersSummary = [
     current_jobs: 0,
     max_concurrency: 5,
     last_heartbeat: new Date().toISOString(),
+    jobs_processed: 0,
+    jobs_failed: 0,
   },
 ];
 
@@ -256,6 +274,8 @@ export const mockWorkerDetails: Record<
     version: string | null;
     registered_at: string;
     updated_at: string;
+    jobs_processed: number;
+    jobs_failed: number;
   }
 > = {
   'worker-1': {
@@ -273,6 +293,8 @@ export const mockWorkerDetails: Record<
     version: '1.0.0',
     registered_at: '2024-01-01T00:00:00Z',
     updated_at: new Date().toISOString(),
+    jobs_processed: 1280,
+    jobs_failed: 20,
   },
   'worker-2': {
     id: 'worker-2',
@@ -289,6 +311,8 @@ export const mockWorkerDetails: Record<
     version: '1.0.0',
     registered_at: '2024-01-01T00:00:00Z',
     updated_at: new Date().toISOString(),
+    jobs_processed: 0,
+    jobs_failed: 0,
   },
 };
 
@@ -416,6 +440,8 @@ export const mockWebhooks = [
     name: 'Slack Notifications',
     url: 'https://hooks.slack.com/services/xxx',
     events: ['job.completed', 'job.failed'],
+    // Backend 0.1.122 returns the delivery format on every webhook ("json" by default)
+    format: 'slack',
     enabled: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -439,6 +465,138 @@ export const mockBillingStatusWithCustomer = {
   stripe_current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   stripe_cancel_at_period_end: false,
   has_stripe_customer: true,
+};
+
+const MOCK_JOB_STATUSES = [
+  'pending',
+  'scheduled',
+  'processing',
+  'completed',
+  'failed',
+  'deadletter',
+  'cancelled',
+];
+
+/** `GET /jobs/{id}/history` rows per job id, as `job_history` rows leave the backend. */
+export const mockJobHistory: Record<string, Array<Record<string, unknown>>> = {
+  // job-1 completed after one retry
+  'job-1': [
+    {
+      id: 'hist-1',
+      job_id: 'job-1',
+      event_type: 'processing',
+      worker_id: 'worker-1',
+      details: {
+        worker_id: 'worker-1',
+        lease_id: 'lease-1',
+        batch_claim: false,
+        organization_id: 'org-1',
+      },
+      created_at: '2024-01-01T00:00:10Z',
+    },
+    {
+      id: 'hist-2',
+      job_id: 'job-1',
+      event_type: 'retry_scheduled',
+      worker_id: 'worker-1',
+      details: {
+        error: 'Connection refused',
+        retry_count: 1,
+        next_run: '2024-01-01T00:00:40Z',
+        organization_id: 'org-1',
+      },
+      created_at: '2024-01-01T00:00:20Z',
+    },
+    {
+      id: 'hist-3',
+      job_id: 'job-1',
+      event_type: 'processing',
+      worker_id: 'worker-2',
+      details: { worker_id: 'worker-2', lease_id: 'lease-2', organization_id: 'org-1' },
+      created_at: '2024-01-01T00:00:45Z',
+    },
+    {
+      id: 'hist-4',
+      job_id: 'job-1',
+      event_type: 'completed',
+      worker_id: 'worker-2',
+      details: { organization_id: 'org-1' },
+      created_at: '2024-01-01T00:01:00Z',
+    },
+  ],
+};
+
+/** `GET /webhooks/deliveries` rows (the inbound webhook log), newest first. */
+export const mockInboundDeliveries = [
+  {
+    id: 'inbound-3',
+    provider: 'custom',
+    event_type: 'order.created',
+    matched_queue: 'orders',
+    job_id: 'job-in-3',
+    status: 'created',
+    created_at: '2026-10-11T12:00:00Z',
+  },
+  {
+    id: 'inbound-2',
+    provider: 'custom',
+    event_type: 'order.created',
+    matched_queue: 'orders',
+    job_id: 'job-in-1',
+    status: 'duplicate',
+    created_at: '2026-10-11T11:00:00Z',
+  },
+  {
+    // recorded before 0.1.122: no job and no outcome
+    id: 'inbound-1',
+    provider: 'custom',
+    event_type: 'custom',
+    matched_queue: 'default',
+    job_id: null,
+    status: null,
+    created_at: '2026-10-10T09:00:00Z',
+  },
+];
+
+const usageItem = (current: number, limit: number | null) => ({
+  current,
+  limit,
+  percentage: limit ? (current / limit) * 100 : null,
+  is_disabled: false,
+});
+
+/** `GET /organizations/usage` (backend UsageInfo): plan limits and the usage against them. */
+export const mockUsage = {
+  plan: 'pro',
+  plan_display_name: 'Pro',
+  limits: {
+    tier: 'pro',
+    display_name: 'Pro',
+    max_jobs_per_day: 1_000_000,
+    max_active_jobs: 10_000,
+    max_queues: 50,
+    max_workers: 50,
+    max_api_keys: 20,
+    max_schedules: 50,
+    max_workflows: 50,
+    max_webhooks: 20,
+    max_payload_size_bytes: 1_048_576,
+    rate_limit_requests_per_second: 100,
+    rate_limit_burst: 200,
+    job_retention_days: 30,
+    history_retention_days: 30,
+  },
+  usage: {
+    jobs_today: usageItem(1200, 1_000_000),
+    active_jobs: usageItem(60, 10_000),
+    queues: usageItem(2, 50),
+    workers: usageItem(2, 50),
+    api_keys: usageItem(2, 20),
+    schedules: usageItem(1, 50),
+    workflows: usageItem(1, 50),
+    webhooks: usageItem(1, 20),
+  },
+  warnings: [],
 };
 
 // Handlers
@@ -554,17 +712,65 @@ export const handlers = [
 
   http.get(`${API_BASE}/api/v1/jobs`, ({ request }) => {
     const url = new URL(request.url);
-    const status = url.searchParams.get('status');
+    const statusParam = url.searchParams.get('status');
     const queueName = url.searchParams.get('queue_name');
+    const q = url.searchParams.get('q')?.trim().toLowerCase();
+    const jobType = url.searchParams.get('job_type');
+    const tag = url.searchParams.get('tag');
+    const createdAfter = url.searchParams.get('created_after');
+    const createdBefore = url.searchParams.get('created_before');
     const limit = Number(url.searchParams.get('limit') || '50');
     const offset = Number(url.searchParams.get('offset') || '0');
 
+    // Backend 0.1.122: status is one value or a comma list; an unknown entry is a 400.
+    const statuses = (statusParam ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const unknownStatus = statuses.find((s) => !MOCK_JOB_STATUSES.includes(s));
+    if (unknownStatus) {
+      return HttpResponse.json(
+        {
+          code: 'VALIDATION_ERROR',
+          message: `Invalid status filter '${unknownStatus}': expected one or more of ${MOCK_JOB_STATUSES.join(', ')} (comma-separated)`,
+        },
+        { status: 400 }
+      );
+    }
+
     let filtered = [...mockJobs];
-    if (status) {
-      filtered = filtered.filter((j) => j.status === status);
+    if (statuses.length > 0) {
+      filtered = filtered.filter((j) => statuses.includes(j.status));
     }
     if (queueName) {
       filtered = filtered.filter((j) => j.queue === queueName);
+    }
+    // q: job id PREFIX, or a substring of the queue name or of payload.job_type (any case)
+    if (q) {
+      filtered = filtered.filter(
+        (j) =>
+          j.id.toLowerCase().startsWith(q) ||
+          j.queue.toLowerCase().includes(q) ||
+          j.job_type.toLowerCase().includes(q)
+      );
+    }
+    if (jobType) {
+      filtered = filtered.filter((j) => j.job_type === jobType);
+    }
+    // tag: `jsonb ?` - an element of a tags array or a key of a tags object
+    if (tag) {
+      filtered = filtered.filter((j) => {
+        const tags = (j as { metadata?: unknown }).metadata;
+        if (Array.isArray(tags)) return tags.includes(tag);
+        return tags !== null && typeof tags === 'object' && tag in (tags as object);
+      });
+    }
+    // created_after is inclusive, created_before exclusive
+    if (createdAfter) {
+      filtered = filtered.filter((j) => Date.parse(j.created_at) >= Date.parse(createdAfter));
+    }
+    if (createdBefore) {
+      filtered = filtered.filter((j) => Date.parse(j.created_at) < Date.parse(createdBefore));
     }
 
     // Backend returns JobSummary[] (not paginated object)
@@ -582,7 +788,26 @@ export const handlers = [
       completed_at: (j as { completed_at?: string }).completed_at ?? null,
     }));
 
-    return HttpResponse.json(summaries.slice(offset, offset + limit));
+    // X-Has-More: another row matches after this page
+    return HttpResponse.json(summaries.slice(offset, offset + limit), {
+      headers: { 'X-Has-More': String(summaries.length > offset + limit) },
+    });
+  }),
+
+  // GET /jobs/{id}/history (backend 0.1.122): the job's recorded events, oldest first
+  http.get(`${API_BASE}/api/v1/jobs/:id/history`, ({ params, request }) => {
+    const job = mockJobs.find((j) => j.id === params.id);
+    if (!job) {
+      return HttpResponse.json({ code: 'NOT_FOUND', message: 'Job not found' }, { status: 404 });
+    }
+    const url = new URL(request.url);
+    const limit = Number(url.searchParams.get('limit') || '100');
+    const offset = Number(url.searchParams.get('offset') || '0');
+    const events = [...(mockJobHistory[job.id] ?? [])];
+    if (url.searchParams.get('order_dir') === 'desc') events.reverse();
+    return HttpResponse.json(events.slice(offset, offset + limit), {
+      headers: { 'X-Has-More': String(events.length > offset + limit) },
+    });
   }),
 
   http.get(`${API_BASE}/api/v1/jobs/:id`, ({ params }) => {
@@ -1120,6 +1345,23 @@ export const handlers = [
     );
   }),
 
+  http.put(`${API_BASE}/api/v1/api-keys/:id`, async ({ params, request }) => {
+    const key = mockApiKeys.find((k) => k.id === params.id);
+    if (!key) {
+      return HttpResponse.json(
+        { code: 'NOT_FOUND', message: `API key ${String(params.id)} not found` },
+        { status: 404 }
+      );
+    }
+    // ApiKeySummary after the merge: omitted fields keep the key's value
+    const body = (await request.json()) as { name?: string; is_active?: boolean };
+    return HttpResponse.json({
+      ...key,
+      name: body.name ?? key.name,
+      is_active: body.is_active ?? key.is_active,
+    });
+  }),
+
   http.delete(`${API_BASE}/api/v1/api-keys/:id`, () => {
     return new HttpResponse(null, { status: 204 });
   }),
@@ -1135,6 +1377,8 @@ export const handlers = [
       id: `webhook-${Date.now()}`,
       organization_id: 'org-1',
       failure_count: 0,
+      // an omitted format is stored as "json"
+      format: 'json',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       ...body,
@@ -1199,7 +1443,55 @@ export const handlers = [
         created_at: new Date().toISOString(),
         delivered_at: new Date().toISOString(),
       },
+      {
+        id: 'delivery-2',
+        webhook_id: 'webhook-1',
+        event: 'job.failed',
+        payload: { job_id: 'job-3' },
+        status: 'failed',
+        status_code: 500,
+        response_body: null,
+        error: 'HTTP 500',
+        attempts: 3,
+        created_at: new Date().toISOString(),
+        delivered_at: null,
+      },
     ]);
+  }),
+
+  // POST /outgoing-webhooks/{id}/retry/{delivery_id}: 200 even when the endpoint still refuses
+  http.post(`${API_BASE}/api/v1/outgoing-webhooks/:id/retry/:deliveryId`, ({ params }) => {
+    if (params.deliveryId === 'delivery-1') {
+      return HttpResponse.json(
+        { code: 'BAD_REQUEST', message: 'Cannot retry a successful delivery' },
+        { status: 400 }
+      );
+    }
+    return HttpResponse.json({ success: true, message: 'Delivery retried successfully' });
+  }),
+
+  // GET /webhooks/deliveries: the inbound webhook log (backend 0.1.122), newest first
+  http.get(`${API_BASE}/api/v1/webhooks/deliveries`, ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status')?.toLowerCase();
+    const since = url.searchParams.get('since');
+    const queue = url.searchParams.get('queue_name') ?? url.searchParams.get('queue');
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || '50'), 1), 100);
+    const offset = Math.max(Number(url.searchParams.get('offset') || '0'), 0);
+    if (status && status !== 'created' && status !== 'duplicate') {
+      return HttpResponse.json(
+        {
+          code: 'VALIDATION_ERROR',
+          message: `Invalid status '${status}': expected created or duplicate`,
+        },
+        { status: 400 }
+      );
+    }
+    let rows = [...mockInboundDeliveries];
+    if (status) rows = rows.filter((r) => r.status === status);
+    if (since) rows = rows.filter((r) => Date.parse(r.created_at) >= Date.parse(since));
+    if (queue) rows = rows.filter((r) => r.matched_queue === queue);
+    return HttpResponse.json(rows.slice(offset, offset + limit));
   }),
 
   // Auth logout
@@ -1234,11 +1526,27 @@ export const handlers = [
     return HttpResponse.json({ status: 'verified' });
   }),
 
+  // Before /organizations/:id, which would otherwise answer "usage" with the organization
+  http.get(`${API_BASE}/api/v1/organizations/usage`, () => {
+    return HttpResponse.json(mockUsage);
+  }),
+
   http.get(`${API_BASE}/api/v1/organizations/:id`, ({ params }) => {
     if (params.id === mockOrganizationPendingBillingEmail.id) {
       return HttpResponse.json(mockOrganizationPendingBillingEmail);
     }
     return HttpResponse.json(mockOrganization);
+  }),
+
+  // DELETE /organizations/{id}: 204 for the caller's own organization
+  http.delete(`${API_BASE}/api/v1/organizations/:id`, ({ params }) => {
+    if (params.id !== mockOrganization.id) {
+      return HttpResponse.json(
+        { code: 'NOT_FOUND', message: 'Resource not found' },
+        { status: 404 }
+      );
+    }
+    return new HttpResponse(null, { status: 204 });
   }),
 
   http.put(`${API_BASE}/api/v1/organizations/:id`, async ({ request }) => {

@@ -127,7 +127,7 @@ function computeSignals(data: DashboardData | undefined): Signal[] {
       id: 'failure-rate',
       severity: failureRate >= 15 ? 'critical' : 'warning',
       message: `${failureRate.toFixed(1)}% failure rate over 24h (${formatNumber(failed24h)} of ${formatNumber(totalProcessed24h)})`,
-      href: '/jobs?status=failed',
+      href: '/jobs?status=deadletter',
     });
   }
 
@@ -721,10 +721,11 @@ function QueuesPanel() {
 
 function RecentFailuresPanel() {
   const { data: failedJobs, isLoading } = useQuery({
-    queryKey: queryKeys.jobs.list({ status: ['failed', 'deadletter'], per_page: 5 }),
+    // `failed` is never set on a job: a job that runs out of retries is dead-lettered.
+    queryKey: queryKeys.jobs.list({ status: 'deadletter', per_page: 5 }),
     queryFn: () =>
       jobsAPI.list({
-        status: ['failed', 'deadletter'],
+        status: 'deadletter',
         per_page: 5,
         sort_by: 'created_at',
         sort_order: 'desc',
@@ -756,7 +757,7 @@ function RecentFailuresPanel() {
           Recent failures
         </span>
         <a
-          href="/jobs?status=failed"
+          href="/jobs?status=deadletter"
           className="flex items-center text-xs text-muted-foreground hover:text-primary"
         >
           View all <ChevronRight className="ml-1 h-3 w-3" />
@@ -802,7 +803,7 @@ function RecentFailuresPanel() {
                 <span className="whitespace-nowrap text-xs text-muted-foreground">
                   {formatRelativeTime(job.created_at)}
                 </span>
-                {job.status === 'failed' && (
+                {(job.status === 'deadletter' || job.status === 'failed') && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -973,7 +974,7 @@ export function DashboardHomeEnhanced() {
             value={recentActivity ? formatNumber(recentActivity.jobs_failed_1h) : '—'}
             caption="last 1h"
             tone={recentActivity && recentActivity.jobs_failed_1h > 0 ? 'failed' : 'default'}
-            href="/jobs?status=failed"
+            href="/jobs?status=deadletter"
           />
           <StatRow
             label="Completed"
@@ -986,7 +987,7 @@ export function DashboardHomeEnhanced() {
             value={jobs ? formatNumber(jobs.failed_24h) : '—'}
             caption="last 24h"
             tone={jobs && jobs.failed_24h > 0 ? 'failed' : 'default'}
-            href="/jobs?status=failed"
+            href="/jobs?status=deadletter"
           />
           <StatRow
             label="Avg wait"

@@ -10,13 +10,13 @@ A modern, real-time dashboard for managing job queues, workflows, and workers in
 ## Features
 
 - **Real-time Dashboard** - Live KPIs, job statistics, and system health
-- **Jobs Management** - Create, monitor, retry, cancel jobs; set priority levels
+- **Jobs Management** - Create, monitor, retry, cancel jobs; set priority levels; search and filter by status, type, tag and date; per-job event timeline
 - **Queue Management** - Configure queues, pause/resume, view stats, set rate limits
-- **Worker Monitoring** - Track worker status, performance, and job distribution
+- **Worker Monitoring** - Track worker status, jobs processed and failed, and job distribution
 - **Workflows** - Create DAG workflows with job dependencies (visual dependency graph)
 - **Schedules** - Cron-based recurring jobs with timezone support (daily reports, cleanups, renewals)
 - **API Keys** - Manage programmatic access with queue restrictions and rate limits
-- **Outgoing Webhooks** - Configure HTTP notifications from Spooled to your URLs (Slack, Discord, custom endpoints)
+- **Outgoing Webhooks** - Configure HTTP notifications from Spooled to your URLs (JSON, Slack, Discord, Microsoft Teams), retry failed deliveries, and read the incoming webhook log
 - **WebSocket** - Live updates across the dashboard (job status, queue stats, worker activity)
 - **Usage Tracking** - Monitor plan limits, API usage, and resource consumption
 - **Dead-Letter Queue** - Review failed jobs, inspect errors, bulk retry or purge
@@ -202,7 +202,7 @@ docker pull ghcr.io/spooled-cloud/spooled-dashboard:latest
 | `/settings/organization` | Organization settings (with usage)     |
 | `/settings/api-keys`     | API keys management                    |
 | `/settings/billing`      | Subscription status and billing portal |
-| `/settings/webhooks`     | Webhooks configuration                 |
+| `/settings/webhooks`     | Outgoing webhooks and incoming log     |
 
 ### Admin Routes (requires admin key)
 

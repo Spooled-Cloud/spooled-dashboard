@@ -204,6 +204,20 @@ class APIClient {
    * Make HTTP request
    */
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    return (await this.requestWithHeaders<T>(endpoint, options)).data;
+  }
+
+  /**
+   * Make HTTP request and keep the response headers next to the body.
+   *
+   * Headers are what the JSON array endpoints use for paging (`X-Has-More`). A browser only
+   * hands a cross-origin page the headers the API lists in `Access-Control-Expose-Headers`,
+   * so a header that is not exposed (yet) reads as `null`: callers must treat it as optional.
+   */
+  async requestWithHeaders<T>(
+    endpoint: string,
+    options: RequestOptions = {}
+  ): Promise<{ data: T; headers: Headers }> {
     const { params, skipAuth, ...fetchOptions } = options;
 
     try {
@@ -249,17 +263,17 @@ class APIClient {
   /**
    * Handle response
    */
-  private async handleResponse<T>(response: Response): Promise<T> {
+  private async handleResponse<T>(response: Response): Promise<{ data: T; headers: Headers }> {
     if (!response.ok) {
       throw await APIError.fromResponse(response);
     }
 
     // Handle 204 No Content
     if (response.status === HTTP_STATUS.NO_CONTENT) {
-      return undefined as T;
+      return { data: undefined as T, headers: response.headers };
     }
 
-    return response.json();
+    return { data: (await response.json()) as T, headers: response.headers };
   }
 
   /**
@@ -271,6 +285,17 @@ class APIClient {
     options?: RequestOptions
   ): Promise<T> {
     return this.request<T>(endpoint, { method: 'GET', params, ...options });
+  }
+
+  /**
+   * GET request that also returns the response headers (see `requestWithHeaders`)
+   */
+  getWithHeaders<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    options?: RequestOptions
+  ): Promise<{ data: T; headers: Headers }> {
+    return this.requestWithHeaders<T>(endpoint, { method: 'GET', params, ...options });
   }
 
   /**

@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { apiKeysAPI } from './api-keys';
+import { APIError } from './client';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 describe('apiKeysAPI', () => {
   describe('list', () => {
@@ -35,6 +40,54 @@ describe('apiKeysAPI', () => {
       expect(response).toHaveProperty('id');
       expect(response).toHaveProperty('key');
       expect(response.name).toBe('Test Key');
+    });
+  });
+
+  describe('update', () => {
+    it('renames a key and keeps everything else', async () => {
+      const key = await apiKeysAPI.update('key-1', { name: 'Renamed' });
+      expect(key.name).toBe('Renamed');
+      expect(key.is_active).toBe(true);
+      expect(key.queues).toEqual(['default', 'printer']);
+    });
+
+    it('sends only the fields it is given', async () => {
+      let body: Record<string, unknown> | undefined;
+      server.use(
+        http.put(`${API_BASE}/api/v1/api-keys/:id`, async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({});
+        })
+      );
+      await apiKeysAPI.update('key-1', { is_active: false });
+      expect(body).toEqual({ is_active: false });
+    });
+
+    it('rejects with the plan cap error when a revoked key cannot be re-activated', async () => {
+      server.use(
+        http.put(`${API_BASE}/api/v1/api-keys/:id`, () =>
+          HttpResponse.json(
+            {
+              error: 'limit_exceeded',
+              code: 'QUOTA_EXCEEDED',
+              message: 'api_keys limit reached',
+              resource: 'api_keys',
+              current: 2,
+              limit: 2,
+              plan: 'free',
+            },
+            { status: 429 }
+          )
+        )
+      );
+      const error = await apiKeysAPI.update('key-9', { is_active: true }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(APIError);
+      expect((error as APIError).isQuotaExceeded()).toBe(true);
+      expect((error as APIError).details).toMatchObject({
+        resource: 'api_keys',
+        current: 2,
+        limit: 2,
+      });
     });
   });
 

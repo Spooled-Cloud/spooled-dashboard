@@ -34,7 +34,7 @@ import { queuesAPI } from '@/lib/api/queues';
 import { workersAPI } from '@/lib/api/workers';
 
 // Jobs
-await jobsAPI.list({ status: 'failed' });
+await jobsAPI.list({ status: ['deadletter', 'cancelled'], search: 'send_email' });
 await jobsAPI.get('job_123');
 await jobsAPI.retry('job_123');
 
