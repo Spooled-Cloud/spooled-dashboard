@@ -52,6 +52,12 @@ configMapGenerator:
   - name: spooled-dashboard-config
     behavior: merge
     literals:
-      - PUBLIC_API_URL=http://spooled-backend-dev.spooled-backend-dev.svc.cluster.local:3000
-      - PUBLIC_WS_URL=ws://spooled-backend-dev.spooled-backend-dev.svc.cluster.local:3000
+      # GET /api/config hands these two URLs to the browser, which calls the API and opens the
+      # WebSocket itself. In-cluster DNS names (*.svc.cluster.local) do not resolve there, so
+      # they point at localhost; reach the dev backend and dashboard with port-forwards:
+      #   kubectl -n spooled-backend-dev port-forward svc/spooled-backend-dev 3000:3000
+      #   kubectl -n spooled-dashboard-dev port-forward svc/spooled-dashboard-dev 4321:80
+      # then open http://localhost:4321. Behind an ingress, set your public API URLs instead.
+      - PUBLIC_API_URL=http://localhost:3000
+      - PUBLIC_WS_URL=ws://localhost:3000
       - PUBLIC_SENTRY_ENVIRONMENT=development

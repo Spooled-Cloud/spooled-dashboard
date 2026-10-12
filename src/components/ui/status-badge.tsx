@@ -46,7 +46,7 @@ const statusConfigs: Record<StatusVariant, StatusConfig> = {
   },
   failed: {
     label: 'Failed',
-    className: 'border-status-failed/50 bg-status-failed/10 text-status-failed-foreground',
+    className: 'border-status-failed/50 bg-status-failed/10 text-status-failed-text',
     icon: XCircle,
   },
   cancelled: {
@@ -56,7 +56,7 @@ const statusConfigs: Record<StatusVariant, StatusConfig> = {
   },
   deadletter: {
     label: 'Dead Letter',
-    className: 'border-status-failed/50 bg-status-failed/20 text-status-failed-foreground',
+    className: 'border-status-failed/50 bg-status-failed/20 text-status-failed-text',
     icon: AlertTriangle,
   },
   paused: {

@@ -30,6 +30,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Virtual module that only exists inside the Astro build (see src/middleware.test.ts).
+      'astro:middleware': path.resolve(__dirname, './src/test/stubs/astro-middleware.ts'),
     },
   },
 });

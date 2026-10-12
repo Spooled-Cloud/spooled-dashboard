@@ -53,6 +53,22 @@ class MockEventSource {
   emitError() {
     this.onerror?.(new Event('error'));
   }
+
+  /** A real browser delivers its connection `error` Event to onerror and every 'error' listener. */
+  emitNativeError() {
+    const ev = new Event('error');
+    this.onerror?.(ev);
+    for (const fn of this.listeners['error'] ?? []) {
+      fn(ev as MessageEvent);
+    }
+  }
+
+  emitRawNamed(type: string, data: string) {
+    const ev = new MessageEvent(type, { data });
+    for (const fn of this.listeners[type] ?? []) {
+      fn(ev);
+    }
+  }
 }
 
 vi.mock('@/stores/auth', () => ({
@@ -161,6 +177,82 @@ describe('useSSE', () => {
         type: 'job_completed',
         data: expect.objectContaining({ duration_ms: 42 }),
       })
+    );
+  });
+
+  it('does not warn about a payload when the browser fires its own error event', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onEvent = vi.fn();
+    const onError = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useSSE('/api/v1/events/jobs/abc', {
+          onEvent,
+          onError,
+          maxReconnectAttempts: 0,
+          reconnectDelay: 10,
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      MockEventSource.instances[0]?.emitNativeError();
+    });
+
+    // The connection error is still reported through onerror ...
+    expect(onError).toHaveBeenCalledTimes(1);
+    // ... but the data-less Event is not parsed as a JSON frame.
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(warn.mock.calls.filter((c) => String(c[0]).includes('Failed to parse'))).toHaveLength(0);
+    warn.mockRestore();
+  });
+
+  it('skips frames with an empty data field instead of warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onEvent = vi.fn();
+    const { result } = renderHook(() => useSSE('/api/v1/events', { onEvent }), { wrapper });
+
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      MockEventSource.instances[0]?.emitRawNamed('system.health', '');
+    });
+
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('still reports a genuinely malformed JSON frame', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onEvent = vi.fn();
+    const { result } = renderHook(() => useSSE('/api/v1/events', { onEvent }), { wrapper });
+
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      MockEventSource.instances[0]?.emitRawNamed('job.status', '{not json');
+    });
+
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('Failed to parse SSE event:', expect.any(SyntaxError));
+    warn.mockRestore();
+  });
+
+  it('delivers a backend error frame that carries a JSON payload', async () => {
+    const onEvent = vi.fn();
+    const { result } = renderHook(() => useSSE('/api/v1/events', { onEvent }), { wrapper });
+
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    act(() => {
+      MockEventSource.instances[0]?.emitNamed('error', { message: 'stream failed' });
+    });
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', data: { message: 'stream failed' } })
     );
   });
 

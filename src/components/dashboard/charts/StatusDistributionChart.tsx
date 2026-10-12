@@ -114,7 +114,10 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
   };
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    // `initialDimension` is the size used for the first render, before the container is
+    // measured. Without it recharts starts at -1 x -1 and warns "width(-1) and height(-1) of
+    // chart should be greater than 0" on every load; the real size replaces it right after.
+    <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 320, height: 300 }}>
       <PieChart>
         <Pie
           data={chartData}

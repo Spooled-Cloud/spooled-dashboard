@@ -87,7 +87,10 @@ export default {
           },
           failed: {
             DEFAULT: 'var(--status-failed)',
+            // Text on a solid status-failed fill.
             foreground: 'var(--status-failed-foreground)',
+            // Text on the page, a card or a pale tint (the dark colour in the light theme).
+            text: 'var(--status-failed-text)',
           },
           canceled: {
             DEFAULT: 'var(--status-canceled)',

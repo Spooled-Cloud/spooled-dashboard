@@ -187,7 +187,7 @@ function IncidentBand({ signals, isLoading }: { signals: Signal[]; isLoading: bo
               className={cn(
                 'truncate font-medium',
                 signal.severity === 'critical'
-                  ? 'text-status-failed-foreground'
+                  ? 'text-status-failed-text'
                   : 'text-status-warning-foreground'
               )}
             >
@@ -340,7 +340,7 @@ interface StatRowProps {
 function StatRow({ label, value, caption, href, tone = 'default', isLoading }: StatRowProps) {
   const toneClass =
     tone === 'failed'
-      ? 'text-status-failed-foreground'
+      ? 'text-status-failed-text'
       : tone === 'warning'
         ? 'text-status-warning-foreground'
         : tone === 'completed'
@@ -473,7 +473,7 @@ export function DeadLetterActionBar() {
         <span
           className={cn(
             'font-semibold tabular-nums',
-            deadletterCount > 0 ? 'text-status-failed-foreground' : 'text-muted-foreground'
+            deadletterCount > 0 ? 'text-status-failed-text' : 'text-muted-foreground'
           )}
         >
           {formatNumber(deadletterCount)}
@@ -788,8 +788,8 @@ function RecentFailuresPanel() {
                     variant="outline"
                     className={
                       job.status === 'deadletter'
-                        ? 'border-status-failed/60 bg-status-failed/10 shrink-0 text-status-failed-foreground'
-                        : 'border-status-failed/40 bg-status-failed/5 shrink-0 text-status-failed-foreground'
+                        ? 'border-status-failed/60 bg-status-failed/10 shrink-0 text-status-failed-text'
+                        : 'border-status-failed/40 bg-status-failed/5 shrink-0 text-status-failed-text'
                     }
                   >
                     {job.status}

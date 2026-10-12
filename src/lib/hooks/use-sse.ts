@@ -180,8 +180,14 @@ export function useSSE(endpoint: string, options: SSEOptions = {}): UseSSEReturn
       };
 
       const handleFrame = (event: MessageEvent) => {
+        // The browser fires its own `error` event (a plain Event, no `data`) on the same
+        // listener the backend's `event: error` frames use, and a frame can carry an empty
+        // `data:`. Neither has a payload to parse; `onerror` already handles reconnects.
+        if (typeof event.data !== 'string' || event.data.trim() === '') {
+          return;
+        }
         try {
-          const parsed: unknown = JSON.parse(event.data as string);
+          const parsed: unknown = JSON.parse(event.data);
           const data = normalizeSseFrame(parsed, event.type);
 
           onEvent?.(data);

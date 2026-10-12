@@ -1,0 +1,45 @@
+# Keep the Docker build context small and free of local state and secrets.
+# The image installs dependencies (npm ci) and builds (npm run build) itself, so nothing
+# produced on the host may be copied in. `COPY . .` would otherwise overwrite the image's
+# freshly installed node_modules with the host's, which may be for another OS.
+
+# Dependencies and build output
+node_modules
+dist
+.astro
+*.tsbuildinfo
+
+# Environment files and keys (never bake local secrets into an image layer)
+.env*
+*.pem
+
+# Tests, coverage and their output
+coverage
+test-results
+playwright-report
+blob-report
+playwright/.cache
+.playwright-mcp
+e2e
+
+# Version control and editor/tooling state
+.git
+.gitignore
+.github
+.cursor
+.vscode
+.idea
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Docs and deployment files that are not part of the application build
+docs
+k8s
+*.md
+Dockerfile
+.dockerignore
+docker-compose*.yml

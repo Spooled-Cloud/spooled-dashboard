@@ -45,7 +45,7 @@ function SubscriptionStatusBadge({ status }: { status: string | null }) {
     default: 'border-status-unknown/50 bg-status-unknown/10 text-status-unknown-foreground',
     success: 'border-status-completed/50 bg-status-completed/10 text-status-completed-foreground',
     warning: 'border-status-warning/50 bg-status-warning/10 text-status-warning-foreground',
-    destructive: 'border-status-failed/50 bg-status-failed/10 text-status-failed-foreground',
+    destructive: 'border-status-failed/50 bg-status-failed/10 text-status-failed-text',
   };
 
   const icons = {

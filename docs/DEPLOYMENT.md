@@ -67,6 +67,10 @@ Use a dedicated Compose project name (for example `spooled-dashboard`). Keep sec
 
 On shared Docker hosts, do not stop or remove unrelated stacks. Health checks should probe `http://127.0.0.1:4321/api/config` (explicit IPv4). If using Portainer, prefer a stable bind path or Web editor over ephemeral Git checkout directories that some Portainer installs delete after deploy. See also `spooled-backend/docs/guides/production-host-portainer.md` for Git-stack behavior.
 
+## Docker build context
+
+`.dockerignore` keeps `node_modules`, `dist`, `.astro`, `.env*`, test output, `.git`, docs and deployment files out of the build context. The image runs `npm ci` and `npm run build` itself, so host-built dependencies or output are never copied in, and local `.env` files cannot end up in an image layer.
+
 ## Docker without Compose
 
 ```bash
@@ -103,6 +107,15 @@ kubectl apply -k k8s/overlays/development
 kubectl apply -k k8s/overlays/production
 ```
 
+The development overlay sets `PUBLIC_API_URL=http://localhost:3000` and `PUBLIC_WS_URL=ws://localhost:3000`. `GET /api/config` hands these URLs to the browser, which calls the API and opens the WebSocket itself, so in-cluster names such as `*.svc.cluster.local` would not resolve there. Reach the dev backend and dashboard with port-forwards, then open `http://localhost:4321`:
+
+```bash
+kubectl -n spooled-backend-dev port-forward svc/spooled-backend-dev 3000:3000
+kubectl -n spooled-dashboard-dev port-forward svc/spooled-dashboard-dev 4321:80
+```
+
+Behind an ingress, set `PUBLIC_API_URL` and `PUBLIC_WS_URL` to the public API URLs instead.
+
 The production overlay currently configures:
 
 - 3 initial replicas
@@ -136,6 +149,8 @@ HOST=0.0.0.0 PORT=4321 NODE_ENV=production node ./dist/server/entry.mjs
 Use a process supervisor and reverse proxy in production.
 
 ## Reverse proxy
+
+The server redirects a request to HTTPS when the proxy marks it `X-Forwarded-Proto: http` (301 to `https://<host>/<path>?<query>`). The target host is the one the client asked for, taken from `X-Forwarded-Host` when the proxy sets it, otherwise from the `Host` header (Cloudflare Tunnel and most proxies pass the original `Host` through). It must be a bare `hostname[:port]`; anything else (a scheme, path, userinfo, spaces) is answered with `400`, so the redirect cannot be pointed at another site. Nothing is hard-coded, so self-hosted domains work unchanged. If your proxy rewrites `Host` to an internal name, make it send `X-Forwarded-Host` with the public name. Prefer also redirecting HTTP to HTTPS at the proxy or CDN edge.
 
 Proxy HTTP traffic to port `4321`. The dashboard's WebSocket connection goes directly to `PUBLIC_WS_URL`, not through the dashboard server, unless both services intentionally share a proxy hostname.
 

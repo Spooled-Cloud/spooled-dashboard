@@ -20,9 +20,19 @@ describe('StatusBadge', () => {
   it('applies status design token classes', () => {
     render(<StatusBadge status="failed" />);
     const badge = screen.getByText('Failed');
-    expect(badge).toHaveClass('text-status-failed-foreground');
+    expect(badge).toHaveClass('text-status-failed-text');
     expect(badge).toHaveClass('bg-status-failed/10');
   });
+
+  it.each(['failed', 'deadletter'] as const)(
+    'does not use the near-white solid-fill foreground as %s text',
+    (status) => {
+      render(<StatusBadge status={status} label="x-label" />);
+      const badge = screen.getByText('x-label');
+      expect(badge).toHaveClass('text-status-failed-text');
+      expect(badge).not.toHaveClass('text-status-failed-foreground');
+    }
+  );
 
   it('renders job status badges with labels', () => {
     render(<JobStatusBadge status="processing" />);

@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { useShellStore } from '@/stores/shell';
 import { useRuntimeFeatures } from '@/lib/hooks/use-runtime-features';
 
@@ -321,6 +321,9 @@ export function Sidebar() {
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <SheetContent side="left" className="flex w-[min(18rem,88vw)] flex-col p-0">
           <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+          <SheetDescription className="sr-only">
+            Links to the dashboard, jobs, queues, workers and settings pages.
+          </SheetDescription>
           <SidebarBrand collapsed={false} />
           <SidebarNav
             collapsed={false}

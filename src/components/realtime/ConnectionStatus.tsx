@@ -51,7 +51,7 @@ export function ConnectionStatus() {
                 label: 'Auth lost',
                 dotClass: 'bg-status-failed',
                 pingClass: '',
-                textClass: 'text-status-failed-foreground',
+                textClass: 'text-status-failed-text',
                 showPing: false,
                 showRetry: false,
               }

@@ -5,6 +5,7 @@
  * This middleware covers the Astro Node standalone server used in production.
  */
 import { defineMiddleware } from 'astro:middleware';
+import { resolveHttpsRedirect } from './lib/utils/https-redirect';
 
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
@@ -28,11 +29,21 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  const forwardedProto = context.request.headers.get('x-forwarded-proto');
-  if (forwardedProto === 'http') {
-    const url = new URL(context.request.url);
-    url.protocol = 'https:';
-    return Response.redirect(url.toString(), 301);
+  // Plain HTTP behind the TLS-terminating proxy: send the client to the same host over HTTPS.
+  // The target host comes from the Host / X-Forwarded-Host header (validated), not from
+  // `request.url`, whose host is always `localhost` behind the tunnel.
+  const redirect = resolveHttpsRedirect(context.request);
+  if (redirect.kind === 'redirect') {
+    return new Response(null, {
+      status: 301,
+      headers: { Location: redirect.location, 'Cache-Control': 'no-store' },
+    });
+  }
+  if (redirect.kind === 'bad-host') {
+    return new Response('Bad Request: invalid Host header', {
+      status: 400,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
   }
 
   const response = await next();
