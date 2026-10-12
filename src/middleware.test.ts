@@ -88,6 +88,45 @@ describe('middleware http -> https redirect', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('redirects a Host with one trailing dot to the same name without the dot', async () => {
+    const { response } = run('/jobs?x=1', {
+      'x-forwarded-proto': 'http',
+      host: 'dashboard.spooled.cloud.',
+    });
+    const res = await response;
+    expect(res.status).toBe(301);
+    expect(res.headers.get('location')).toBe('https://dashboard.spooled.cloud/jobs?x=1');
+  });
+
+  it('reads the Host port as a number: 0080 is the plain-HTTP port and is dropped', async () => {
+    const { response } = run('/', {
+      'x-forwarded-proto': 'http',
+      host: 'dashboard.example.com:0080',
+    });
+    const res = await response;
+    expect(res.status).toBe(301);
+    expect(res.headers.get('location')).toBe('https://dashboard.example.com/');
+  });
+
+  it.each([
+    ['a comma in Host', 'dashboard.spooled.cloud,evil.example'],
+    ['two trailing dots', 'dashboard.spooled.cloud..'],
+    ['a hexadecimal port', 'dashboard.spooled.cloud:0x50'],
+    ['a port above 65535', 'dashboard.spooled.cloud:65536'],
+    ['port 0', 'dashboard.spooled.cloud:0'],
+  ])('answers 400, no-store and no Location for %s', async (_label, host) => {
+    const { response, next } = run('/jobs', {
+      'x-forwarded-proto': 'http',
+      host,
+      'x-forwarded-host': 'dashboard.spooled.cloud',
+    });
+    const res = await response;
+    expect(res.status).toBe(400);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('answers 400 for a malicious X-Forwarded-Host when that header is the one in use', async () => {
     vi.stubEnv('TRUST_FORWARDED_HOST', 'true');
     const { response } = run('/jobs', {

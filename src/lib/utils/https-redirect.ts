@@ -10,8 +10,11 @@
  * Tunnel, Caddy and ingress-nginx pass it through unchanged. `X-Forwarded-Host` is used only when
  * `Host` is missing, or before `Host` when the operator opts in with `TRUST_FORWARDED_HOST=true`
  * (a proxy that rewrites `Host` to an internal name). The value is accepted only when it is a
- * bare `hostname[:port]`; anything else (a scheme, path, userinfo, whitespace, a list, an
- * unparsable address) is refused.
+ * bare `hostname[:port]`; anything else (a scheme, path, userinfo, whitespace, a comma, an
+ * unparsable address, a non-decimal or out-of-range port) is refused. `Host` is a single value,
+ * so a comma in it is never split: it answers `bad-host`. Only the forwarded headers, which proxies
+ * append to, are read as lists (first entry). One trailing dot (an absolute name, `example.com.`)
+ * is accepted and dropped from the redirect target.
  *
  * This is a syntax check, not an allowlist. The redirect points at the host the request itself
  * names: a client that sends `Host: other.example` gets a 301 to `https://other.example/`. It
@@ -40,14 +43,14 @@ export type HttpsRedirect =
 
 /**
  * Validate a `Host` / `X-Forwarded-Host` value and return it normalised for use in an
- * `https://` URL (lower case, default ports dropped), or `null` when it is not exactly a
- * hostname or IP literal with an optional port.
+ * `https://` URL (lower case, one trailing dot and default ports dropped), or `null` when it is
+ * not exactly a hostname or IP literal with an optional decimal port in 1-65535.
  */
 export function parsePublicHost(raw: string | null | undefined): string | null {
   if (typeof raw !== 'string') return null;
   const value = raw.trim().toLowerCase();
-  // Longest legal value is a 253-character name plus ":65535".
-  if (value.length === 0 || value.length > MAX_HOSTNAME_LENGTH + 6) return null;
+  // Longest legal value is a 253-character name, its trailing dot and ":65535".
+  if (value.length === 0 || value.length > MAX_HOSTNAME_LENGTH + 7) return null;
 
   let hostname: string;
   let port: string | undefined;
@@ -61,12 +64,19 @@ export function parsePublicHost(raw: string | null | undefined): string | null {
     if (!named) return null;
     hostname = named[1];
     port = named[2];
+    // `example.com.` is the absolute form of `example.com`. Drop exactly one trailing dot; a
+    // second one (or a lone dot) leaves an empty label below and is refused.
+    if (hostname.endsWith('.')) hostname = hostname.slice(0, -1);
     if (hostname.length > MAX_HOSTNAME_LENGTH) return null;
     if (!hostname.split('.').every((label) => DNS_LABEL.test(label))) return null;
   }
 
+  // The patterns above only let 1-5 ASCII digits through, so `Number` reads them as plain decimal
+  // (`0x50`, `+80`, `8e1` and full-width digits never get here). Compare the number, not the text:
+  // `0080` is port 80.
+  let portNumber: number | undefined;
   if (port !== undefined) {
-    const portNumber = Number(port);
+    portNumber = Number(port);
     if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) return null;
   }
 
@@ -91,8 +101,8 @@ export function parsePublicHost(raw: string | null | undefined): string | null {
 
   // The client reached us over plain HTTP; port 80 has no HTTPS meaning, so use 443.
   // Other ports are kept as asked for (an https listener on the same port is the operator's call).
-  if (port === undefined || port === '80' || port === '443') return hostname;
-  return `${hostname}:${Number(port)}`;
+  if (portNumber === undefined || portNumber === 80 || portNumber === 443) return hostname;
+  return `${hostname}:${portNumber}`;
 }
 
 /** First entry of a possibly comma-separated forwarded header (the original client-facing value). */
@@ -100,6 +110,16 @@ function firstHeaderValue(value: string | null): string | null {
   if (value === null) return null;
   const first = value.split(',')[0].trim();
   return first === '' ? null : first;
+}
+
+/**
+ * The `Host` header as sent. It holds one authority and is never a list, so it is not split on
+ * commas: `a.example,b.example` stays whole and fails host validation. Blank counts as missing.
+ */
+function singleHeaderValue(value: string | null): string | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
 }
 
 /** True when the proxy reports that the client connected over plain HTTP. */
@@ -138,7 +158,7 @@ export function resolveHttpsRedirect(
 ): HttpsRedirect {
   if (!isPlainHttpRequest(request.headers)) return { kind: 'none' };
 
-  const host = firstHeaderValue(request.headers.get('host'));
+  const host = singleHeaderValue(request.headers.get('host'));
   const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'));
   const requested = options.trustForwardedHost ? (forwardedHost ?? host) : (host ?? forwardedHost);
   const publicHost = parsePublicHost(requested);

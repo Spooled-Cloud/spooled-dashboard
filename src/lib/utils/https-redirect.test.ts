@@ -30,6 +30,36 @@ describe('parsePublicHost', () => {
   });
 
   it.each([
+    // One trailing dot is the absolute form of the same name; it is dropped from the target.
+    ['dashboard.spooled.cloud.', 'dashboard.spooled.cloud'],
+    ['Dashboard.Spooled.Cloud.', 'dashboard.spooled.cloud'],
+    ['localhost.', 'localhost'],
+    ['dashboard.example.com.:8443', 'dashboard.example.com:8443'],
+    ['dashboard.example.com.:443', 'dashboard.example.com'],
+    ['192.168.1.20.', '192.168.1.20'],
+    [
+      `${'a'.repeat(63)}.${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(61)}.`,
+      `${'a'.repeat(63)}.${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(61)}`,
+    ],
+  ])('accepts one trailing dot: %s', (input, expected) => {
+    expect(parsePublicHost(input)).toBe(expected);
+  });
+
+  it.each([
+    // Compared as numbers, not as text: 0080 is port 80 and 00443 is port 443.
+    ['dashboard.example.com:0080', 'dashboard.example.com'],
+    ['dashboard.example.com:080', 'dashboard.example.com'],
+    ['dashboard.example.com:00443', 'dashboard.example.com'],
+    ['dashboard.example.com:0443', 'dashboard.example.com'],
+    ['[::1]:0080', '[::1]'],
+    ['dashboard.example.com:08443', 'dashboard.example.com:8443'],
+    ['dashboard.example.com:0001', 'dashboard.example.com:1'],
+    ['dashboard.example.com:65535', 'dashboard.example.com:65535'],
+  ])('reads the port as a decimal number: %s', (input, expected) => {
+    expect(parsePublicHost(input)).toBe(expected);
+  });
+
+  it.each([
     ['empty', ''],
     ['blank', '   '],
     ['a scheme', 'https://evil.example'],
@@ -48,7 +78,34 @@ describe('parsePublicHost', () => {
     ['a port above 65535', 'evil.example:65536'],
     ['a non-numeric port', 'evil.example:http'],
     ['two ports', 'evil.example:80:80'],
-    ['a trailing dot', 'evil.example.'],
+    ['two trailing dots', 'evil.example..'],
+    ['two trailing dots before a port', 'evil.example..:8443'],
+    ['a lone dot', '.'],
+    ['a lone dot before a port', '.:8443'],
+    ['a leading dot', '.evil.example'],
+    ['a trailing dot inside an IPv6 literal', '[::1].'],
+    ['a trailing dot after an IPv6 port', '[::1]:8443.'],
+    ['a trailing dot after the port', 'evil.example:8443.'],
+    [
+      'a name over 253 characters with a trailing dot',
+      `${'a'.repeat(63)}.${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(62)}.`,
+    ],
+    ['a hexadecimal port', 'evil.example:0x50'],
+    ['a signed port', 'evil.example:+80'],
+    ['a negative port', 'evil.example:-80'],
+    ['an exponent port', 'evil.example:8e1'],
+    ['a decimal-point port', 'evil.example:80.0'],
+    ['a port with a space', 'evil.example: 80'],
+    ['a full-width digit port', 'evil.example:８０'],
+    ['an Arabic-Indic digit port', 'evil.example:٨٠'],
+    ['a port of six digits', 'evil.example:000080'],
+    ['a port of 99999', 'evil.example:99999'],
+    ['an IPv6 port above 65535', '[::1]:65536'],
+    ['an IPv6 hexadecimal port', '[::1]:0x50'],
+    ['an IPv6 port 0', '[::1]:0'],
+    ['a comma and a port', 'a.example:80,b.example:80'],
+    ['a trailing comma', 'a.example,'],
+    ['a leading comma', ',a.example'],
     ['an empty label', 'evil..example'],
     ['a leading hyphen', '-evil.example'],
     ['a label over 63 characters', `${'a'.repeat(64)}.example`],
@@ -175,6 +232,98 @@ describe('resolveHttpsRedirect', () => {
     expect(result).toEqual({ kind: 'bad-host' });
   });
 
+  it('accepts one trailing dot in Host and drops it from the target', () => {
+    for (const [host, location] of [
+      ['dashboard.spooled.cloud.', 'https://dashboard.spooled.cloud/jobs'],
+      ['Dashboard.Spooled.Cloud.', 'https://dashboard.spooled.cloud/jobs'],
+      ['dash.example.com.:8443', 'https://dash.example.com:8443/jobs'],
+      ['dash.example.com.:80', 'https://dash.example.com/jobs'],
+    ]) {
+      expect(resolveHttpsRedirect(req('/jobs', { 'x-forwarded-proto': 'http', host }))).toEqual({
+        kind: 'redirect',
+        location,
+      });
+    }
+  });
+
+  it('refuses more than one trailing dot, or a bare dot, in Host', () => {
+    for (const host of ['dashboard.spooled.cloud..', 'dashboard.spooled.cloud..:8443', '.']) {
+      expect(resolveHttpsRedirect(req('/jobs', { 'x-forwarded-proto': 'http', host }))).toEqual({
+        kind: 'bad-host',
+      });
+    }
+  });
+
+  it('compares the Host port as a number: 0080 and 00443 are the default ports', () => {
+    for (const [host, location] of [
+      ['dash.example.com:0080', 'https://dash.example.com/jobs'],
+      ['dash.example.com:080', 'https://dash.example.com/jobs'],
+      ['dash.example.com:00443', 'https://dash.example.com/jobs'],
+      ['dash.example.com:08443', 'https://dash.example.com:8443/jobs'],
+      ['dash.example.com:8443', 'https://dash.example.com:8443/jobs'],
+    ]) {
+      expect(resolveHttpsRedirect(req('/jobs', { 'x-forwarded-proto': 'http', host }))).toEqual({
+        kind: 'redirect',
+        location,
+      });
+    }
+  });
+
+  it('refuses a Host port that is not a decimal number in 1-65535', () => {
+    for (const port of [
+      '0',
+      '65536',
+      '99999',
+      '0x50',
+      '+80',
+      '-80',
+      '8e1',
+      '80.0',
+      ' 80',
+      '000080',
+    ]) {
+      const host = `dash.example.com:${port}`;
+      expect(resolveHttpsRedirect(req('/jobs', { 'x-forwarded-proto': 'http', host }))).toEqual({
+        kind: 'bad-host',
+      });
+    }
+  });
+
+  it('does not split Host on commas: a comma in Host is a bad host', () => {
+    for (const host of [
+      'dashboard.spooled.cloud,evil.example',
+      'dashboard.spooled.cloud, evil.example',
+      'evil.example,dashboard.spooled.cloud',
+      'dashboard.spooled.cloud,',
+      ',dashboard.spooled.cloud',
+    ]) {
+      expect(resolveHttpsRedirect(req('/jobs', { 'x-forwarded-proto': 'http', host }))).toEqual({
+        kind: 'bad-host',
+      });
+    }
+  });
+
+  it('does not fall back to X-Forwarded-Host when Host holds a comma', () => {
+    const result = resolveHttpsRedirect(
+      req('/jobs', {
+        'x-forwarded-proto': 'http',
+        host: 'dashboard.spooled.cloud,evil.example',
+        'x-forwarded-host': 'dashboard.spooled.cloud',
+      })
+    );
+    expect(result).toEqual({ kind: 'bad-host' });
+  });
+
+  it('still reads the first entry of a comma-separated X-Forwarded-Host', () => {
+    const result = resolveHttpsRedirect(
+      req('/jobs', {
+        'x-forwarded-proto': 'http',
+        'x-forwarded-host': 'dashboard.spooled.cloud., proxy.internal',
+      })
+    );
+    expect(result).toEqual({ kind: 'redirect', location: 'https://dashboard.spooled.cloud/jobs' });
+  });
+
   describe('with trustForwardedHost (a proxy that rewrites Host to an internal name)', () => {
     const trust = { trustForwardedHost: true };
 
@@ -217,6 +366,34 @@ describe('resolveHttpsRedirect', () => {
         kind: 'redirect',
         location: 'https://dashboard.spooled.cloud/jobs',
       });
+    });
+
+    it('applies the same trailing-dot and port rules to X-Forwarded-Host', () => {
+      expect(
+        resolveHttpsRedirect(
+          req('/jobs', {
+            'x-forwarded-proto': 'http',
+            'x-forwarded-host': 'dashboard.selfhosted.example.:0443',
+            host: 'dashboard-internal',
+          }),
+          trust
+        )
+      ).toEqual({ kind: 'redirect', location: 'https://dashboard.selfhosted.example/jobs' });
+      for (const forwarded of [
+        'dashboard.selfhosted.example..',
+        'dashboard.selfhosted.example:0x50',
+      ]) {
+        expect(
+          resolveHttpsRedirect(
+            req('/jobs', {
+              'x-forwarded-proto': 'http',
+              'x-forwarded-host': forwarded,
+              host: 'dashboard-internal',
+            }),
+            trust
+          )
+        ).toEqual({ kind: 'bad-host' });
+      }
     });
 
     it('still refuses a malformed X-Forwarded-Host', () => {
