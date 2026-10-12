@@ -124,9 +124,10 @@ export function AdminDashboard() {
     );
   }
 
-  const failureRate = stats?.jobs.completed_24h
-    ? ((stats.jobs.failed_24h / stats.jobs.completed_24h) * 100).toFixed(1)
-    : '0';
+  // failed / (completed + failed): the share of finished jobs that failed. n/a when none finished.
+  const finished24h = (stats?.jobs.completed_24h ?? 0) + (stats?.jobs.failed_24h ?? 0);
+  const failureRatePct =
+    finished24h > 0 ? ((stats?.jobs.failed_24h ?? 0) / finished24h) * 100 : null;
 
   return (
     <div className="space-y-6 p-6">
@@ -172,9 +173,13 @@ export function AdminDashboard() {
         <StatCard
           title="24h Throughput"
           value={stats?.jobs.completed_24h?.toLocaleString() ?? 0}
-          subtitle={`${failureRate}% failure rate`}
+          subtitle={
+            failureRatePct === null
+              ? 'n/a failure rate'
+              : `${failureRatePct.toFixed(1)}% failure rate`
+          }
           icon={<Activity className="h-5 w-5" />}
-          variant={Number(failureRate) < 5 ? 'success' : 'danger'}
+          variant={failureRatePct === null ? 'default' : failureRatePct < 5 ? 'success' : 'danger'}
         />
       </div>
 

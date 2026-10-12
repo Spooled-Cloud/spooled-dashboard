@@ -182,7 +182,7 @@ function WorkersListContent() {
                         <WorkerStatusBadge status={worker.status} />
                       </div>
 
-                      <div className="mb-3 grid grid-cols-2 gap-4 md:grid-cols-5">
+                      <div className="mb-3 grid grid-cols-2 gap-4 md:grid-cols-3">
                         <div>
                           <p className="text-xs font-medium text-muted-foreground">Queues</p>
                           <div className="mt-1 flex flex-wrap gap-1">
@@ -211,22 +211,9 @@ function WorkersListContent() {
                             </span>
                           </p>
                         </div>
-                        <div className="rounded-lg bg-emerald-500/5 p-2">
-                          <p className="text-xs font-medium text-muted-foreground">Processed</p>
-                          <p className="text-lg font-semibold text-emerald-600">
-                            {worker.jobs_processed.toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-red-500/5 p-2">
-                          <p className="text-xs font-medium text-muted-foreground">Failed</p>
-                          <p className="text-lg font-semibold text-red-600">
-                            {worker.jobs_failed.toLocaleString()}
-                          </p>
-                        </div>
                       </div>
 
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Started {formatRelativeTime(worker.started_at)}</span>
                         <span>Last heartbeat {formatRelativeTime(worker.last_heartbeat)}</span>
                       </div>
                     </div>

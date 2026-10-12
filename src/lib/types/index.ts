@@ -154,11 +154,15 @@ export interface Queue {
   name: string;
   organization_id: string;
   description?: string;
-  concurrency: number;
+  /**
+   * Stored queue settings the backend keeps but does not enforce. Present only when a
+   * queue config response carries them; never render them as live behaviour.
+   */
+  concurrency?: number;
   max_retries: number;
-  retry_delay_ms: number;
-  backoff_multiplier: number;
-  max_retry_delay_ms: number;
+  retry_delay_ms?: number;
+  backoff_multiplier?: number;
+  max_retry_delay_ms?: number;
   job_timeout_ms: number;
   paused: boolean;
   created_at: string;
@@ -171,7 +175,8 @@ export interface QueueStats {
   processing: number;
   completed: number;
   failed: number;
-  deadletter: number;
+  /** Absent when the backend does not report a per-queue dead-letter count (< 0.1.121). */
+  deadletter?: number;
   active_workers: number;
   jobs_per_second: number;
   avg_processing_time_ms: number;
@@ -203,9 +208,8 @@ export interface Worker {
   current_jobs: number;
   status: WorkerStatus;
   last_heartbeat: string;
-  started_at: string;
-  jobs_processed: number;
-  jobs_failed: number;
+  /** Registration time. The list summary does not carry it; only the detail response does. */
+  started_at?: string;
   metadata?: Record<string, string>;
 }
 
@@ -299,6 +303,11 @@ export interface Organization {
    * organization by a confirmed address; null means sign-in by email is off.
    */
   billing_email_verified_at?: string | null;
+  /**
+   * A billing-email change waiting for its confirmation code. `billing_email` stays the
+   * verified address until the code is confirmed.
+   */
+  pending_billing_email?: string | null;
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;

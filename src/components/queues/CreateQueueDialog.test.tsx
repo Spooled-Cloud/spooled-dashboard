@@ -4,6 +4,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@/test/utils';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { CreateQueueDialog } from './CreateQueueDialog';
 import { mockAuthenticatedState } from '@/test/utils';
 import userEvent from '@testing-library/user-event';
@@ -92,17 +94,6 @@ describe('CreateQueueDialog', () => {
       });
     });
 
-    it('should show Concurrency field', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Concurrency')).toBeInTheDocument();
-      });
-    });
-
     it('should show Max Retries field', async () => {
       const user = userEvent.setup();
       render(<CreateQueueDialog />);
@@ -111,39 +102,6 @@ describe('CreateQueueDialog', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText('Max Retries')).toBeInTheDocument();
-      });
-    });
-
-    it('should show Retry Delay field', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Retry Delay (ms)')).toBeInTheDocument();
-      });
-    });
-
-    it('should show Backoff Multiplier field', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Backoff Multiplier')).toBeInTheDocument();
-      });
-    });
-
-    it('should show Max Retry Delay field', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Max Retry Delay (ms)')).toBeInTheDocument();
       });
     });
 
@@ -204,23 +162,6 @@ describe('CreateQueueDialog', () => {
       expect(descInput).toHaveValue('Queue for push notifications');
     });
 
-    it('should change Concurrency field', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Concurrency')).toBeInTheDocument();
-      });
-
-      const concurrencyInput = screen.getByLabelText('Concurrency');
-      await user.clear(concurrencyInput);
-      await user.type(concurrencyInput, '20');
-
-      expect(concurrencyInput).toHaveValue(20);
-    });
-
     it('should change Max Retries field', async () => {
       const user = userEvent.setup();
       render(<CreateQueueDialog />);
@@ -236,23 +177,6 @@ describe('CreateQueueDialog', () => {
       await user.type(retriesInput, '5');
 
       expect(retriesInput).toHaveValue(5);
-    });
-
-    it('should change Retry Delay field', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Retry Delay (ms)')).toBeInTheDocument();
-      });
-
-      const delayInput = screen.getByLabelText('Retry Delay (ms)');
-      await user.clear(delayInput);
-      await user.type(delayInput, '2000');
-
-      expect(delayInput).toHaveValue(2000);
     });
 
     it('should change Job Timeout field', async () => {
@@ -282,17 +206,6 @@ describe('CreateQueueDialog', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/letters, numbers, underscores/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should show concurrency helper', async () => {
-      const user = userEvent.setup();
-      render(<CreateQueueDialog />);
-
-      await user.click(screen.getByRole('button', { name: /create queue/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/max parallel jobs/i)).toBeInTheDocument();
       });
     });
 
@@ -329,6 +242,100 @@ describe('CreateQueueDialog', () => {
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/optional description/i)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Unenforced settings', () => {
+    it('does not offer concurrency, retry delay or backoff controls', async () => {
+      const user = userEvent.setup();
+      render(<CreateQueueDialog />);
+      await user.click(screen.getByRole('button', { name: /create queue/i }));
+      await waitFor(() => expect(screen.getByLabelText('Max Retries')).toBeInTheDocument());
+
+      expect(screen.queryByLabelText('Concurrency')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Retry Delay (ms)')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Backoff Multiplier')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Max Retry Delay (ms)')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Existing queue', () => {
+    it('refuses to overwrite an existing queue and links to its edit page', async () => {
+      let putCalls = 0;
+      server.use(
+        http.put('https://api.spooled.cloud/api/v1/queues/:name/config', () => {
+          putCalls += 1;
+          return HttpResponse.json({}, { status: 200 });
+        })
+      );
+      const user = userEvent.setup();
+      render(<CreateQueueDialog />);
+      await user.click(screen.getByRole('button', { name: /create queue/i }));
+      await user.type(await screen.findByLabelText(/queue name/i), 'emails');
+      await user.click(screen.getAllByRole('button', { name: /create queue/i }).pop()!);
+
+      const link = await screen.findByRole('link', { name: /edit it instead/i });
+      expect(link).toHaveAttribute('href', '/queues/emails');
+      expect(putCalls).toBe(0);
+    });
+
+    it('creates the queue when none with that name exists', async () => {
+      let body: Record<string, unknown> | null = null;
+      server.use(
+        http.put('https://api.spooled.cloud/api/v1/queues/:name/config', async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            {
+              id: 'q',
+              organization_id: 'org-1',
+              queue_name: 'brand.new',
+              max_retries: 0,
+              default_timeout: 300,
+              rate_limit: null,
+              enabled: true,
+              settings: {},
+              created_at: '2026-10-01T00:00:00Z',
+              updated_at: '2026-10-01T00:00:00Z',
+            },
+            { status: 201 }
+          );
+        })
+      );
+      const user = userEvent.setup();
+      render(<CreateQueueDialog />);
+      await user.click(screen.getByRole('button', { name: /create queue/i }));
+      await user.type(await screen.findByLabelText(/queue name/i), 'brand.new');
+      const retries = screen.getByLabelText('Max Retries');
+      await user.clear(retries);
+      await user.type(retries, '0');
+      await user.click(screen.getAllByRole('button', { name: /create queue/i }).pop()!);
+
+      await waitFor(() => expect(body).not.toBeNull());
+      expect(body).toMatchObject({ queue_name: 'brand.new', max_retries: 0 });
+      expect(body!.settings).not.toHaveProperty('concurrency');
+    });
+  });
+
+  describe('Name validation', () => {
+    it.each([
+      ['orders.eu', true],
+      ['-bad', false],
+      ['.bad', false],
+      ['has space', false],
+    ])('queue name %s accepted=%s', async (name, ok) => {
+      const user = userEvent.setup();
+      render(<CreateQueueDialog />);
+      await user.click(screen.getByRole('button', { name: /create queue/i }));
+      await user.type(await screen.findByLabelText(/queue name/i), name);
+      await user.click(screen.getAllByRole('button', { name: /create queue/i }).pop()!);
+
+      if (ok) {
+        await waitFor(() =>
+          expect(screen.queryByText(/can only contain/i)).not.toBeInTheDocument()
+        );
+      } else {
+        expect(await screen.findByText(/can only contain/i)).toBeInTheDocument();
+      }
     });
   });
 });

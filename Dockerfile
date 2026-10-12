@@ -62,7 +62,8 @@ ENV APP_VERSION=$APP_VERSION
 # Runtime configuration (can be overridden via docker-compose or -e flags)
 # These are read by the /api/config endpoint at runtime
 ENV PUBLIC_API_URL=https://api.spooled.cloud
-ENV PUBLIC_WS_URL=wss://api.spooled.cloud
+# PUBLIC_WS_URL is deliberately not set here: /api/config derives it from PUBLIC_API_URL
+# (https -> wss), so overriding only PUBLIC_API_URL never leaves the hosted WS host behind.
 ENV PUBLIC_SENTRY_ENVIRONMENT=production
 # Optional: PUBLIC_SENTRY_DSN, PUBLIC_ENABLE_WORKFLOWS, PUBLIC_ENABLE_SCHEDULES, PUBLIC_ENABLE_ANALYTICS
 

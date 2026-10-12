@@ -21,7 +21,8 @@ import { cn } from '@/lib/utils/cn';
 import { getRuntimeConfig } from '@/lib/config/runtime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI } from '@/lib/api/queues';
-import { jobsAPI } from '@/lib/api/jobs';
+import { jobsAPI, DLQ_PURGE_MAX_LIMIT, DLQ_RETRY_MAX_LIMIT } from '@/lib/api/jobs';
+import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
 import {
@@ -393,17 +394,25 @@ function StatPanel({ title, children }: { title: string; children: React.ReactNo
 // Dead-letter queue action bar
 // ============================================================================
 
-function DeadLetterActionBar() {
+export function DeadLetterActionBar() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useDashboard();
   const deadletterCount = data?.jobs?.deadletter ?? 0;
 
+  // The counts the user confirmed in the dialogs: each request is capped to its count, so
+  // jobs that dead-letter while a dialog is open are not retried or purged unseen.
+  const [showRetryDialog, setShowRetryDialog] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(0);
+  const [showPurgeDialog, setShowPurgeDialog] = React.useState(false);
+  const [purgeCount, setPurgeCount] = React.useState(0);
+
   const retryMutation = useMutation({
-    mutationFn: () => jobsAPI.retryDeadLetter({ limit: 100 }),
+    mutationFn: (limit: number) => jobsAPI.retryDeadLetter({ limit }),
     onSuccess: (response) => {
       toast.success('DLQ jobs retried', {
         description: `${response.retried_count} job(s) requeued`,
       });
+      setShowRetryDialog(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview() });
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
     },
@@ -415,11 +424,12 @@ function DeadLetterActionBar() {
   });
 
   const purgeMutation = useMutation({
-    mutationFn: () => jobsAPI.purgeDeadLetter({ confirm: true }),
+    mutationFn: (limit: number) => jobsAPI.purgeDeadLetter({ limit, confirm: true }),
     onSuccess: (response) => {
       toast.success('DLQ purged', {
         description: `${response.purged_count} job(s) deleted`,
       });
+      setShowPurgeDialog(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview() });
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
     },
@@ -430,14 +440,15 @@ function DeadLetterActionBar() {
     },
   });
 
+  const handleRetryAll = () => {
+    // The backend retries at most DLQ_RETRY_MAX_LIMIT jobs per request
+    setRetryCount(Math.min(deadletterCount, DLQ_RETRY_MAX_LIMIT));
+    setShowRetryDialog(true);
+  };
+
   const handlePurge = () => {
-    if (
-      confirm(
-        `Are you sure you want to permanently delete all ${deadletterCount} dead-letter jobs? This cannot be undone.`
-      )
-    ) {
-      purgeMutation.mutate();
-    }
+    setPurgeCount(Math.min(deadletterCount, DLQ_PURGE_MAX_LIMIT));
+    setShowPurgeDialog(true);
   };
 
   if (isLoading) {
@@ -479,7 +490,7 @@ function DeadLetterActionBar() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => retryMutation.mutate()}
+            onClick={handleRetryAll}
             disabled={retryMutation.isPending}
           >
             <RotateCcw className="mr-2 h-3.5 w-3.5" />
@@ -496,6 +507,42 @@ function DeadLetterActionBar() {
           </Button>
         </div>
       )}
+
+      <DangerConfirmDialog
+        open={showRetryDialog}
+        onOpenChange={setShowRetryDialog}
+        onConfirm={() => retryMutation.mutate(retryCount)}
+        title="Retry Dead-Letter Jobs"
+        description={`This will move ${retryCount} job(s) back to their queues for another retry attempt.`}
+        confirmLabel="Retry"
+        isLoading={retryMutation.isPending}
+        warnings={
+          deadletterCount > DLQ_RETRY_MAX_LIMIT
+            ? [
+                `Only ${DLQ_RETRY_MAX_LIMIT} of ${deadletterCount} can be retried per request; repeat to retry the rest`,
+              ]
+            : undefined
+        }
+      />
+
+      <DangerConfirmDialog
+        open={showPurgeDialog}
+        onOpenChange={setShowPurgeDialog}
+        onConfirm={() => purgeMutation.mutate(purgeCount)}
+        title="Purge Dead-Letter Queue"
+        description="Permanently delete the jobs in the dead-letter queue?"
+        confirmText="PURGE"
+        confirmLabel="Purge"
+        isLoading={purgeMutation.isPending}
+        warnings={[
+          'This action cannot be undone',
+          `${purgeCount} job(s) will be permanently deleted`,
+          ...(deadletterCount > DLQ_PURGE_MAX_LIMIT
+            ? [`Only ${DLQ_PURGE_MAX_LIMIT} of ${deadletterCount} can be purged per request`]
+            : []),
+          'Job data and history will be lost forever',
+        ]}
+      />
     </div>
   );
 }

@@ -66,9 +66,8 @@ function transformWorkerSummary(backend: BackendWorkerSummary): Worker {
     current_jobs: backend.current_jobs,
     status: mapWorkerStatus(backend.status, backend.current_jobs),
     last_heartbeat: backend.last_heartbeat,
-    started_at: backend.last_heartbeat, // Not provided in summary, use last_heartbeat
-    jobs_processed: 0, // Not provided in summary
-    jobs_failed: 0, // Not provided in summary
+    // The list summary carries neither a registration time nor per-worker counters,
+    // so started_at stays undefined rather than borrowing another timestamp.
   };
 }
 
@@ -86,8 +85,6 @@ function transformWorker(backend: BackendWorker): Worker {
     status: mapWorkerStatus(backend.status, backend.current_jobs ?? 0),
     last_heartbeat: backend.last_heartbeat,
     started_at: backend.registered_at,
-    jobs_processed: 0, // Would need separate stats query
-    jobs_failed: 0, // Would need separate stats query
     metadata: backend.metadata as Record<string, string>,
   };
 }

@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { workflowsAPI, getWorkflowStatusInfo, getJobLevels } from '@/lib/api/workflows';
+import {
+  workflowsAPI,
+  canCancelWorkflow,
+  getWorkflowStatusInfo,
+  getJobLevels,
+} from '@/lib/api/workflows';
 import type { WorkflowWithDetails } from '@/lib/api/workflows';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime, formatDuration } from '@/lib/utils/format';
@@ -295,7 +300,7 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          {(workflow.status === 'pending' || workflow.status === 'running') && (
+          {canCancelWorkflow(workflow.status) && (
             <Button
               variant="outline"
               size="sm"

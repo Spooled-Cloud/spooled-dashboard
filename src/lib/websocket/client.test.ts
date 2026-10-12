@@ -16,6 +16,13 @@ import { WS_CHANNELS } from './client';
 
 const TEST_TOKEN = 'test-access-token';
 
+// The client waits for runtime config before opening a socket; these tests exercise
+// the socket itself, so the config counts as loaded (see client.config.test.ts for the gate).
+vi.mock('@/lib/config/runtime', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/config/runtime')>()),
+  isConfigLoaded: () => true,
+}));
+
 // Mock WebSocket class that allows full control over the connection
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -529,13 +536,44 @@ describe('WebSocket Client', () => {
       await connectClient();
       MockWebSocket.getLatestInstance()?.simulateOpen();
 
-      vi.advanceTimersByTime(90000);
+      const ws = MockWebSocket.getLatestInstance();
+      // The server answers every Ping with a Ping event
+      for (let i = 0; i < 3; i++) {
+        vi.advanceTimersByTime(30000);
+        ws?.simulateMessage({ type: 'Ping', data: { timestamp: '2024-01-01T12:00:00Z' } });
+      }
 
-      const pingMessages = parseSent(MockWebSocket.getLatestInstance()).filter(
-        (m: { cmd: string }) => m.cmd === 'Ping'
-      );
+      const pingMessages = parseSent(ws).filter((m: { cmd: string }) => m.cmd === 'Ping');
 
       expect(pingMessages.length).toBe(3);
+    });
+
+    it('drops a half-open socket when no frame follows a Ping and reconnects', async () => {
+      const client = await connectClient();
+      const first = MockWebSocket.getLatestInstance()!;
+      first.simulateOpen();
+      expect(client.getConnectionState()).toBe('live');
+
+      vi.advanceTimersByTime(30000); // Ping sent, no answer
+      expect(MockWebSocket.instances.length).toBe(1);
+      vi.advanceTimersByTime(10000); // pong timeout
+      expect(client.getConnectionState()).toBe('reconnecting');
+
+      vi.advanceTimersByTime(2000);
+      expect(MockWebSocket.instances.length).toBe(2);
+    });
+
+    it('keeps the socket when the Ping is answered in time', async () => {
+      const client = await connectClient();
+      const ws = MockWebSocket.getLatestInstance()!;
+      ws.simulateOpen();
+
+      vi.advanceTimersByTime(30000);
+      ws.simulateMessage({ type: 'Ping', data: {} });
+      vi.advanceTimersByTime(9000);
+
+      expect(client.getConnectionState()).toBe('live');
+      expect(MockWebSocket.instances.length).toBe(1);
     });
 
     it('should stop heartbeat on disconnect', async () => {
@@ -631,6 +669,32 @@ describe('WebSocket Client', () => {
       expect(client.getConnectionState()).toBe('auth_failed');
       expect(MockWebSocket.instances.length).toBe(1);
     });
+
+    it('notifies auth-failure listeners on 1008 (token expired / session revoked)', async () => {
+      const client = await connectClient();
+      const onAuthFailure = vi.fn();
+      client.onAuthFailure(onAuthFailure);
+      MockWebSocket.getLatestInstance()?.simulateOpen();
+      MockWebSocket.getLatestInstance()?.simulateClose(1008, 'token expired');
+
+      expect(client.getConnectionState()).toBe('auth_failed');
+      expect(onAuthFailure).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(60000);
+      expect(MockWebSocket.instances.length).toBe(1);
+    });
+
+    it('reconnects after a normal close (server maximum connection age)', async () => {
+      const client = await connectClient();
+      const onAuthFailure = vi.fn();
+      client.onAuthFailure(onAuthFailure);
+      MockWebSocket.getLatestInstance()?.simulateOpen();
+      MockWebSocket.getLatestInstance()?.simulateClose(1000, 'maximum connection age reached');
+
+      expect(client.getConnectionState()).toBe('reconnecting');
+      vi.advanceTimersByTime(2000);
+      expect(MockWebSocket.instances.length).toBe(2);
+      expect(onAuthFailure).not.toHaveBeenCalled();
+    });
   });
 
   describe('Token Updates', () => {
@@ -654,6 +718,36 @@ describe('WebSocket Client', () => {
       // Closes in-flight socket and opens a new one with the latest token
       expect(MockWebSocket.instances.length).toBe(2);
       expect(MockWebSocket.getLatestInstance()?.url).toContain('token=token-2');
+    });
+  });
+
+  describe('Token change while open', () => {
+    it('keeps exactly one live socket when the old socket closes late', async () => {
+      const client = await connectClient();
+      const events = vi.fn();
+      client.onEvent(events);
+      const oldSocket = MockWebSocket.getLatestInstance()!;
+      oldSocket.simulateOpen();
+
+      // Browser-like: close() is asynchronous, the close event arrives later
+      oldSocket.close = () => {
+        oldSocket.readyState = MockWebSocket.CLOSING;
+      };
+      client.setAccessToken('rotated-token');
+      const newSocket = MockWebSocket.getLatestInstance()!;
+      expect(newSocket).not.toBe(oldSocket);
+      newSocket.simulateOpen();
+
+      // Late close of the old socket
+      oldSocket.simulateClose(1000, '');
+      vi.advanceTimersByTime(5000);
+
+      expect(MockWebSocket.instances.length).toBe(2);
+      expect(client.isConnected()).toBe(true);
+      expect(client.getConnectionState()).toBe('live');
+
+      newSocket.simulateMessage(backendJobCreated());
+      expect(events).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -20,14 +20,19 @@ export function useRuntimeFeatures(): RuntimeFeatures {
   useEffect(() => {
     let cancelled = false;
 
-    loadRuntimeConfig().then((config) => {
-      if (cancelled) return;
-      setFeatures({
-        enableWorkflows: config.enableWorkflows ?? true,
-        enableSchedules: config.enableSchedules ?? true,
-        loaded: true,
+    loadRuntimeConfig()
+      .then((config) => {
+        if (cancelled) return;
+        setFeatures({
+          enableWorkflows: config.enableWorkflows ?? true,
+          enableSchedules: config.enableSchedules ?? true,
+          loaded: true,
+        });
+      })
+      .catch(() => {
+        // /api/config failed on a hosted origin: keep the default feature flags.
+        // RuntimeConfigBootstrap already reports the failure to the user.
       });
-    });
 
     return () => {
       cancelled = true;

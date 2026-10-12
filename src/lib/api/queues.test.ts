@@ -22,8 +22,50 @@ describe('queuesAPI', () => {
       const queues = await queuesAPI.list();
       const queue = queues[0];
       expect(queue.name).toBeDefined();
-      expect(queue.concurrency).toBeDefined();
       expect(queue.max_retries).toBeDefined();
+      expect(queue.job_timeout_ms).toBeDefined();
+    });
+  });
+
+  describe('unenforced settings', () => {
+    it('does not invent concurrency or retry delay for list summaries', async () => {
+      const [queue] = await queuesAPI.list();
+      expect(queue.concurrency).toBeUndefined();
+      expect(queue.retry_delay_ms).toBeUndefined();
+      expect(queue.backoff_multiplier).toBeUndefined();
+      expect(queue.max_retry_delay_ms).toBeUndefined();
+    });
+
+    it('does not default settings a queue config response omits', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/queues/:name`, ({ params }) =>
+          HttpResponse.json({
+            id: 'q',
+            organization_id: 'org-1',
+            queue_name: params.name,
+            max_retries: 3,
+            default_timeout: 300,
+            enabled: true,
+            settings: {},
+            created_at: '2026-10-01T00:00:00Z',
+            updated_at: '2026-10-01T00:00:00Z',
+          })
+        )
+      );
+      const queue = await queuesAPI.get('bare');
+      expect(queue.concurrency).toBeUndefined();
+      expect(queue.retry_delay_ms).toBeUndefined();
+      expect(queue.backoff_multiplier).toBeUndefined();
+      expect(queue.max_retry_delay_ms).toBeUndefined();
+    });
+
+    it('does not invent them when pausing or resuming', async () => {
+      for (const queue of [await queuesAPI.pause('default'), await queuesAPI.resume('default')]) {
+        expect(queue.concurrency).toBeUndefined();
+        expect(queue.retry_delay_ms).toBeUndefined();
+        expect(queue.backoff_multiplier).toBeUndefined();
+        expect(queue.max_retry_delay_ms).toBeUndefined();
+      }
     });
   });
 
@@ -41,6 +83,31 @@ describe('queuesAPI', () => {
   });
 
   describe('create', () => {
+    it('does not invent concurrency or retry-delay settings the caller did not set', async () => {
+      let body: { settings?: Record<string, unknown> } = {};
+      server.use(
+        http.put(`${API_BASE}/api/v1/queues/:name/config`, async ({ request }) => {
+          body = (await request.json()) as typeof body;
+          return HttpResponse.json(
+            {
+              id: 'q',
+              organization_id: 'org-1',
+              queue_name: 'plain',
+              max_retries: 3,
+              default_timeout: 300,
+              enabled: true,
+              settings: {},
+              created_at: '2026-10-01T00:00:00Z',
+              updated_at: '2026-10-01T00:00:00Z',
+            },
+            { status: 201 }
+          );
+        })
+      );
+      await queuesAPI.create({ name: 'plain' });
+      expect(body.settings).toEqual({});
+    });
+
     it('should create a new queue', async () => {
       const newQueue = await queuesAPI.create({
         name: 'test-queue',
@@ -179,6 +246,67 @@ describe('queuesAPI', () => {
       expect(stats.processing).toBeDefined();
       expect(stats.completed).toBeDefined();
       expect(stats.failed).toBeDefined();
+    });
+
+    it('uses the backend deadletter_jobs count instead of a hard-coded zero', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/queues/:name/stats`, ({ params }) =>
+          HttpResponse.json({
+            queue_name: params.name,
+            pending_jobs: 1,
+            processing_jobs: 0,
+            completed_jobs_24h: 10,
+            failed_jobs_24h: 4,
+            deadletter_jobs: 7,
+            avg_processing_time_ms: 100,
+            max_job_age_seconds: 1,
+            active_workers: 1,
+          })
+        )
+      );
+      const stats = await queuesAPI.getStats('default');
+      expect(stats.deadletter).toBe(7);
+      expect(stats.failed).toBe(4);
+    });
+
+    it('leaves deadletter undefined when the backend does not report deadletter_jobs', async () => {
+      // Backend 0.1.120 has no deadletter_jobs field (it arrives in 0.1.121): an absent
+      // count must stay "unknown", never become a confident 0.
+      server.use(
+        http.get(`${API_BASE}/api/v1/queues/:name/stats`, ({ params }) =>
+          HttpResponse.json({
+            queue_name: params.name,
+            pending_jobs: 1,
+            processing_jobs: 0,
+            completed_jobs_24h: 10,
+            failed_jobs_24h: 4,
+            avg_processing_time_ms: 100,
+            max_job_age_seconds: 1,
+            active_workers: 1,
+          })
+        )
+      );
+      const stats = await queuesAPI.getStats('default');
+      expect(stats.deadletter).toBeUndefined();
+      expect(stats.failed).toBe(4);
+    });
+
+    it('keeps a reported deadletter_jobs of 0 as 0', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/queues/:name/stats`, ({ params }) =>
+          HttpResponse.json({
+            queue_name: params.name,
+            pending_jobs: 0,
+            processing_jobs: 0,
+            completed_jobs_24h: 0,
+            failed_jobs_24h: 0,
+            deadletter_jobs: 0,
+            active_workers: 0,
+          })
+        )
+      );
+      const stats = await queuesAPI.getStats('default');
+      expect(stats.deadletter).toBe(0);
     });
   });
 });

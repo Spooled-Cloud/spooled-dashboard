@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { OnboardingPage } from './OnboardingPage';
+import { organizationsAPI } from '@/lib/api/organizations';
 
 // Mock the clipboard API
 const mockClipboard = {
@@ -178,5 +179,46 @@ describe('OnboardingPage slug generation', () => {
     const slugInput = screen.getByLabelText('URL Slug');
     const value = (slugInput as HTMLInputElement).value;
     expect(value.includes('--')).toBe(false);
+  });
+});
+
+describe('OnboardingPage copy API key', () => {
+  it('shows a message instead of an unhandled rejection when the clipboard is blocked', async () => {
+    vi.spyOn(organizationsAPI, 'create').mockResolvedValueOnce({
+      organization: {
+        id: 'org-1',
+        name: 'Acme',
+        slug: 'acme',
+        plan_tier: 'free',
+        settings: {},
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+      api_key: {
+        id: 'key-1',
+        key: 'sk_live_abc',
+        name: 'Default',
+        created_at: '2026-01-01T00:00:00Z',
+      },
+    } as unknown as Awaited<ReturnType<typeof organizationsAPI.create>>);
+
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const user = userEvent.setup();
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(
+        new Error('NotAllowedError')
+      );
+      render(<OnboardingPage />);
+      await user.type(screen.getByLabelText('Organization Name'), 'Acme');
+      await user.click(screen.getByRole('button', { name: /create organization/i }));
+
+      await user.click(await screen.findByTitle('Copy to clipboard'));
+
+      expect(await screen.findByText(/could not copy automatically/i)).toBeInTheDocument();
+      await waitFor(() => expect(unhandled).not.toHaveBeenCalled());
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
   });
 });

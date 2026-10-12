@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth';
+import { rememberReturnPath } from '@/stores/return-path';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface AuthGuardProps {
@@ -66,11 +67,8 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   const redirectToLogin = () => {
     if (typeof window !== 'undefined') {
-      // Store the current path to redirect back after login
-      const currentPath = window.location.pathname;
-      if (currentPath !== '/') {
-        sessionStorage.setItem('redirect_after_login', currentPath);
-      }
+      // Remember the page (path, query, hash) to return to after login
+      rememberReturnPath();
       window.location.href = '/';
     }
   };
@@ -171,11 +169,8 @@ export function useRequireAuth(): void {
     if (!hasHydrated) return;
 
     if (!accessToken && !refreshToken && typeof window !== 'undefined') {
-      // Store the current path to redirect back after login
-      const currentPath = window.location.pathname;
-      if (currentPath !== '/') {
-        sessionStorage.setItem('redirect_after_login', currentPath);
-      }
+      // Remember the page (path, query, hash) to return to after login
+      rememberReturnPath();
       window.location.href = '/';
     }
   }, [hasHydrated, accessToken, refreshToken]);

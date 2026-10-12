@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,54 +38,63 @@ export function AdminOrganizationsList() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Filters
+  // Filters. `search` is what the box shows; `appliedSearch` is what the list is loaded with
+  // (debounced, or immediate on submit).
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<string>('');
   const [page, setPage] = useState(1);
+  const [reloadToken, setReloadToken] = useState(0);
   const limit = 20;
 
-  const loadOrganizations = useCallback(
-    async (searchTerm?: string) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const params: ListOrgsParams = {
-          limit,
-          offset: (page - 1) * limit,
-          sort_by: 'created_at',
-          sort_order: 'desc',
-        };
-        if (planFilter && planFilter !== 'all') {
-          params.plan_tier = planFilter;
-        }
-        if (searchTerm !== undefined ? searchTerm : search) {
-          params.search = searchTerm !== undefined ? searchTerm : search;
-        }
-
-        const data = await adminAPI.listOrganizations(params);
-        setOrganizations(data.organizations);
-        setTotal(data.total);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to load organizations'));
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [page, planFilter, search, limit]
-  );
+  useEffect(() => {
+    if (search === appliedSearch) return;
+    const timer = setTimeout(() => {
+      setAppliedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, appliedSearch]);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
       window.location.href = '/admin/login';
       return;
     }
-    loadOrganizations();
-  }, [loadOrganizations]);
+    // A newer request (keystroke, page or filter change) aborts this one so a slow, stale
+    // response can never overwrite the list.
+    const controller = new AbortController();
+    setIsLoading(true);
+    setError(null);
+    const params: ListOrgsParams = {
+      limit,
+      offset: (page - 1) * limit,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    };
+    if (planFilter && planFilter !== 'all') params.plan_tier = planFilter;
+    if (appliedSearch) params.search = appliedSearch;
+
+    adminAPI
+      .listOrganizations(params, controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setOrganizations(data.organizations);
+        setTotal(data.total);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err : new Error('Failed to load organizations'));
+        setIsLoading(false);
+      });
+    return () => controller.abort();
+  }, [page, planFilter, appliedSearch, reloadToken]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    loadOrganizations(search);
+    setAppliedSearch(search);
   };
 
   const getPlanBadgeVariant = (plan: string) => {
@@ -168,7 +177,7 @@ export function AdminOrganizationsList() {
           <InlineError
             title="Failed to load organizations"
             error={error}
-            onRetry={() => loadOrganizations()}
+            onRetry={() => setReloadToken((n) => n + 1)}
           />
         ) : organizations.length === 0 ? (
           <EmptyState

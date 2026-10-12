@@ -8,6 +8,27 @@
 
 export type CustomLimits = Record<string, number | null>;
 
+/** Form value meaning "no cap" for a resource limit. Saved as -1 (the backend also accepts null). */
+export const UNLIMITED = 'unlimited';
+
+/** Resource caps that can be unlimited; settings (payload size, rate limit, retention) cannot. */
+export const UNLIMITED_CAPABLE_KEYS: readonly string[] = [
+  'max_jobs_per_day',
+  'max_active_jobs',
+  'max_queues',
+  'max_workers',
+  'max_api_keys',
+  'max_schedules',
+  'max_workflows',
+  'max_webhooks',
+];
+
+/** Form string for a stored override: unlimited caps (null or -1) read as 'unlimited'. */
+export function limitToFormValue(key: string, value: unknown): string {
+  if (UNLIMITED_CAPABLE_KEYS.includes(key) && (value === null || value === -1)) return UNLIMITED;
+  return typeof value === 'number' ? String(value) : '';
+}
+
 /**
  * @param existing the org's current custom_limits (may be null)
  * @param initial  what the form fields held when the dialog opened (key -> string)
@@ -28,6 +49,10 @@ export function mergeCustomLimits(
     if (value === '') {
       // The operator cleared a field that had a value: drop the key (plan default).
       delete result[key];
+      continue;
+    }
+    if (value === UNLIMITED) {
+      if (UNLIMITED_CAPABLE_KEYS.includes(key)) result[key] = -1;
       continue;
     }
     const num = parseInt(value, 10);

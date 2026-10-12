@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { workflowsAPI, getWorkflowStatusInfo } from '@/lib/api/workflows';
+import { workflowsAPI, canCancelWorkflow, getWorkflowStatusInfo } from '@/lib/api/workflows';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import {
@@ -237,7 +237,7 @@ function WorkflowsListContent() {
                     </div>
 
                     <div className="ml-4 flex gap-2">
-                      {(workflow.status === 'pending' || workflow.status === 'running') && (
+                      {canCancelWorkflow(workflow.status) && (
                         <Button
                           variant="outline"
                           size="sm"

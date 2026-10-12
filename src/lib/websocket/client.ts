@@ -11,6 +11,7 @@
  */
 
 import { getWsUrl, API_ENDPOINTS } from '@/lib/constants/api';
+import { isConfigLoaded, loadRuntimeConfig } from '@/lib/config/runtime';
 import type { WebSocketEvent } from '@/lib/types';
 
 type EventCallback = (event: WebSocketEvent) => void;
@@ -29,6 +30,8 @@ interface WebSocketClientOptions {
   maxReconnectAttempts?: number;
   heartbeatInterval?: number;
   maxBackoffMs?: number;
+  /** How long to wait for any server message after a Ping before the socket is treated as dead */
+  pongTimeoutMs?: number;
 }
 
 const DEFAULT_OPTIONS: Required<WebSocketClientOptions> = {
@@ -36,7 +39,13 @@ const DEFAULT_OPTIONS: Required<WebSocketClientOptions> = {
   maxReconnectAttempts: 20,
   heartbeatInterval: 30000,
   maxBackoffMs: 30000,
+  pongTimeoutMs: 10000,
 };
+
+/** Close codes the backend uses for an expired token / revoked session (policy violation). */
+function isAuthCloseCode(code: number): boolean {
+  return code === 1008 || code === 4401 || code === 4001;
+}
 
 /** Map backend PascalCase / SSE dot names → dashboard event types */
 const BACKEND_TYPE_MAP: Record<string, string> = {
@@ -177,6 +186,11 @@ class WebSocketClient {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimeout: ReturnType<typeof setInterval> | null = null;
+  private pongTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** Bumped whenever a pending connect-after-config-load must be abandoned */
+  private connectEpoch = 0;
+  private waitingForConfig = false;
+  private authFailureListeners = new Set<ConnectionCallback>();
   private subscriptions = new Map<string, Set<EventCallback>>();
   private globalListeners = new Set<EventCallback>();
   private connectionListeners = new Set<ConnectionCallback>();
@@ -227,17 +241,44 @@ class WebSocketClient {
       return;
     }
     if (changed) {
-      if (
-        this.ws &&
-        (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
-      ) {
-        this.isManualClose = true;
-        this.ws.close();
-        this.ws = null;
-        this.isManualClose = false;
-      }
+      this.discardSocket();
       this.connect();
     }
+  }
+
+  /**
+   * Drop the current socket without letting its (async) close event touch client
+   * state: a late `onclose` of the old socket must not null out or reconnect over
+   * the socket that replaces it.
+   */
+  private discardSocket(): void {
+    const ws = this.ws;
+    this.stopHeartbeat();
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    if (!ws) return;
+    const wasOpen = ws.readyState === WebSocket.OPEN;
+    this.ws = null;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    try {
+      ws.close();
+    } catch {
+      // already closed
+    }
+    if (wasOpen) {
+      this.disconnectionListeners.forEach((cb) => cb());
+    }
+  }
+
+  /** Called when the server ends the session (expired token / revoked authorization). */
+  onAuthFailure(callback: ConnectionCallback): () => void {
+    this.authFailureListeners.add(callback);
+    return () => this.authFailureListeners.delete(callback);
   }
 
   private ensureBrowserListeners() {
@@ -287,6 +328,13 @@ class WebSocketClient {
     this.isManualClose = false;
     this.setState(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting');
 
+    // Never open the socket (token in the URL) before the runtime config says which
+    // host to use; the default host is the hosted one.
+    if (!isConfigLoaded()) {
+      this.connectAfterConfig();
+      return;
+    }
+
     try {
       const baseUrl = this.getUrl();
       const wsUrl = `${baseUrl}?token=${encodeURIComponent(this.accessToken)}`;
@@ -302,6 +350,25 @@ class WebSocketClient {
     }
   }
 
+  private connectAfterConfig(): void {
+    if (this.waitingForConfig) return;
+    this.waitingForConfig = true;
+    const epoch = this.connectEpoch;
+    loadRuntimeConfig().then(
+      () => {
+        this.waitingForConfig = false;
+        if (epoch !== this.connectEpoch || !this.accessToken) return;
+        this.connect();
+      },
+      () => {
+        // Hosted dashboards refuse to guess the API host; no socket without config.
+        this.waitingForConfig = false;
+        if (epoch !== this.connectEpoch) return;
+        this.setState('degraded');
+      }
+    );
+  }
+
   /**
    * Manual retry after degraded/offline. Resets backoff and reconnects.
    */
@@ -315,17 +382,14 @@ class WebSocketClient {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    if (this.ws) {
-      this.isManualClose = true;
-      this.ws.close();
-      this.ws = null;
-      this.isManualClose = false;
-    }
+    this.discardSocket();
     this.connect();
   }
 
   disconnect(): void {
     this.isManualClose = true;
+    this.connectEpoch++;
+    this.waitingForConfig = false;
     this.stopHeartbeat();
 
     if (this.reconnectTimeout) {
@@ -421,6 +485,8 @@ class WebSocketClient {
   }
 
   private handleMessage(event: MessageEvent) {
+    // Any frame proves the connection is alive.
+    this.clearPongTimeout();
     try {
       const raw = JSON.parse(event.data) as BackendEnvelope;
       const normalized = normalizeEvent(raw);
@@ -451,12 +517,17 @@ class WebSocketClient {
     this.ws = null;
     this.disconnectionListeners.forEach((cb) => cb());
 
-    // 4401/1008-ish auth failures — backend currently uses HTTP before upgrade
-    if (event.code === 1008 || event.code === 4401 || event.code === 4001) {
+    // 1008: the server ended the session (token expired or authorization revoked).
+    // Reconnecting with the same token would fail again, so hand over to the auth
+    // layer to refresh the token or route to login.
+    if (isAuthCloseCode(event.code)) {
       this.setState('auth_failed');
+      this.authFailureListeners.forEach((cb) => cb());
       return;
     }
 
+    // Normal close (1000, e.g. the server's maximum connection age) and every other
+    // code: reconnect.
     if (!this.isManualClose) {
       this.scheduleReconnect();
     } else {
@@ -497,10 +568,34 @@ class WebSocketClient {
     this.stopHeartbeat();
     this.heartbeatTimeout = setInterval(() => {
       this.sendCommand({ cmd: 'Ping' });
+      this.armPongTimeout();
     }, this.options.heartbeatInterval);
   }
 
+  private armPongTimeout() {
+    if (this.pongTimeout) return;
+    this.pongTimeout = setTimeout(() => {
+      this.pongTimeout = null;
+      this.handleStaleConnection();
+    }, this.options.pongTimeoutMs);
+  }
+
+  private clearPongTimeout() {
+    if (this.pongTimeout) {
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
+    }
+  }
+
+  /** No frame arrived after a Ping: the socket is half-open. Drop it and reconnect. */
+  private handleStaleConnection() {
+    if (!this.ws) return;
+    this.discardSocket();
+    this.scheduleReconnect();
+  }
+
   private stopHeartbeat() {
+    this.clearPongTimeout();
     if (this.heartbeatTimeout) {
       clearInterval(this.heartbeatTimeout);
       this.heartbeatTimeout = null;

@@ -26,6 +26,9 @@ describe('ApiKeysListPage', () => {
   });
 
   it('warns that revoking a system key ends dashboard sessions', async () => {
+    const { useAuthStore } = await import('@/stores/auth');
+    const prev = useAuthStore.getState().user!;
+    useAuthStore.setState({ user: { ...prev, api_key_id: 'some-other-key' } });
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const user = userEvent.setup();
     render(<ApiKeysListPage />);
@@ -37,6 +40,23 @@ describe('ApiKeysListPage', () => {
     expect(confirmSpy).toHaveBeenLastCalledWith(
       expect.not.stringContaining('ends dashboard sessions')
     );
+    confirmSpy.mockRestore();
+  });
+
+  it('does not allow revoking the key behind the current session', async () => {
+    // mockAuthenticatedState signs in as key-1
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<ApiKeysListPage />);
+    await screen.findByText('Dashboard session');
+
+    expect(screen.getByText('Current session')).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: /revoke/i });
+    // key-1 (current session) is disabled, key-2 stays revocable
+    expect(buttons[0]).toBeDisabled();
+    expect(buttons[1]).toBeEnabled();
+    await user.click(buttons[0]);
+    expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 });

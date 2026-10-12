@@ -8,6 +8,7 @@ import { mockAuthenticatedState } from '@/test/utils';
 import { BillingPage } from './BillingPage';
 import { server } from '@/test/mocks/server';
 import { http, HttpResponse } from 'msw';
+import userEvent from '@testing-library/user-event';
 import { mockBillingStatusFree, mockBillingStatusWithCustomer } from '@/test/mocks/handlers';
 
 const API_BASE = 'https://api.spooled.cloud';
@@ -82,5 +83,29 @@ describe('BillingPage', () => {
     expect(
       screen.getByText(/open stripe's secure billing portal in a new tab/i)
     ).toBeInTheDocument();
+  });
+
+  it('opens the portal in the tab opened during the click and does not report a blocked popup', async () => {
+    const fakeTab = { opener: {}, closed: false, close: vi.fn(), location: { href: '' } };
+    (window.open as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      () => fakeTab as unknown as Window
+    );
+    server.use(
+      http.get(`${API_BASE}/api/v1/billing/status`, () =>
+        HttpResponse.json(mockBillingStatusWithCustomer)
+      )
+    );
+    const user = userEvent.setup();
+    render(<BillingPage />);
+
+    await user.click(
+      await screen.findByRole('button', { name: /open stripe billing portal \(new tab\)/i })
+    );
+
+    await waitFor(() =>
+      expect(fakeTab.location.href).toBe('https://billing.stripe.com/session/test')
+    );
+    expect(fakeTab.opener).toBeNull();
+    expect(screen.queryByText(/popup blocked/i)).not.toBeInTheDocument();
   });
 });

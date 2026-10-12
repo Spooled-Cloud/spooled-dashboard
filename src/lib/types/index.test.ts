@@ -302,8 +302,6 @@ describe('Worker Types', () => {
         status: 'active',
         last_heartbeat: '2024-01-01T12:00:00Z',
         started_at: '2024-01-01T00:00:00Z',
-        jobs_processed: 150,
-        jobs_failed: 5,
       };
 
       expect(worker.id).toBe('worker-1');

@@ -21,7 +21,21 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { LoginResponse, Organization } from '@/lib/types';
 import { apiClient } from '@/lib/api/client';
+import { loadRuntimeConfig } from '@/lib/config/runtime';
 import { API_ENDPOINTS } from '@/lib/constants/api';
+import { clearStoredTimeseries, timeseriesStorageKey } from '@/lib/hooks/timeseries-storage';
+import { rememberReturnPath } from './return-path';
+
+/**
+ * The organization as persisted in localStorage. `settings` carries the inbound webhook
+ * token and `billing_email` is personal data; neither belongs in storage that outlives
+ * the session. They stay in memory (fetchCurrentUser refills them after a reload).
+ */
+function toPersistedOrganization(org: Organization | null): Organization | null {
+  if (!org) return null;
+  const { billing_email: _billingEmail, settings: _settings, ...rest } = org;
+  return { ...rest, settings: {} };
+}
 
 /** Current user/session info from /auth/me */
 interface CurrentUser {
@@ -81,6 +95,12 @@ export const useAuthStore = create<AuthState>()(
 
       // Clear authentication
       clearAuth: () => {
+        // The trend history belongs to the session's org/user: drop it with the session.
+        const { user, currentOrganization } = get();
+        const orgId = currentOrganization?.id ?? user?.organization_id;
+        clearStoredTimeseries(
+          orgId && user?.api_key_id ? timeseriesStorageKey(orgId, user.api_key_id) : null
+        );
         set({
           user: null,
           accessToken: null,
@@ -148,6 +168,8 @@ export const useAuthStore = create<AuthState>()(
             expiresAt: Date.now() + response.expires_in * 1000,
           });
         } catch {
+          // Remember where the user was before the state is cleared and the page leaves
+          rememberReturnPath();
           get().clearAuth();
           // Redirect to login
           if (typeof window !== 'undefined') {
@@ -185,9 +207,20 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         expiresAt: state.expiresAt,
         isAuthenticated: state.isAuthenticated,
-        currentOrganization: state.currentOrganization,
+        currentOrganization: toPersistedOrganization(state.currentOrganization),
         user: state.user,
       }),
+      // v1: stop persisting organization settings (webhook token) and billing_email.
+      // Returning from migrate makes zustand rewrite the stored value right away, which
+      // scrubs copies written by older versions.
+      version: 1,
+      migrate: (persisted) => {
+        const state = (persisted ?? {}) as { currentOrganization?: Organization | null };
+        return {
+          ...state,
+          currentOrganization: toPersistedOrganization(state.currentOrganization ?? null),
+        } as never;
+      },
     }
   )
 );
@@ -204,6 +237,7 @@ if (typeof window !== 'undefined') {
     if (state.accessToken && state.expiresAt) {
       if (Date.now() > state.expiresAt) {
         console.warn('Token expired, clearing auth');
+        rememberReturnPath();
         useAuthStore.getState().clearAuth();
         // Redirect to login
         window.location.href = '/';
@@ -211,10 +245,13 @@ if (typeof window !== 'undefined') {
     }
   }
 
-  // After rehydration, check if token is still valid
-  useAuthStore.persist.onFinishHydration((state) => {
+  // After rehydration, check if token is still valid. localStorage hydration is
+  // synchronous and has already finished inside create(), so a listener added now would
+  // never fire: run the check right away, and keep the listener for async storages.
+  const onHydrated = (state: AuthState | undefined) => {
     // Set loading to false after hydration
     useAuthStore.setState({ isLoading: false });
+    if (!state) return;
 
     // If we have a token but it's expired, clear auth
     if (state.accessToken && state.expiresAt) {
@@ -227,11 +264,23 @@ if (typeof window !== 'undefined') {
       // (older login before this code shipped, prior fetch failed, or storage
       // was partially cleared), fetch it now so pages like /settings/organization
       // don't get stuck on "No organization selected".
+      //
+      // Wait for the runtime config first: until /api/config answers, the API client only
+      // knows the hosted default host, and this request carries the session token. If
+      // the config cannot be loaded (hosted dashboards refuse to guess a host), skip it.
       if (!state.user || !state.currentOrganization) {
-        useAuthStore.getState().fetchCurrentUser();
+        loadRuntimeConfig()
+          .then(() => useAuthStore.getState().fetchCurrentUser())
+          .catch(() => {});
       }
     }
-  });
+  };
+
+  if (useAuthStore.persist.hasHydrated()) {
+    onHydrated(useAuthStore.getState());
+  } else {
+    useAuthStore.persist.onFinishHydration(onHydrated);
+  }
 
   // Periodically check token expiration (every minute)
   setInterval(checkTokenExpiration, 60 * 1000);

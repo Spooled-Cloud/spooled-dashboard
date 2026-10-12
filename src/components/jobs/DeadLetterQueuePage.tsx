@@ -20,16 +20,28 @@ import {
   CopyButton,
 } from '@/components/ui/data-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { jobsAPI } from '@/lib/api/jobs';
+import { jobsAPI, DLQ_PURGE_MAX_LIMIT } from '@/lib/api/jobs';
 import { formatRelativeTime, formatJobId } from '@/lib/utils/format';
 import { RefreshCw, Trash2, AlertTriangle, RotateCcw, CheckCircle } from 'lucide-react';
 import type { Job } from '@/lib/types';
+import { useDebouncedValue } from './useDebouncedValue';
+
 import { toast } from 'sonner';
 
 function DeadLetterQueueContent() {
   const queryClient = useQueryClient();
   const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
-  const [queueFilter, setQueueFilter] = useState('');
+  const [queueInput, setQueueInput] = useState('');
+  const queueFilter = useDebouncedValue(queueInput.trim());
+  // What the user confirmed when the purge dialog opened: the queue filter, the number of
+  // jobs the request will purge and the total behind it. The dialog text and the request
+  // both use this snapshot, never the live filter or counts, which keep changing behind
+  // the dialog (debounced filter, background refetches).
+  const [purgeTarget, setPurgeTarget] = useState<{
+    queue: string | undefined;
+    count: number;
+    total: number;
+  }>({ queue: undefined, count: 0, total: 0 });
 
   // Dialog states
   const [showRetryDialog, setShowRetryDialog] = useState(false);
@@ -40,13 +52,25 @@ function DeadLetterQueueContent() {
     data: jobs,
     isLoading,
     error,
-    refetch,
     isFetching,
   } = useQuery({
     queryKey: ['dlq', queueFilter],
     queryFn: () => jobsAPI.listDeadLetter({ queue_name: queueFilter || undefined, limit: 100 }),
     refetchInterval: 30000,
   });
+
+  // The list is capped at 100 rows; the real number of dead-lettered jobs comes from stats.
+  const { data: dlqStats, isFetching: isFetchingCount } = useQuery({
+    queryKey: ['dlq', 'count', queueFilter],
+    queryFn: () => jobsAPI.getStatistics(queueFilter || undefined),
+    refetchInterval: 30000,
+  });
+  // Stats can lag behind the list (or fail); never report fewer jobs than are on screen.
+  const totalDeadLettered = Math.max(dlqStats?.deadletter ?? 0, jobs?.length ?? 0);
+
+  // One refresh for the whole dlq family: the list and the count behind the purge dialog.
+  const refreshAll = () => queryClient.invalidateQueries({ queryKey: ['dlq'] });
+  const isRefreshing = isFetching || isFetchingCount;
 
   const retryMutation = useMutation({
     mutationFn: (jobIds: string[]) => jobsAPI.retryDeadLetter({ job_ids: jobIds }),
@@ -67,8 +91,13 @@ function DeadLetterQueueContent() {
   });
 
   const purgeMutation = useMutation({
-    mutationFn: () =>
-      jobsAPI.purgeDeadLetter({ queue_name: queueFilter || undefined, confirm: true }),
+    mutationFn: ({ queue, count }: { queue: string | undefined; count: number }) => {
+      // The backend rejects a limit below 1: never send a request that cannot succeed.
+      if (!Number.isInteger(count) || count < 1) {
+        return Promise.reject(new Error('There are no dead-lettered jobs to purge'));
+      }
+      return jobsAPI.purgeDeadLetter({ queue_name: queue, limit: count, confirm: true });
+    },
     onSuccess: (data) => {
       toast.success('Dead-letter queue purged', {
         description: `${data.purged_count} job(s) permanently deleted`,
@@ -128,8 +157,8 @@ function DeadLetterQueueContent() {
         backHref="/jobs"
         backLabel="Back to Jobs"
         actions={
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="sm" onClick={() => refreshAll()} disabled={isRefreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         }
@@ -148,13 +177,17 @@ function DeadLetterQueueContent() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>DLQ Jobs</CardTitle>
-              <CardDescription>{jobs?.length || 0} jobs in dead-letter queue</CardDescription>
+              <CardDescription>{totalDeadLettered} jobs in dead-letter queue</CardDescription>
             </div>
             <div className="flex gap-2">
               <Input
                 placeholder="Filter by queue..."
-                value={queueFilter}
-                onChange={(e) => setQueueFilter(e.target.value)}
+                value={queueInput}
+                onChange={(e) => {
+                  setQueueInput(e.target.value);
+                  // Selected rows may no longer be in the filtered list.
+                  setSelectedJobs(new Set());
+                }}
                 className="w-48"
               />
             </div>
@@ -167,8 +200,8 @@ function DeadLetterQueueContent() {
             <InlineError
               title="Failed to load dead-letter queue"
               error={error}
-              onRetry={() => refetch()}
-              isRetrying={isFetching}
+              onRetry={() => refreshAll()}
+              isRetrying={isRefreshing}
             />
           ) : !jobs || jobs.length === 0 ? (
             <EmptyState
@@ -205,8 +238,15 @@ function DeadLetterQueueContent() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => setShowPurgeDialog(true)}
-                    disabled={purgeMutation.isPending}
+                    onClick={() => {
+                      setPurgeTarget({
+                        queue: queueFilter || undefined,
+                        count: Math.min(totalDeadLettered, DLQ_PURGE_MAX_LIMIT),
+                        total: totalDeadLettered,
+                      });
+                      setShowPurgeDialog(true);
+                    }}
+                    disabled={purgeMutation.isPending || totalDeadLettered < 1}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Purge All
@@ -327,11 +367,11 @@ function DeadLetterQueueContent() {
       <DangerConfirmDialog
         open={showPurgeDialog}
         onOpenChange={setShowPurgeDialog}
-        onConfirm={() => purgeMutation.mutate()}
+        onConfirm={() => purgeMutation.mutate(purgeTarget)}
         title="Purge Dead-Letter Queue"
         description={
-          queueFilter
-            ? `Permanently delete ALL jobs in the dead-letter queue for "${queueFilter}"?`
+          purgeTarget.queue
+            ? `Permanently delete ALL jobs in the dead-letter queue for "${purgeTarget.queue}"?`
             : 'Permanently delete ALL jobs in the dead-letter queue?'
         }
         confirmText="PURGE"
@@ -339,7 +379,10 @@ function DeadLetterQueueContent() {
         isLoading={purgeMutation.isPending}
         warnings={[
           'This action cannot be undone',
-          `${jobs?.length || 0} job(s) will be permanently deleted`,
+          `${purgeTarget.count} job(s) will be permanently deleted`,
+          ...(purgeTarget.total > DLQ_PURGE_MAX_LIMIT
+            ? [`Only ${DLQ_PURGE_MAX_LIMIT} of ${purgeTarget.total} can be purged per request`]
+            : []),
           'Job data and history will be lost forever',
         ]}
       />

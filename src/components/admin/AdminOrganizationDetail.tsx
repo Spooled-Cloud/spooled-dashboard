@@ -62,11 +62,33 @@ import {
   type CreateApiKeyResponse,
 } from '@/lib/api/admin';
 import { formatRelativeTime } from '@/lib/utils/format';
-import { mergeCustomLimits } from '@/lib/utils/custom-limits';
+import { copyText } from '@/lib/utils/clipboard';
+import {
+  mergeCustomLimits,
+  limitToFormValue,
+  UNLIMITED,
+  UNLIMITED_CAPABLE_KEYS,
+} from '@/lib/utils/custom-limits';
 
 interface Props {
   orgId: string;
 }
+
+const CUSTOM_LIMIT_FIELDS = [
+  { key: 'max_jobs_per_day', label: 'Max Jobs Per Day' },
+  { key: 'max_active_jobs', label: 'Max Active Jobs' },
+  { key: 'max_queues', label: 'Max Queues' },
+  { key: 'max_workers', label: 'Max Workers' },
+  { key: 'max_api_keys', label: 'Max API Keys' },
+  { key: 'max_schedules', label: 'Max Schedules' },
+  { key: 'max_workflows', label: 'Max Workflows' },
+  { key: 'max_webhooks', label: 'Max Webhooks' },
+  { key: 'max_payload_size_bytes', label: 'Max Payload Size (bytes)' },
+  { key: 'rate_limit_requests_per_second', label: 'Rate Limit (req/s)' },
+  { key: 'rate_limit_burst', label: 'Rate Limit Burst' },
+  { key: 'job_retention_days', label: 'Job Retention (days)' },
+  { key: 'history_retention_days', label: 'History Retention (days)' },
+] as const;
 
 export function AdminOrganizationDetail({ orgId }: Props) {
   const [org, setOrg] = useState<OrgDetail | null>(null);
@@ -82,6 +104,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
   const [creatingApiKey, setCreatingApiKey] = useState(false);
   const [createdApiKey, setCreatedApiKey] = useState<CreateApiKeyResponse | null>(null);
   const [apiKeyCopied, setApiKeyCopied] = useState(false);
+  const [apiKeyCopyFailed, setApiKeyCopyFailed] = useState(false);
 
   // Usage reset state
   const [isResettingUsage, setIsResettingUsage] = useState(false);
@@ -194,9 +217,15 @@ export function AdminOrganizationDetail({ orgId }: Props) {
 
   const handleCopyApiKey = async () => {
     if (createdApiKey?.key) {
-      await navigator.clipboard.writeText(createdApiKey.key);
-      setApiKeyCopied(true);
-      setTimeout(() => setApiKeyCopied(false), 2000);
+      if (await copyText(createdApiKey.key)) {
+        setApiKeyCopyFailed(false);
+        setApiKeyCopied(true);
+        setTimeout(() => setApiKeyCopied(false), 2000);
+      } else {
+        // Clipboard blocked: the key is shown once, so point at the selectable text
+        setApiKeyCopied(false);
+        setApiKeyCopyFailed(true);
+      }
     }
   };
 
@@ -205,6 +234,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     setNewApiKeyName('');
     setCreatedApiKey(null);
     setApiKeyCopied(false);
+    setApiKeyCopyFailed(false);
   };
 
   const handleResetUsage = async () => {
@@ -228,24 +258,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     // Initialize editing limits from current custom_limits or empty
     const current = org.custom_limits || {};
     const limits: Record<string, string> = {};
-    const limitFields = [
-      'max_jobs_per_day',
-      'max_active_jobs',
-      'max_queues',
-      'max_workers',
-      'max_api_keys',
-      'max_schedules',
-      'max_workflows',
-      'max_webhooks',
-      'max_payload_size_bytes',
-      'rate_limit_requests_per_second',
-      'rate_limit_burst',
-      'job_retention_days',
-      'history_retention_days',
-    ];
-    for (const field of limitFields) {
-      const value = (current as Record<string, number | null>)[field];
-      limits[field] = value !== undefined && value !== null ? String(value) : '';
+    for (const { key } of CUSTOM_LIMIT_FIELDS) {
+      limits[key] = limitToFormValue(key, (current as Record<string, unknown>)[key]);
     }
     setEditingLimits(limits);
     setInitialLimits(limits);
@@ -494,7 +508,12 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                             <code className="flex-1 break-all rounded bg-muted px-3 py-2 font-mono text-xs">
                               {createdApiKey.key}
                             </code>
-                            <Button variant="outline" size="icon" onClick={handleCopyApiKey}>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={handleCopyApiKey}
+                              aria-label="Copy API key"
+                            >
                               {apiKeyCopied ? (
                                 <Check className="h-4 w-4 text-green-600" />
                               ) : (
@@ -502,6 +521,12 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                               )}
                             </Button>
                           </div>
+                          {apiKeyCopyFailed && (
+                            <p role="alert" className="text-xs text-destructive">
+                              Could not copy automatically. Select the key above and copy it
+                              manually.
+                            </p>
+                          )}
                         </div>
                         <DialogFooter>
                           <Button onClick={handleCloseApiKeyDialog}>Done</Button>
@@ -693,169 +718,48 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                 <DialogTitle>Custom Limits for {org.name}</DialogTitle>
                 <DialogDescription>
                   Override plan defaults. Leave empty to use the {org.plan_tier} plan defaults. Set
-                  to 0 to disable a feature.
+                  to 0 to disable a feature, or tick Unlimited to remove a resource cap.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="max_jobs_per_day">Max Jobs Per Day</Label>
-                  <Input
-                    id="max_jobs_per_day"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_jobs_per_day ?? 'Unlimited')}
-                    value={editingLimits.max_jobs_per_day || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_jobs_per_day: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_active_jobs">Max Active Jobs</Label>
-                  <Input
-                    id="max_active_jobs"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_active_jobs ?? 'Unlimited')}
-                    value={editingLimits.max_active_jobs || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_active_jobs: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_queues">Max Queues</Label>
-                  <Input
-                    id="max_queues"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_queues ?? 'Unlimited')}
-                    value={editingLimits.max_queues || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_queues: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_workers">Max Workers</Label>
-                  <Input
-                    id="max_workers"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_workers ?? 'Unlimited')}
-                    value={editingLimits.max_workers || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_workers: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_api_keys">Max API Keys</Label>
-                  <Input
-                    id="max_api_keys"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_api_keys ?? 'Unlimited')}
-                    value={editingLimits.max_api_keys || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_api_keys: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_schedules">Max Schedules</Label>
-                  <Input
-                    id="max_schedules"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_schedules ?? 'Unlimited')}
-                    value={editingLimits.max_schedules || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_schedules: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_workflows">Max Workflows</Label>
-                  <Input
-                    id="max_workflows"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_workflows ?? 'Unlimited')}
-                    value={editingLimits.max_workflows || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_workflows: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_webhooks">Max Webhooks</Label>
-                  <Input
-                    id="max_webhooks"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_webhooks ?? 'Unlimited')}
-                    value={editingLimits.max_webhooks || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_webhooks: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_payload_size_bytes">Max Payload Size (bytes)</Label>
-                  <Input
-                    id="max_payload_size_bytes"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.max_payload_size_bytes)}
-                    value={editingLimits.max_payload_size_bytes || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, max_payload_size_bytes: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rate_limit_requests_per_second">Rate Limit (req/s)</Label>
-                  <Input
-                    id="rate_limit_requests_per_second"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.rate_limit_requests_per_second)}
-                    value={editingLimits.rate_limit_requests_per_second || ''}
-                    onChange={(e) =>
-                      setEditingLimits({
-                        ...editingLimits,
-                        rate_limit_requests_per_second: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rate_limit_burst">Rate Limit Burst</Label>
-                  <Input
-                    id="rate_limit_burst"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.rate_limit_burst)}
-                    value={editingLimits.rate_limit_burst || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, rate_limit_burst: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="job_retention_days">Job Retention (days)</Label>
-                  <Input
-                    id="job_retention_days"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.job_retention_days)}
-                    value={editingLimits.job_retention_days || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, job_retention_days: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="history_retention_days">History Retention (days)</Label>
-                  <Input
-                    id="history_retention_days"
-                    type="number"
-                    placeholder={String(org.usage_info.limits.history_retention_days)}
-                    value={editingLimits.history_retention_days || ''}
-                    onChange={(e) =>
-                      setEditingLimits({ ...editingLimits, history_retention_days: e.target.value })
-                    }
-                  />
-                </div>
+                {CUSTOM_LIMIT_FIELDS.map(({ key, label }) => {
+                  const canBeUnlimited = UNLIMITED_CAPABLE_KEYS.includes(key);
+                  const isUnlimited = editingLimits[key] === UNLIMITED;
+                  const planDefault = (
+                    org.usage_info.limits as unknown as Record<string, number | null>
+                  )[key];
+                  return (
+                    <div key={key} className="space-y-2">
+                      <Label htmlFor={key}>{label}</Label>
+                      <Input
+                        id={key}
+                        type="number"
+                        placeholder={isUnlimited ? 'Unlimited' : String(planDefault ?? 'Unlimited')}
+                        disabled={isUnlimited}
+                        value={isUnlimited ? '' : (editingLimits[key] ?? '')}
+                        onChange={(e) =>
+                          setEditingLimits({ ...editingLimits, [key]: e.target.value })
+                        }
+                      />
+                      {canBeUnlimited && (
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={isUnlimited}
+                            onChange={(e) =>
+                              setEditingLimits({
+                                ...editingLimits,
+                                [key]: e.target.checked ? UNLIMITED : '',
+                              })
+                            }
+                            className="h-3.5 w-3.5 rounded border-gray-300"
+                          />
+                          Unlimited
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <DialogFooter className="flex-col gap-2 sm:flex-row">
                 <Button
@@ -902,7 +806,7 @@ export function AdminOrganizationDetail({ orgId }: Props) {
                       {key.replace(/_/g, ' ').replace(/max /i, '')}
                     </span>
                     <span className="font-mono font-medium">
-                      {value === null ? (
+                      {value === null || value === -1 ? (
                         <InfinityIcon className="h-4 w-4" />
                       ) : (
                         value.toLocaleString()

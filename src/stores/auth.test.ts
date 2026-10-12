@@ -2,7 +2,8 @@
  * Tests for Auth Store
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import { waitFor } from '@testing-library/react';
 import { useAuthStore } from './auth';
 
 // Mock window.location
@@ -176,5 +177,120 @@ describe('useAuthStore', () => {
       useAuthStore.setState({ expiresAt: futureTime });
       expect(useAuthStore.getState().expiresAt).toBe(futureTime);
     });
+  });
+});
+
+const FULL_ORG = {
+  id: 'org-1',
+  name: 'Acme',
+  slug: 'acme',
+  plan_tier: 'pro',
+  billing_email: 'billing@acme.test',
+  settings: { webhook_token: 'whtok_secret', theme: 'x' },
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
+describe('persisted auth state', () => {
+  it('does not persist organization settings or billing_email', () => {
+    useAuthStore.setState({
+      accessToken: 'jwt',
+      isAuthenticated: true,
+      currentOrganization: FULL_ORG,
+    });
+
+    const persisted = useAuthStore.persist.getOptions().partialize!(
+      useAuthStore.getState()
+    ) as unknown as {
+      currentOrganization: Record<string, unknown>;
+    };
+
+    expect(persisted.currentOrganization.id).toBe('org-1');
+    expect(persisted.currentOrganization.name).toBe('Acme');
+    expect(persisted.currentOrganization.plan_tier).toBe('pro');
+    expect(persisted.currentOrganization.settings).toEqual({});
+    expect(persisted.currentOrganization).not.toHaveProperty('billing_email');
+    expect(JSON.stringify(persisted)).not.toContain('whtok_secret');
+    // The in-memory organization keeps the full record
+    expect(useAuthStore.getState().currentOrganization?.settings).toHaveProperty('webhook_token');
+  });
+
+  it('scrubs an organization stored by an older version on migrate', () => {
+    const migrate = useAuthStore.persist.getOptions().migrate!;
+    const migrated = migrate(
+      { accessToken: 'jwt', currentOrganization: FULL_ORG },
+      0
+    ) as unknown as {
+      accessToken: string;
+      currentOrganization: Record<string, unknown>;
+    };
+    expect(migrated.accessToken).toBe('jwt');
+    expect(JSON.stringify(migrated)).not.toContain('whtok_secret');
+    expect(migrated.currentOrganization).not.toHaveProperty('billing_email');
+  });
+});
+
+describe('trend history on sign-out', () => {
+  it('clearAuth removes the scoped and the legacy trend history keys', () => {
+    useAuthStore.setState({
+      accessToken: 'jwt',
+      isAuthenticated: true,
+      user: {
+        organization_id: 'org-1',
+        api_key_id: 'key-1',
+        queues: [],
+        issued_at: '',
+        expires_at: '',
+      },
+      currentOrganization: FULL_ORG,
+    });
+
+    useAuthStore.getState().clearAuth();
+
+    const removed = (localStorage.removeItem as Mock).mock.calls.map((c) => c[0]);
+    expect(removed).toContain('spooled_dashboard_timeseries:org-1:key-1');
+    expect(removed).toContain('spooled_dashboard_timeseries');
+  });
+});
+
+describe('hydration check at load', () => {
+  afterEach(() => {
+    (localStorage.getItem as Mock).mockReset();
+    vi.resetModules();
+  });
+
+  async function loadStoreWithStorage(state: Record<string, unknown>) {
+    // The start-up check loads /api/config first: give the relative fetch a base URL and
+    // the hostname the config validation reads.
+    Object.assign(mockLocation, { href: 'http://localhost:3000/', hostname: 'localhost' });
+    (localStorage.getItem as Mock).mockImplementation((key: string) =>
+      key === 'auth-storage' ? JSON.stringify({ state, version: 1 }) : null
+    );
+    vi.resetModules();
+    return (await import('./auth')).useAuthStore;
+  }
+
+  it('clears an expired token and finishes loading', async () => {
+    const store = await loadStoreWithStorage({
+      accessToken: 'expired-jwt',
+      expiresAt: Date.now() - 1000,
+      isAuthenticated: true,
+    });
+
+    expect(store.getState().accessToken).toBeNull();
+    expect(store.getState().isAuthenticated).toBe(false);
+    expect(store.getState().isLoading).toBe(false);
+  });
+
+  it('fetches the user and organization when a valid token has no context', async () => {
+    const store = await loadStoreWithStorage({
+      accessToken: 'valid-jwt',
+      expiresAt: Date.now() + 3600_000,
+      isAuthenticated: true,
+    });
+
+    expect(store.getState().isLoading).toBe(false);
+    await waitFor(() => expect(store.getState().user).not.toBeNull());
+    expect(store.getState().accessToken).toBe('valid-jwt');
   });
 });

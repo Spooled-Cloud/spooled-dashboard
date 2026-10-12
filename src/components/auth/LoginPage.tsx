@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Loader2, Key, Mail } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
+import { consumeReturnPath } from '@/stores/return-path';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
 import type { EmailLoginStartResponse, LoginResponse } from '@/lib/types';
@@ -60,25 +61,8 @@ export function LoginPage() {
 
       setAuth(response);
 
-      // Check if there's a redirect path stored from before login.
-      // Only same-origin destinations are allowed. Resolve against our own
-      // origin and keep the value only if it stays same-origin — this rejects
-      // absolute URLs ("https://evil.com"), protocol-relative ("//evil.com")
-      // and backslash-normalized ("/\\evil.com") open redirects that a simple
-      // leading-slash check would let through.
-      const stored = sessionStorage.getItem('redirect_after_login');
-      sessionStorage.removeItem('redirect_after_login');
-      let redirectPath: string | null = null;
-      if (stored) {
-        try {
-          const url = new URL(stored, window.location.origin);
-          if (url.origin === window.location.origin) {
-            redirectPath = url.pathname + url.search + url.hash;
-          }
-        } catch {
-          redirectPath = null;
-        }
-      }
+      // Return to the page the user was sent away from (same-origin paths only).
+      const redirectPath = consumeReturnPath();
 
       // Small delay to ensure state is persisted before navigation
       setTimeout(() => {
@@ -141,8 +125,9 @@ export function LoginPage() {
       }
 
       setAuth(login);
+      const redirectPath = consumeReturnPath();
       setTimeout(() => {
-        window.location.href = '/dashboard';
+        window.location.href = redirectPath || '/dashboard';
       }, 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or code.');

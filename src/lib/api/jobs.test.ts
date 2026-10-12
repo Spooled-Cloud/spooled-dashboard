@@ -5,7 +5,8 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
-import { jobsAPI } from './jobs';
+import { jobsAPI, withExactTotal, JOBS_LIST_MAX_PAGE } from './jobs';
+import type { Job, PaginatedResponse } from '@/lib/types';
 
 const API_BASE = 'https://api.spooled.cloud';
 
@@ -24,6 +25,72 @@ describe('jobsAPI', () => {
       result.data.forEach((job) => {
         expect(job.status).toBe('completed');
       });
+    });
+
+    it('derives its total from the fetched rows and never calls /jobs/stats', async () => {
+      let statsCalls = 0;
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs/stats`, () => {
+          statsCalls += 1;
+          return HttpResponse.json({ total: 10000, deadletter: 0 });
+        })
+      );
+
+      const first = await jobsAPI.list({ per_page: 1 });
+      expect(first.data).toHaveLength(1);
+      // One more row exists than the page shows: the page can only prove "at least this many".
+      expect(first.total).toBe(2);
+      expect(first.total_pages).toBe(2);
+
+      await jobsAPI.list({ status: 'pending', queue: 'emails', per_page: 25 });
+      expect(statsCalls).toBe(0);
+    });
+
+    it('caps a page jump at the maximum page instead of an unbounded OFFSET scan', async () => {
+      const offsets: number[] = [];
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs`, ({ request }) => {
+          const url = new URL(request.url);
+          offsets.push(Number(url.searchParams.get('offset')));
+          const limit = Number(url.searchParams.get('limit'));
+          // A full page plus the extra row that signals "more pages exist".
+          return HttpResponse.json(
+            Array.from({ length: limit }, (_, i) => ({
+              id: `job-deep-${i}`,
+              queue_name: 'default',
+              status: 'pending',
+              priority: 0,
+              attempt: 0,
+              max_retries: 3,
+              job_type: 'noop',
+              created_at: '2024-01-01T00:00:00Z',
+              scheduled_at: null,
+              started_at: null,
+              completed_at: null,
+            }))
+          );
+        })
+      );
+
+      const result = await jobsAPI.list({ page: 400000, per_page: 25 });
+
+      expect(offsets).toEqual([(JOBS_LIST_MAX_PAGE - 1) * 25]);
+      expect(result.page).toBe(JOBS_LIST_MAX_PAGE);
+      expect(result.total_pages).toBe(JOBS_LIST_MAX_PAGE);
+    });
+
+    it('rejects with the backend message for an invalid filter instead of an empty list', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs`, () =>
+          HttpResponse.json(
+            { code: 'VALIDATION_ERROR', message: 'Invalid status filter: bogus' },
+            { status: 400 }
+          )
+        )
+      );
+      await expect(jobsAPI.list({ status: 'bogus' as never })).rejects.toThrow(
+        'Invalid status filter: bogus'
+      );
     });
 
     it('should support filtering by queue', async () => {
@@ -228,6 +295,24 @@ describe('jobsAPI', () => {
     });
   });
 
+  describe('retry limits', () => {
+    it('surfaces the backend message when reviving a failed workflow hits max_workflows', async () => {
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs/:id/retry`, () =>
+          HttpResponse.json(
+            { code: 'LIMIT_EXCEEDED', message: 'Workflow limit reached (5/5)' },
+            { status: 429 }
+          )
+        )
+      );
+      await expect(jobsAPI.retry('job-3')).rejects.toThrow('Workflow limit reached (5/5)');
+    });
+
+    it('does not expose a hard-delete call (DELETE /jobs/{id} only cancels)', () => {
+      expect((jobsAPI as unknown as Record<string, unknown>).delete).toBeUndefined();
+    });
+  });
+
   describe('cancel', () => {
     it('should cancel a pending job', async () => {
       // cancel uses DELETE endpoint which returns void
@@ -235,9 +320,86 @@ describe('jobsAPI', () => {
     });
   });
 
-  describe('delete', () => {
-    it('should delete a job', async () => {
-      await expect(jobsAPI.delete('job-1')).resolves.toBeUndefined();
+  describe('getListTotal', () => {
+    const statsBody = {
+      total: 10000,
+      pending: 4000,
+      scheduled: 0,
+      processing: 0,
+      completed: 6000,
+      failed: 0,
+      cancelled: 0,
+      deadletter: 0,
+    };
+
+    it('reads the total, or one status, from /jobs/stats within the queue filter', async () => {
+      let statsQueue: string | null = null;
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs/stats`, ({ request }) => {
+          statsQueue = new URL(request.url).searchParams.get('queue_name');
+          return HttpResponse.json(statsBody);
+        })
+      );
+
+      expect(await jobsAPI.getListTotal()).toBe(10000);
+      expect(await jobsAPI.getListTotal({ status: 'pending', queue: 'emails' })).toBe(4000);
+      expect(statsQueue).toBe('emails');
+      expect(await jobsAPI.getListTotal({ status: ['completed'] })).toBe(6000);
+    });
+
+    it('has no exact total for a multi-status filter, and does not call stats for it', async () => {
+      let statsCalls = 0;
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs/stats`, () => {
+          statsCalls += 1;
+          return HttpResponse.json(statsBody);
+        })
+      );
+      expect(await jobsAPI.getListTotal({ status: ['failed', 'deadletter'] })).toBeUndefined();
+      expect(statsCalls).toBe(0);
+    });
+
+    it('rejects when /jobs/stats fails so the caller can fall back to the page-derived total', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs/stats`, () =>
+          HttpResponse.json({ message: 'boom' }, { status: 500 })
+        )
+      );
+      await expect(jobsAPI.getListTotal()).rejects.toThrow('boom');
+    });
+  });
+
+  describe('withExactTotal', () => {
+    const page = (total: number, totalPages: number): PaginatedResponse<Job> => ({
+      data: [],
+      page: 1,
+      per_page: 25,
+      total,
+      total_pages: totalPages,
+    });
+
+    it('raises the total and page count to the exact figure', () => {
+      const result = withExactTotal(page(26, 2), 4000);
+      expect(result.total).toBe(4000);
+      expect(result.total_pages).toBe(160);
+    });
+
+    it('never reports fewer jobs than the page already proves exist', () => {
+      const result = withExactTotal(page(26, 2), 10);
+      expect(result.total).toBe(26);
+      expect(result.total_pages).toBe(2);
+    });
+
+    it('keeps the page-derived figures when there is no exact total', () => {
+      const original = page(26, 2);
+      expect(withExactTotal(original, undefined)).toBe(original);
+      expect(withExactTotal(original, Number.NaN)).toBe(original);
+    });
+
+    it('caps the page count while keeping the exact total', () => {
+      const result = withExactTotal(page(26, 2), 10_000_000);
+      expect(result.total).toBe(10_000_000);
+      expect(result.total_pages).toBe(JOBS_LIST_MAX_PAGE);
     });
   });
 

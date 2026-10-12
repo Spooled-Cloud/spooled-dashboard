@@ -19,6 +19,12 @@ import type { BulkEnqueueRequest } from '@/lib/api/jobs';
 import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
 import { Layers, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
+import {
+  MAX_RETRIES_DEFAULT,
+  MAX_RETRIES_MAX,
+  MAX_RETRIES_MIN,
+  parseMaxRetries,
+} from './job-form-utils';
 
 interface BulkEnqueueDialogProps {
   onSuccess?: (result: { success_count: number; failure_count: number }) => void;
@@ -37,7 +43,7 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
     '[\n  { "payload": { "key": "value" } },\n  { "payload": { "key": "value2" } }\n]'
   );
   const [defaultPriority, setDefaultPriority] = useState(0);
-  const [defaultMaxRetries, setDefaultMaxRetries] = useState(3);
+  const [defaultMaxRetries, setDefaultMaxRetries] = useState(String(MAX_RETRIES_DEFAULT));
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ success_count: number; failure_count: number } | null>(
     null
@@ -75,7 +81,7 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
     setQueueName('');
     setJobsJson('[\n  { "payload": { "key": "value" } },\n  { "payload": { "key": "value2" } }\n]');
     setDefaultPriority(0);
-    setDefaultMaxRetries(3);
+    setDefaultMaxRetries(String(MAX_RETRIES_DEFAULT));
     setError('');
     setResult(null);
   };
@@ -116,7 +122,7 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
       queue_name: queueName.trim(),
       jobs,
       default_priority: defaultPriority,
-      default_max_retries: defaultMaxRetries,
+      default_max_retries: parseMaxRetries(defaultMaxRetries),
     });
   };
 
@@ -188,10 +194,10 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
               <Input
                 id="retries"
                 type="number"
-                min={0}
-                max={100}
+                min={MAX_RETRIES_MIN}
+                max={MAX_RETRIES_MAX}
                 value={defaultMaxRetries}
-                onChange={(e) => setDefaultMaxRetries(parseInt(e.target.value) || 3)}
+                onChange={(e) => setDefaultMaxRetries(e.target.value)}
               />
             </div>
           </div>

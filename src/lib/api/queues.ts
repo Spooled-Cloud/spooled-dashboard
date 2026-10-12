@@ -37,6 +37,11 @@ interface BackendQueueStats {
   processing_jobs: number;
   completed_jobs_24h: number;
   failed_jobs_24h: number;
+  /**
+   * Total dead-lettered jobs in the queue. Reported by backend >= 0.1.121; older
+   * backends (0.1.120) omit it, which must stay "unknown" rather than become 0.
+   */
+  deadletter_jobs?: number;
   avg_processing_time_ms?: number;
   max_job_age_seconds?: number;
   active_workers: number;
@@ -68,13 +73,12 @@ function transformQueueConfig(backend: BackendQueueConfig): Queue {
     name: backend.queue_name,
     organization_id: backend.organization_id,
     description: (backend.settings as { description?: string })?.description,
-    concurrency: (backend.settings as { concurrency?: number })?.concurrency ?? 10,
+    // Stored but unenforced settings: passed through as stored, never defaulted.
+    concurrency: (backend.settings as { concurrency?: number })?.concurrency,
     max_retries: backend.max_retries,
-    retry_delay_ms: (backend.settings as { retry_delay_ms?: number })?.retry_delay_ms ?? 1000,
-    backoff_multiplier:
-      (backend.settings as { backoff_multiplier?: number })?.backoff_multiplier ?? 2,
-    max_retry_delay_ms:
-      (backend.settings as { max_retry_delay_ms?: number })?.max_retry_delay_ms ?? 60000,
+    retry_delay_ms: (backend.settings as { retry_delay_ms?: number })?.retry_delay_ms,
+    backoff_multiplier: (backend.settings as { backoff_multiplier?: number })?.backoff_multiplier,
+    max_retry_delay_ms: (backend.settings as { max_retry_delay_ms?: number })?.max_retry_delay_ms,
     job_timeout_ms: backend.default_timeout * 1000, // Convert seconds to ms
     paused: isPaused,
     created_at: backend.created_at,
@@ -83,17 +87,14 @@ function transformQueueConfig(backend: BackendQueueConfig): Queue {
 }
 
 /**
- * Transform backend QueueConfigSummary to frontend Queue type (partial)
+ * Transform backend QueueConfigSummary to frontend Queue type (partial).
+ * The summary carries no settings, so concurrency / retry delay / backoff stay undefined.
  */
 function transformQueueSummary(backend: BackendQueueConfigSummary): Queue {
   return {
     name: backend.queue_name,
     organization_id: '',
-    concurrency: 10,
     max_retries: backend.max_retries,
-    retry_delay_ms: 1000,
-    backoff_multiplier: 2,
-    max_retry_delay_ms: 60000,
     job_timeout_ms: backend.default_timeout * 1000,
     paused: !backend.enabled,
     created_at: '',
@@ -111,7 +112,8 @@ function transformQueueStats(backend: BackendQueueStats): QueueStats {
     processing: backend.processing_jobs,
     completed: backend.completed_jobs_24h,
     failed: backend.failed_jobs_24h,
-    deadletter: 0, // Not provided by backend, would need separate query
+    // Left undefined when the backend does not report it: the UI shows a dash, not a 0.
+    deadletter: backend.deadletter_jobs,
     active_workers: backend.active_workers,
     jobs_per_second:
       backend.avg_processing_time_ms && backend.avg_processing_time_ms > 0
@@ -182,13 +184,19 @@ export const queuesAPI = {
       default_timeout: data.job_timeout_ms
         ? Math.max(1, Math.floor(data.job_timeout_ms / 1000))
         : 300,
-      settings: {
-        description: data.description,
-        concurrency: data.concurrency ?? 10,
-        retry_delay_ms: data.retry_delay_ms ?? 1000,
-        backoff_multiplier: data.backoff_multiplier ?? 2,
-        max_retry_delay_ms: data.max_retry_delay_ms ?? 60000,
-      },
+      // Only settings the caller set: no invented concurrency / retry-delay defaults
+      // (the backend stores but does not enforce them).
+      settings: Object.fromEntries(
+        (
+          [
+            ['description', data.description || undefined],
+            ['concurrency', data.concurrency],
+            ['retry_delay_ms', data.retry_delay_ms],
+            ['backoff_multiplier', data.backoff_multiplier],
+            ['max_retry_delay_ms', data.max_retry_delay_ms],
+          ] as const
+        ).filter(([, v]) => v !== undefined)
+      ),
     };
     const response = await apiClient.put<BackendQueueConfig>(
       API_ENDPOINTS.QUEUES.CREATE(data.name),
@@ -254,11 +262,7 @@ export const queuesAPI = {
     return {
       name: response.queue_name,
       organization_id: '',
-      concurrency: 10,
       max_retries: 3,
-      retry_delay_ms: 1000,
-      backoff_multiplier: 2,
-      max_retry_delay_ms: 60000,
       job_timeout_ms: 300000,
       paused: response.paused,
       created_at: '',
@@ -276,11 +280,7 @@ export const queuesAPI = {
     return {
       name: response.queue_name,
       organization_id: '',
-      concurrency: 10,
       max_retries: 3,
-      retry_delay_ms: 1000,
-      backoff_multiplier: 2,
-      max_retry_delay_ms: 60000,
       job_timeout_ms: 300000,
       paused: !response.resumed,
       created_at: '',

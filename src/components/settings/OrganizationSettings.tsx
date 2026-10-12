@@ -14,6 +14,7 @@ import type { Organization } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
+import { copyText } from '@/lib/utils/clipboard';
 import {
   Save,
   Loader2,
@@ -46,6 +47,8 @@ import {
  */
 export function BillingEmailVerification({ org }: { org: Organization }) {
   const queryClient = useQueryClient();
+  // A new billing email that waits for its code while the verified one stays the sign-in email.
+  const pending = org.pending_billing_email ?? null;
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
   const [code, setCode] = useState('');
 
@@ -56,7 +59,7 @@ export function BillingEmailVerification({ org }: { org: Organization }) {
         queryClient.invalidateQueries({ queryKey: queryKeys.organizations.detail(org.id) });
         return;
       }
-      setCodeSentTo(result.email_sent_to ?? org.billing_email ?? '');
+      setCodeSentTo(result.email_sent_to ?? pending ?? org.billing_email ?? '');
       toast.success('Confirmation code sent');
     },
     onError: (error) => {
@@ -81,9 +84,9 @@ export function BillingEmailVerification({ org }: { org: Organization }) {
     },
   });
 
-  if (!org.billing_email) return null;
+  if (!org.billing_email && !pending) return null;
 
-  if (org.billing_email_verified_at) {
+  if (!pending && org.billing_email_verified_at) {
     return (
       <Badge variant="outline" className="mt-1" data-testid="billing-email-verified">
         Confirmed
@@ -94,10 +97,26 @@ export function BillingEmailVerification({ org }: { org: Organization }) {
   const trimmed = code.trim();
   return (
     <div className="mt-2 space-y-2" data-testid="billing-email-unverified">
-      <p className="text-sm text-muted-foreground">
-        Not confirmed yet. Email sign-in with this address starts working once you confirm it with
-        the code we send there.
-      </p>
+      {pending ? (
+        <p className="text-sm text-muted-foreground" data-testid="billing-email-pending">
+          {org.billing_email_verified_at && org.billing_email ? (
+            <>
+              <Badge variant="outline" className="mr-2" data-testid="billing-email-verified">
+                Confirmed
+              </Badge>
+              {org.billing_email} stays your sign-in email until{' '}
+            </>
+          ) : (
+            <>Email sign-in starts working once </>
+          )}
+          <strong>{pending}</strong> is confirmed with the code we send there.
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Not confirmed yet. Email sign-in with this address starts working once you confirm it with
+          the code we send there.
+        </p>
+      )}
       {codeSentTo === null ? (
         <Button
           variant="outline"
@@ -154,7 +173,7 @@ export function BillingEmailVerification({ org }: { org: Organization }) {
   );
 }
 
-function WebhookTokenSection({ orgId }: { orgId: string }) {
+export function WebhookTokenSection({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient();
   const [showToken, setShowToken] = useState(false);
 
@@ -178,9 +197,14 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
     },
   });
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard`);
+  const copyToClipboard = async (text: string, label: string) => {
+    if (await copyText(text)) {
+      toast.success(`${label} copied to clipboard`);
+    } else {
+      toast.error(`Could not copy the ${label.toLowerCase()}`, {
+        description: 'Select the text and copy it manually.',
+      });
+    }
   };
 
   const maskedToken = webhookData?.webhook_token
@@ -218,6 +242,7 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
                 <Button
                   variant="outline"
                   size="icon"
+                  aria-label="Copy webhook URL"
                   onClick={() => copyToClipboard(webhookData?.webhook_url || '', 'Webhook URL')}
                 >
                   <Copy className="h-4 w-4" />
@@ -245,6 +270,7 @@ function WebhookTokenSection({ orgId }: { orgId: string }) {
                     <Button
                       variant="outline"
                       size="icon"
+                      aria-label="Copy webhook token"
                       onClick={() => copyToClipboard(webhookData.webhook_token!, 'Webhook token')}
                     >
                       <Copy className="h-4 w-4" />
@@ -482,6 +508,11 @@ function OrganizationSettingsContent() {
                 <div>
                   <Label className="text-muted-foreground">Billing Email</Label>
                   <p className="text-sm font-medium">{org.billing_email || 'Not set'}</p>
+                  {org.pending_billing_email && (
+                    <p className="text-xs text-muted-foreground">
+                      Pending confirmation: {org.pending_billing_email}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Created</Label>

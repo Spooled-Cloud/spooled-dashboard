@@ -20,7 +20,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw,
   XCircle,
-  Trash2,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -35,6 +34,7 @@ import {
 import type { Job } from '@/lib/types';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { copyText } from '@/lib/utils/clipboard';
 
 interface JobDetailsContentProps {
   jobId: string;
@@ -57,10 +57,16 @@ export function JsonDisplay({ data, title }: { data: unknown; title: string }) {
   const sizeKB = new TextEncoder().encode(jsonString).length / 1024;
   const isLarge = sizeKB > 50;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(jsonString);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    if (await copyText(jsonString)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      setCopied(false);
+      toast.error('Could not copy to the clipboard', {
+        description: 'Select the text and copy it manually.',
+      });
+    }
   };
 
   return (
@@ -307,7 +313,6 @@ function JobDependenciesPanel({ jobId }: { jobId: string }) {
 function JobDetailsContent({ jobId }: JobDetailsContentProps) {
   const queryClient = useQueryClient();
   const [newPriority, setNewPriority] = useState<number | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   const {
@@ -381,19 +386,6 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => jobsAPI.delete(jobId),
-    onSuccess: () => {
-      toast.success('Job deleted');
-      window.location.href = '/jobs';
-    },
-    onError: (error) => {
-      toast.error('Failed to delete job', {
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    },
-  });
-
   const boostPriorityMutation = useMutation({
     mutationFn: (priority: number) => jobsAPI.boostPriority(jobId, priority),
     onSuccess: (data) => {
@@ -412,8 +404,6 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
 
   const canRetry = job?.status === 'failed' || job?.status === 'deadletter';
   const canCancel = job?.status === 'pending' || job?.status === 'scheduled';
-  const canDelete =
-    job?.status === 'completed' || job?.status === 'failed' || job?.status === 'cancelled';
   const canBoostPriority = job?.status === 'pending' || job?.status === 'scheduled';
 
   if (isLoading) {
@@ -487,17 +477,6 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
               >
                 <XCircle className="mr-2 h-4 w-4" />
                 Cancel
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowDeleteDialog(true)}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
               </Button>
             )}
           </>
@@ -721,17 +700,6 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
                   Cancel Job
                 </Button>
               )}
-              {canDelete && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-destructive hover:text-destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Job
-                </Button>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -747,19 +715,6 @@ function JobDetailsContent({ jobId }: JobDetailsContentProps) {
         confirmLabel="Cancel Job"
         isLoading={cancelMutation.isPending}
         warnings={['Job will be marked as cancelled', 'Any pending retries will be stopped']}
-      />
-
-      {/* Delete Confirmation */}
-      <DangerConfirmDialog
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
-        onConfirm={() => deleteMutation.mutate()}
-        title="Delete Job"
-        description="Are you sure you want to permanently delete this job?"
-        confirmText="DELETE"
-        confirmLabel="Delete Job"
-        isLoading={deleteMutation.isPending}
-        warnings={['Job data will be permanently deleted', 'This action cannot be undone']}
       />
     </div>
   );

@@ -11,6 +11,34 @@ const API_BASE = 'https://api.spooled.cloud';
 
 describe('organizationsAPI', () => {
   describe('get', () => {
+    it('passes through pending_billing_email', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/organizations/:id`, () =>
+          HttpResponse.json({
+            id: 'org-1',
+            name: 'Test Organization',
+            slug: 'test-org',
+            plan_tier: 'free',
+            billing_email: 'owner@example.com',
+            billing_email_verified_at: '2026-10-10T00:00:00Z',
+            pending_billing_email: 'new@example.com',
+            settings: {},
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          })
+        )
+      );
+      const result = await organizationsAPI.get('org-1');
+      expect(result.pending_billing_email).toBe('new@example.com');
+      expect(result.billing_email).toBe('owner@example.com');
+    });
+
+    it('returns the pending billing email of the mock organization that has one', async () => {
+      const result = await organizationsAPI.get('org-pending');
+      expect(result.pending_billing_email).toBe('new-billing@example.com');
+      expect(result.billing_email_verified_at).toBeTruthy();
+    });
+
     it('should fetch organization by ID', async () => {
       const result = await organizationsAPI.get('org-1');
       expect(result).toBeDefined();

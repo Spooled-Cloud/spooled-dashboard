@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiKeysAPI, getApiKeyStatus } from '@/lib/api/api-keys';
 import type { APIKey } from '@/lib/api/api-keys';
+import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { RefreshCw, Trash2, Key, Shield, Clock } from 'lucide-react';
@@ -32,6 +33,7 @@ function ApiKeyStatusBadge({ apiKey }: { apiKey: APIKey }) {
 
 function ApiKeysListContent() {
   const queryClient = useQueryClient();
+  const currentKeyId = useAuthStore((s) => s.user?.api_key_id);
 
   const {
     data: apiKeys,
@@ -57,6 +59,13 @@ function ApiKeysListContent() {
   });
 
   const handleRevoke = (apiKey: APIKey) => {
+    // Revoking the key behind this dashboard session would lock the user out mid-action.
+    if (currentKeyId && apiKey.id === currentKeyId) {
+      toast.error('This key is your current session', {
+        description: 'Sign out instead, or revoke it from another session.',
+      });
+      return;
+    }
     const message = apiKey.is_system
       ? `Revoke system API key "${apiKey.name}"? This key was created for dashboard sign-in. Revoking it ends dashboard sessions and you will need to sign in again. This action cannot be undone.`
       : `Revoke API key "${apiKey.name}"? This action cannot be undone and will immediately invalidate the key.`;
@@ -179,6 +188,11 @@ function ApiKeysListContent() {
                       <div className="mb-2 flex items-center gap-3">
                         <span className="text-lg font-semibold">{apiKey.name}</span>
                         <ApiKeyStatusBadge apiKey={apiKey} />
+                        {currentKeyId === apiKey.id && (
+                          <Badge variant="outline" title="The key behind this dashboard session">
+                            Current session
+                          </Badge>
+                        )}
                         {apiKey.is_system && (
                           <Badge
                             variant="secondary"
@@ -233,7 +247,12 @@ function ApiKeysListContent() {
                           variant="destructive"
                           size="sm"
                           onClick={() => handleRevoke(apiKey)}
-                          disabled={revokeMutation.isPending}
+                          disabled={revokeMutation.isPending || currentKeyId === apiKey.id}
+                          title={
+                            currentKeyId === apiKey.id
+                              ? 'This key is your current dashboard session'
+                              : undefined
+                          }
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           Revoke

@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { queryClient, queryKeys } from './query-client';
+import { queryClient, queryKeys, shouldRetryQuery } from './query-client';
+import { APIError } from '@/lib/api/client';
 
 describe('queryClient', () => {
   it('should be a QueryClient instance', () => {
@@ -15,12 +16,37 @@ describe('queryClient', () => {
     const options = queryClient.getDefaultOptions();
     expect(options.queries?.staleTime).toBe(30 * 1000);
     expect(options.queries?.gcTime).toBe(5 * 60 * 1000);
-    expect(options.queries?.retry).toBe(3);
+    expect(options.queries?.retry).toBe(shouldRetryQuery);
   });
 
-  it('should have mutation retry option', () => {
+  it('never retries mutations', () => {
     const options = queryClient.getDefaultOptions();
-    expect(options.mutations?.retry).toBe(1);
+    expect(options.mutations?.retry).toBe(false);
+  });
+
+  it('does not retry 4xx query errors', () => {
+    for (const status of [400, 401, 403, 404, 429]) {
+      expect(shouldRetryQuery(0, new APIError(status, 'X', 'nope'))).toBe(false);
+    }
+  });
+
+  it('retries 5xx and network errors up to 3 times', () => {
+    expect(shouldRetryQuery(0, new APIError(503, 'X', 'down'))).toBe(true);
+    expect(shouldRetryQuery(2, new TypeError('Failed to fetch'))).toBe(true);
+    expect(shouldRetryQuery(3, new APIError(503, 'X', 'down'))).toBe(false);
+  });
+
+  it('does not re-send a failed mutation', async () => {
+    const { MutationObserver } = await import('@tanstack/react-query');
+    let calls = 0;
+    const observer = new MutationObserver(queryClient, {
+      mutationFn: async () => {
+        calls++;
+        throw new APIError(502, 'BAD_GATEWAY', 'upstream');
+      },
+    });
+    await expect(observer.mutate()).rejects.toBeInstanceOf(APIError);
+    expect(calls).toBe(1);
   });
 });
 
@@ -59,6 +85,14 @@ describe('queryKeys', () => {
 
     it('should have stats key', () => {
       expect(queryKeys.jobs.stats()).toEqual(['jobs', 'stats']);
+    });
+  });
+
+  describe('jobTotals', () => {
+    it('keeps the exact list totals out of the jobs family that realtime events invalidate', () => {
+      const key = queryKeys.jobTotals.count({ queue: 'emails', status: 'pending' });
+      expect(key).toEqual(['job-totals', { queue: 'emails', status: 'pending' }]);
+      expect(key[0]).not.toBe(queryKeys.jobs.all[0]);
     });
   });
 

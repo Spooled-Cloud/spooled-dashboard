@@ -27,11 +27,29 @@ export const mockOrganization = {
   id: 'org-1',
   name: 'Test Organization',
   slug: 'test-org',
+  // Fields of the backend Organization (GET /organizations/{id})
+  plan_tier: 'pro',
+  billing_email: 'billing@example.com',
+  billing_email_verified_at: null,
+  pending_billing_email: null,
+  settings: {},
   plan: 'professional',
   status: 'active',
   member_count: 5,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
+};
+
+/**
+ * An organization with a billing-email change that waits for its confirmation code:
+ * `billing_email` is still the verified address, `pending_billing_email` the new one.
+ * GET /organizations/org-pending returns it.
+ */
+export const mockOrganizationPendingBillingEmail = {
+  ...mockOrganization,
+  id: 'org-pending',
+  billing_email_verified_at: '2026-10-10T00:00:00Z',
+  pending_billing_email: 'new-billing@example.com',
 };
 
 export const mockJobs = [
@@ -286,8 +304,6 @@ export const mockWorkers = [
     status: 'active',
     last_heartbeat: new Date().toISOString(),
     started_at: '2024-01-01T00:00:00Z',
-    jobs_processed: 150,
-    jobs_failed: 5,
   },
   {
     id: 'worker-2',
@@ -299,8 +315,6 @@ export const mockWorkers = [
     status: 'idle',
     last_heartbeat: new Date().toISOString(),
     started_at: '2024-01-01T00:00:00Z',
-    jobs_processed: 80,
-    jobs_failed: 2,
   },
 ];
 
@@ -445,29 +459,36 @@ export const handlers = [
   }),
 
   http.post(`${API_BASE}/api/v1/auth/email/verify`, () => {
+    // Backend VerifyEmailResponse is internally tagged: existing account -> type "login"
     return HttpResponse.json({
+      type: 'login',
       access_token: 'email-access-token',
       refresh_token: 'email-refresh-token',
       token_type: 'Bearer',
       expires_in: 3600,
       refresh_expires_in: 2592000,
-      user_id: 'usr_test',
-      email: 'test@example.com',
-      organizations: [{ id: 'org-1', role: 'owner' }],
     });
   }),
 
   http.post(`${API_BASE}/api/v1/auth/refresh`, () => {
+    // Backend RefreshTokenResponse has no refresh_token (the refresh token is not rotated)
     return HttpResponse.json({
       access_token: 'new-access-token',
-      refresh_token: 'new-refresh-token',
       token_type: 'Bearer',
       expires_in: 3600,
     });
   }),
 
   http.get(`${API_BASE}/api/v1/auth/me`, () => {
-    return HttpResponse.json(mockUser);
+    // Backend CurrentUserResponse fields, plus the legacy mockUser fields some tests read
+    return HttpResponse.json({
+      ...mockUser,
+      organization_id: 'org-1',
+      api_key_id: 'key-1',
+      queues: ['*'],
+      issued_at: '2024-01-01T00:00:00Z',
+      expires_at: '2099-01-01T00:00:00Z',
+    });
   }),
 
   // Dashboard
@@ -656,6 +677,16 @@ export const handlers = [
     if (!job) {
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Job not found' }, { status: 404 });
     }
+    // DELETE /jobs/{id} only cancels: pending and scheduled jobs. Any other status is a 409.
+    if (job.status !== 'pending' && job.status !== 'scheduled') {
+      return HttpResponse.json(
+        {
+          code: 'CONFLICT',
+          message: 'Job cannot be cancelled (not in pending or scheduled state)',
+        },
+        { status: 409 }
+      );
+    }
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -750,6 +781,7 @@ export const handlers = [
       processing_jobs: 2,
       completed_jobs_24h: 100,
       failed_jobs_24h: 5,
+      deadletter_jobs: 3,
       avg_processing_time_ms: 1200,
       max_job_age_seconds: 300,
       active_workers: 2,
@@ -1006,7 +1038,27 @@ export const handlers = [
 
   // Workflows
   http.get(`${API_BASE}/api/v1/workflows`, () => {
-    return HttpResponse.json(mockWorkflows);
+    // The list returns WorkflowResponse summaries (counts, no jobs array)
+    return HttpResponse.json(
+      mockWorkflows.map((w) => {
+        const total = w.jobs.length;
+        const completed = w.jobs.filter((j) => j.status === 'completed').length;
+        return {
+          id: w.id,
+          name: w.name,
+          description: w.description,
+          status: w.status,
+          total_jobs: total,
+          completed_jobs: completed,
+          failed_jobs: w.jobs.filter((j) => j.status === 'failed').length,
+          progress_percent: total === 0 ? 0 : (completed / total) * 100,
+          created_at: w.created_at,
+          started_at: w.created_at,
+          completed_at: w.completed_at,
+          metadata: null,
+        };
+      })
+    );
   }),
 
   http.post(`${API_BASE}/api/v1/workflows`, async ({ request }) => {
@@ -1137,10 +1189,14 @@ export const handlers = [
       {
         id: 'delivery-1',
         webhook_id: 'webhook-1',
-        event_type: 'job.completed',
+        event: 'job.completed',
+        payload: { job_id: 'job-1' },
         status: 'success',
         status_code: 200,
-        response_time_ms: 120,
+        response_body: null,
+        error: null,
+        attempts: 1,
+        created_at: new Date().toISOString(),
         delivered_at: new Date().toISOString(),
       },
     ]);
@@ -1167,43 +1223,58 @@ export const handlers = [
 
   http.post(`${API_BASE}/api/v1/organizations/billing-email/verify`, async ({ request }) => {
     const body = (await request.json()) as { code?: string };
+    // The backend answers a wrong or expired code with 400, not 401: the API client treats
+    // a 401 as an expired session and would try to refresh the token.
     if (body.code !== '123456') {
       return HttpResponse.json(
-        { code: 'AUTHENTICATION_FAILED', message: 'Invalid or expired code' },
-        { status: 401 }
+        { code: 'BAD_REQUEST', message: 'Invalid or expired code' },
+        { status: 400 }
       );
     }
     return HttpResponse.json({ status: 'verified' });
   }),
 
-  http.get(`${API_BASE}/api/v1/organizations/:id`, () => {
+  http.get(`${API_BASE}/api/v1/organizations/:id`, ({ params }) => {
+    if (params.id === mockOrganizationPendingBillingEmail.id) {
+      return HttpResponse.json(mockOrganizationPendingBillingEmail);
+    }
     return HttpResponse.json(mockOrganization);
   }),
 
   http.put(`${API_BASE}/api/v1/organizations/:id`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // A changed billing email is not applied: the verified address stays and the new one
+    // waits as pending_billing_email until its code is confirmed.
+    const changedBillingEmail =
+      typeof body.billing_email === 'string' &&
+      body.billing_email !== mockOrganization.billing_email
+        ? body.billing_email
+        : null;
     return HttpResponse.json({
       ...mockOrganization,
       name: (body.name as string) ?? mockOrganization.name,
       settings: (body.settings as Record<string, unknown>) ?? {},
+      pending_billing_email: changedBillingEmail,
     });
   }),
 
+  // "Members" are the org's active API keys (there are no user accounts): id == user_id ==
+  // key id, every row carries the organization's billing email, role is owner for "*" keys.
   http.get(`${API_BASE}/api/v1/organizations/:id/members`, () => {
     return HttpResponse.json([
       {
-        id: 'member-1',
-        user_id: 'user-1',
-        email: 'admin@example.com',
-        name: 'Admin User',
+        id: 'key-1',
+        user_id: 'key-1',
+        email: 'billing@example.com',
+        name: 'Production key',
         role: 'owner',
         joined_at: '2024-01-01T00:00:00Z',
       },
       {
-        id: 'member-2',
-        user_id: 'user-2',
-        email: 'developer@example.com',
-        name: 'Developer',
+        id: 'key-2',
+        user_id: 'key-2',
+        email: 'billing@example.com',
+        name: 'Emails worker',
         role: 'member',
         joined_at: '2024-01-02T00:00:00Z',
       },

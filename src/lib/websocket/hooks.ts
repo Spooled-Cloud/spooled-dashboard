@@ -3,11 +3,84 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { wsClient, WS_CHANNELS } from './client';
 import { useAuthStore } from '@/stores/auth';
+import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/constants/api';
 import { queryKeys } from '@/lib/query-client';
 import type { WebSocketEvent, WebSocketEventType } from '@/lib/types';
+
+/** Trailing window in which WebSocket-driven invalidations of one query family coalesce. */
+export const INVALIDATION_COALESCE_MS = 1500;
+
+/** Delay before reconnecting after the session probe succeeded following a 1008 close. */
+const AUTH_RECONNECT_DELAY_MS = 5000;
+
+type Invalidator = (key: QueryKey) => void;
+const invalidators = new WeakMap<QueryClient, { invalidate: Invalidator; cancel: () => void }>();
+
+/**
+ * Coalescing invalidator, one per QueryClient. The first event for a query family starts
+ * a timer; every further event for that family inside the window is absorbed, and the
+ * family is invalidated once when the timer fires. A busy org (dozens of job events per
+ * second) therefore costs one refetch per family per window instead of one per event,
+ * and in-flight fetches are not cancelled and restarted by every event.
+ */
+function getInvalidator(queryClient: QueryClient) {
+  let entry = invalidators.get(queryClient);
+  if (!entry) {
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    entry = {
+      invalidate: (key) => {
+        const family = String(key[0]);
+        if (timers.has(family)) return;
+        timers.set(
+          family,
+          setTimeout(() => {
+            timers.delete(family);
+            void queryClient.invalidateQueries({ queryKey: key }, { cancelRefetch: false });
+          }, INVALIDATION_COALESCE_MS)
+        );
+      },
+      cancel: () => {
+        timers.forEach((t) => clearTimeout(t));
+        timers.clear();
+      },
+    };
+    invalidators.set(queryClient, entry);
+  }
+  return entry;
+}
+
+let authRecovery: Promise<void> | null = null;
+
+/**
+ * The server closed the socket with 1008 (token expired or session revoked). Ask the API
+ * whether the session is still valid: a 401 runs the client's refresh path, which either
+ * stores a fresh token (the connection hook then reconnects with it) or clears the auth
+ * state (the guard then routes to login). If the token is still accepted the close was
+ * not about this session, so reconnect after a short pause.
+ */
+export function recoverFromRealtimeAuthFailure(): Promise<void> {
+  if (!authRecovery) {
+    authRecovery = (async () => {
+      try {
+        await apiClient.get(API_ENDPOINTS.AUTH.ME);
+        setTimeout(() => wsClient.retryConnection(), AUTH_RECONNECT_DELAY_MS);
+      } catch {
+        // 401: refreshTokens() already replaced the token or cleared auth.
+        // Anything else (network/5xx): fall back to the normal reconnect backoff.
+        if (useAuthStore.getState().accessToken) {
+          wsClient.retryConnection();
+        }
+      }
+    })().finally(() => {
+      authRecovery = null;
+    });
+  }
+  return authRecovery;
+}
 
 /**
  * Hook to manage WebSocket connection lifecycle
@@ -44,10 +117,15 @@ export function useWebSocketConnection() {
       setLastEventAt(wsClient.getLastEventAt());
     });
 
+    const unsubAuthFailure = wsClient.onAuthFailure(() => {
+      void recoverFromRealtimeAuthFailure();
+    });
+
     return () => {
       unsubConnect();
       unsubDisconnect();
       unsubState();
+      unsubAuthFailure();
     };
   }, [accessToken, isAuthenticated]);
 
@@ -111,6 +189,7 @@ export function useWebSocketQueryInvalidation() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    const { invalidate: invalidateQueries, cancel } = getInvalidator(queryClient);
     const unsubscribe = wsClient.onEvent((event) => {
       const eventType = event.type as WebSocketEventType;
 
@@ -122,22 +201,22 @@ export function useWebSocketQueryInvalidation() {
         case 'job.completed':
         case 'job.failed':
         case 'job.cancelled':
-          queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+          invalidateQueries(queryKeys.jobs.all);
+          invalidateQueries(queryKeys.dashboard.all);
           break;
 
         case 'queue.paused':
         case 'queue.resumed':
         case 'queue.stats':
-          queryClient.invalidateQueries({ queryKey: queryKeys.queues.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+          invalidateQueries(queryKeys.queues.all);
+          invalidateQueries(queryKeys.dashboard.all);
           break;
 
         case 'worker.registered':
         case 'worker.heartbeat':
         case 'worker.deregistered':
-          queryClient.invalidateQueries({ queryKey: queryKeys.workers.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+          invalidateQueries(queryKeys.workers.all);
+          invalidateQueries(queryKeys.dashboard.all);
           break;
 
         case 'workflow.started':
@@ -145,17 +224,20 @@ export function useWebSocketQueryInvalidation() {
         case 'workflow.failed':
           // Reserved: backend realtime.rs does not emit workflow events yet.
           // Keep invalidation so a future event type lights up list refresh.
-          queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
+          invalidateQueries(queryKeys.workflows.all);
           break;
 
         case 'schedule.triggered':
           // Reserved: backend does not emit schedule events on the WS stream yet.
-          queryClient.invalidateQueries({ queryKey: queryKeys.schedules.all });
+          invalidateQueries(queryKeys.schedules.all);
           break;
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      cancel();
+    };
   }, [queryClient]);
 }
 
@@ -187,6 +269,6 @@ export function useDashboardUpdates() {
   const queryClient = useQueryClient();
 
   useWebSocketChannel(WS_CHANNELS.DASHBOARD, () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+    getInvalidator(queryClient).invalidate(queryKeys.dashboard.all);
   });
 }

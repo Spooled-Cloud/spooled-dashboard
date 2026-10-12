@@ -75,7 +75,7 @@ function descriptionFromSettings(settings: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function withDescription(org: Organization): Organization {
+function withDescription<T extends Organization>(org: T): T {
   return {
     ...org,
     description: org.description ?? descriptionFromSettings(org.settings),

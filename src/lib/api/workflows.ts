@@ -162,6 +162,14 @@ export const workflowsAPI = {
 };
 
 /**
+ * `POST /workflows/{id}/cancel` answers 409 once a workflow is completed, failed or
+ * cancelled, so Cancel is only offered while it can still make progress.
+ */
+export function canCancelWorkflow(status: WorkflowStatus): boolean {
+  return status === 'pending' || status === 'running';
+}
+
+/**
  * Get workflow status color and label
  */
 export function getWorkflowStatusInfo(status: WorkflowStatus): {

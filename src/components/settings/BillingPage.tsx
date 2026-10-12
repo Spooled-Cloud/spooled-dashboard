@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,6 +80,9 @@ function getPlanSummary(billing: {
 
 function BillingContent() {
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  // Tab opened synchronously inside the click (browsers block window.open after an await);
+  // it is pointed at the Stripe URL once the portal session comes back.
+  const portalTabRef = useRef<Window | null>(null);
 
   const {
     data: billing,
@@ -96,15 +99,19 @@ function BillingContent() {
       return billingAPI.createPortalSession(returnUrl);
     },
     onSuccess: (data) => {
-      const opened = window.open(data.url, '_blank', 'noopener,noreferrer');
-      if (!opened) {
-        toast.error('Popup blocked', {
-          description: 'Allow popups for this site to open the Stripe billing portal.',
-        });
+      const tab = portalTabRef.current;
+      portalTabRef.current = null;
+      if (tab && !tab.closed) {
+        tab.location.href = data.url;
+      } else {
+        // Popup blocked (or closed): continue in this tab; Stripe returns here afterwards.
+        window.location.assign(data.url);
       }
       setIsOpeningPortal(false);
     },
     onError: (portalError) => {
+      portalTabRef.current?.close();
+      portalTabRef.current = null;
       setIsOpeningPortal(false);
       toast.error('Failed to open billing portal', {
         description: portalError instanceof Error ? portalError.message : 'An error occurred',
@@ -113,6 +120,9 @@ function BillingContent() {
   });
 
   const handleManageBilling = () => {
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    portalTabRef.current = tab;
     setIsOpeningPortal(true);
     portalMutation.mutate();
   };

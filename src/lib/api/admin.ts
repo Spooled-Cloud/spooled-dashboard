@@ -316,7 +316,10 @@ export const adminAPI = {
   /**
    * List all organizations
    */
-  async listOrganizations(params: ListOrgsParams = {}): Promise<ListOrgsResponse> {
+  async listOrganizations(
+    params: ListOrgsParams = {},
+    signal?: AbortSignal
+  ): Promise<ListOrgsResponse> {
     const searchParams = new URLSearchParams();
     if (params.plan_tier) searchParams.set('plan_tier', params.plan_tier);
     if (params.search) searchParams.set('search', params.search);
@@ -327,7 +330,7 @@ export const adminAPI = {
 
     const query = searchParams.toString();
     const endpoint = `/api/v1/admin/organizations${query ? `?${query}` : ''}`;
-    return adminFetch<ListOrgsResponse>(endpoint);
+    return adminFetch<ListOrgsResponse>(endpoint, { signal });
   },
 
   /**

@@ -9,7 +9,7 @@ import { AuthGuard, useIsAuthenticated, useRequireAuth } from './AuthGuard';
 import { useAuthStore } from '@/stores/auth';
 
 // Mock window.location
-const mockLocation = { href: '', pathname: '/dashboard' };
+const mockLocation = { href: '', pathname: '/dashboard', search: '', hash: '' };
 Object.defineProperty(window, 'location', {
   value: mockLocation,
   writable: true,
@@ -31,6 +31,8 @@ describe('AuthGuard', () => {
   beforeEach(() => {
     mockLocation.href = '';
     mockLocation.pathname = '/dashboard';
+    mockLocation.search = '';
+    mockLocation.hash = '';
     mockSessionStorage.setItem.mockClear();
     useAuthStore.setState({
       accessToken: null,
@@ -143,6 +145,30 @@ describe('AuthGuard', () => {
 
     await waitFor(() => {
       expect(mockSessionStorage.setItem).toHaveBeenCalledWith('redirect_after_login', '/settings');
+    });
+  });
+
+  it('keeps the query string and hash of the page for the return trip', async () => {
+    mockLocation.pathname = '/jobs';
+    mockLocation.search = '?status=failed&queue=emails';
+    mockLocation.hash = '#row-3';
+    useAuthStore.setState({
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+    });
+
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>
+    );
+
+    await waitFor(() => {
+      expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
+        'redirect_after_login',
+        '/jobs?status=failed&queue=emails#row-3'
+      );
     });
   });
 

@@ -116,40 +116,17 @@ describe('WorkersListPage', () => {
       );
     });
 
-    it('should display Processed label', async () => {
+    it('does not show per-worker counters or a start time the backend does not provide', async () => {
       render(<WorkersListPage />);
 
-      await waitFor(
-        () => {
-          const jobsProcessedLabels = screen.getAllByText('Processed');
-          expect(jobsProcessedLabels.length).toBeGreaterThan(0);
-        },
-        { timeout: 3000 }
-      );
-    });
+      await waitFor(() => {
+        expect(screen.getAllByText('Current Jobs').length).toBeGreaterThan(0);
+      });
 
-    it('should display Failed label', async () => {
-      render(<WorkersListPage />);
-
-      await waitFor(
-        () => {
-          const jobsFailedLabels = screen.getAllByText('Failed');
-          expect(jobsFailedLabels.length).toBeGreaterThan(0);
-        },
-        { timeout: 3000 }
-      );
-    });
-
-    it('should display Started timestamp', async () => {
-      render(<WorkersListPage />);
-
-      await waitFor(
-        () => {
-          const startedElements = screen.getAllByText(/started/i);
-          expect(startedElements.length).toBeGreaterThan(0);
-        },
-        { timeout: 3000 }
-      );
+      expect(screen.queryByText('Processed')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Started /)).not.toBeInTheDocument();
+      // 'Failed' only appears as a per-worker counter label; none is rendered.
+      expect(screen.queryByText('Failed')).not.toBeInTheDocument();
     });
 
     it('should display Last heartbeat timestamp', async () => {

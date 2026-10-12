@@ -110,17 +110,13 @@ describe('QueuesListPage', () => {
       );
     });
 
-    it('should display queue configuration - Concurrency', async () => {
+    it('does not show Concurrency, which the list endpoint does not return', async () => {
       render(<QueuesListPage />);
 
-      await waitFor(
-        () => {
-          // Multiple queues each have Concurrency label
-          const elements = screen.getAllByText('Concurrency');
-          expect(elements.length).toBeGreaterThan(0);
-        },
-        { timeout: 3000 }
-      );
+      await waitFor(() => expect(screen.getByText('default')).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+      expect(screen.queryByText('Concurrency')).not.toBeInTheDocument();
     });
 
     it('should display queue configuration - Max Retries', async () => {
@@ -136,17 +132,13 @@ describe('QueuesListPage', () => {
       );
     });
 
-    it('should display queue configuration - Retry Delay', async () => {
+    it('does not show Retry Delay, which the list endpoint does not return', async () => {
       render(<QueuesListPage />);
 
-      await waitFor(
-        () => {
-          // Multiple queues each have Retry Delay label
-          const elements = screen.getAllByText('Retry Delay');
-          expect(elements.length).toBeGreaterThan(0);
-        },
-        { timeout: 3000 }
-      );
+      await waitFor(() => expect(screen.getByText('default')).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+      expect(screen.queryByText('Retry Delay')).not.toBeInTheDocument();
     });
 
     it('should display queue configuration - Job Timeout', async () => {

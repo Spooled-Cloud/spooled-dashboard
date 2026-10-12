@@ -3,10 +3,15 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { fireEvent } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
 import { render, screen, waitFor } from '@/test/utils';
 import { CreateJobDialog } from './CreateJobDialog';
 import { mockAuthenticatedState } from '@/test/utils';
 import userEvent from '@testing-library/user-event';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 describe('CreateJobDialog', () => {
   beforeEach(async () => {
@@ -84,15 +89,16 @@ describe('CreateJobDialog', () => {
       });
     });
 
-    it('should show Backoff Type options', async () => {
+    it('does not offer a Backoff Type the backend ignores', async () => {
       const user = userEvent.setup();
       render(<CreateJobDialog />);
 
       await user.click(screen.getByRole('button', { name: /create job/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('Backoff Type')).toBeInTheDocument();
+        expect(screen.getByText('Timeout (ms)')).toBeInTheDocument();
       });
+      expect(screen.queryByText('Backoff Type')).not.toBeInTheDocument();
     });
 
     it('should show Timeout field', async () => {
@@ -289,7 +295,7 @@ describe('CreateJobDialog', () => {
       await user.click(screen.getByRole('button', { name: /create job/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('Select a queue')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/select or type a queue/i)).toBeInTheDocument();
       });
     });
 
@@ -301,6 +307,67 @@ describe('CreateJobDialog', () => {
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/send_email/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Submitted request', () => {
+    async function submit(fill: (user: ReturnType<typeof userEvent.setup>) => Promise<void>) {
+      let posted: Record<string, unknown> | undefined;
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ id: 'job-created-1', created: true }, { status: 201 });
+        })
+      );
+      const user = userEvent.setup();
+      render(<CreateJobDialog />);
+      await user.click(screen.getByRole('button', { name: /create job/i }));
+      await waitFor(() => expect(screen.getByLabelText('Job Type *')).toBeInTheDocument());
+      await user.type(screen.getByLabelText('Job Type *'), 'send_email');
+      await fill(user);
+      const buttons = screen.getAllByRole('button', { name: /create job/i });
+      await user.click(buttons[buttons.length - 1]);
+      await waitFor(() => expect(posted).toBeDefined());
+      return posted as Record<string, unknown>;
+    }
+
+    it('keeps an explicit max retries of 0', async () => {
+      const posted = await submit(async (user) => {
+        await user.type(screen.getByLabelText(/^queue/i), 'emails');
+        const retries = screen.getByLabelText('Max Retries');
+        await user.clear(retries);
+        await user.type(retries, '0');
+      });
+      expect(posted.max_retries).toBe(0);
+    });
+
+    it('defaults an empty max retries field to 3', async () => {
+      const posted = await submit(async (user) => {
+        await user.type(screen.getByLabelText(/^queue/i), 'emails');
+        await user.clear(screen.getByLabelText('Max Retries'));
+      });
+      expect(posted.max_retries).toBe(3);
+    });
+
+    it('sends scheduled_at as an RFC 3339 instant and accepts a brand-new queue name', async () => {
+      const local = '2026-10-11T14:30';
+      const posted = await submit(async (user) => {
+        await user.type(screen.getByLabelText(/^queue/i), 'brand-new-queue');
+        fireEvent.change(screen.getByLabelText(/schedule for/i), { target: { value: local } });
+      });
+      expect(posted.queue_name).toBe('brand-new-queue');
+      expect(posted.scheduled_at).toBe(new Date(local).toISOString());
+      expect(posted.scheduled_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+      expect(posted).not.toHaveProperty('backoff_type');
+    });
+
+    it('labels the schedule field as local time', async () => {
+      const user = userEvent.setup();
+      render(<CreateJobDialog />);
+      await user.click(screen.getByRole('button', { name: /create job/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/entered in your local time/i)).toBeInTheDocument();
       });
     });
   });

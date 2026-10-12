@@ -51,6 +51,63 @@ function resolvePackageVersion(): string {
   return process.env.APP_VERSION || '0.0.0-dev';
 }
 
+const DEFAULT_API_URL = 'https://api.spooled.cloud';
+const DEFAULT_WS_URL = 'wss://api.spooled.cloud';
+
+/** True when `value` is exactly the hosted default URL (scheme and host, no path or query). */
+function isHostedDefault(value: string, defaultUrl: string): boolean {
+  try {
+    const candidate = new URL(value);
+    const hosted = new URL(defaultUrl);
+    return (
+      candidate.protocol === hosted.protocol &&
+      candidate.host === hosted.host &&
+      candidate.pathname === '/' &&
+      !candidate.search &&
+      !candidate.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** True when `apiUrl` is a parseable URL whose host is not the hosted API host. */
+function isNonDefaultApiHost(apiUrl: string): boolean {
+  try {
+    return new URL(apiUrl).host !== new URL(DEFAULT_API_URL).host;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * WebSocket base URL for a deployment. An explicit PUBLIC_WS_URL wins; otherwise it is
+ * derived from the API URL (https -> wss, http -> ws) so a deployment that only sets
+ * PUBLIC_API_URL never sends session tokens to the hosted default host.
+ *
+ * A PUBLIC_WS_URL equal to the hosted default is treated as unset when PUBLIC_API_URL
+ * points at another host: older images, compose files and manifests baked the hosted WS
+ * URL in as a default, so it says nothing about what the operator chose. The hosted
+ * dashboard (hosted API host, or no URL set at all) still gets the hosted WS URL.
+ */
+export function resolveWsUrl(apiUrl: string | undefined, wsUrl: string | undefined): string {
+  const explicitWsUrl =
+    wsUrl && !(apiUrl && isNonDefaultApiHost(apiUrl) && isHostedDefault(wsUrl, DEFAULT_WS_URL))
+      ? wsUrl
+      : undefined;
+  if (explicitWsUrl) return explicitWsUrl;
+  if (apiUrl) {
+    try {
+      const u = new URL(apiUrl);
+      if (u.protocol === 'https:') return `wss://${u.host}`;
+      if (u.protocol === 'http:') return `ws://${u.host}`;
+    } catch {
+      // fall through to the default
+    }
+  }
+  return DEFAULT_WS_URL;
+}
+
 function applySecurityHeaders(headers: Headers): void {
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('X-Frame-Options', 'DENY');
@@ -84,8 +141,8 @@ export const GET: APIRoute = () => {
   const environment = process.env.PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'production';
 
   const config: RuntimeConfig = {
-    apiUrl: process.env.PUBLIC_API_URL || 'https://api.spooled.cloud',
-    wsUrl: process.env.PUBLIC_WS_URL || 'wss://api.spooled.cloud',
+    apiUrl: process.env.PUBLIC_API_URL || DEFAULT_API_URL,
+    wsUrl: resolveWsUrl(process.env.PUBLIC_API_URL, process.env.PUBLIC_WS_URL),
     sentryDsn: process.env.PUBLIC_SENTRY_DSN || undefined,
     sentryEnvironment: environment,
     sentryRelease: process.env.PUBLIC_SENTRY_RELEASE || `${version}+${commit.slice(0, 12)}`,

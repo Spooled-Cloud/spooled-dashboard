@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, AlertCircle, Copy, CheckCheck, Key, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import { copyText } from '@/lib/utils/clipboard';
 
 interface CreateApiKeyDialogProps {
   trigger?: React.ReactNode;
@@ -29,6 +30,7 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
   const [error, setError] = useState<string | null>(null);
   const [createdKey, setCreatedKey] = useState<CreateAPIKeyResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const queryClient = useQueryClient();
 
   // Form state
@@ -58,6 +60,7 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
     setError(null);
     setCreatedKey(null);
     setCopied(false);
+    setCopyFailed(false);
   };
 
   const handleClose = () => {
@@ -94,21 +97,43 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
       }
     }
 
+    // <input type="datetime-local"> yields "2026-10-11T14:30" (local time, no seconds, no
+    // offset); the backend needs an RFC 3339 instant.
+    let expiresAtIso: string | undefined;
+    if (expiresAt) {
+      const parsed = new Date(expiresAt);
+      if (Number.isNaN(parsed.getTime())) {
+        setError('Expiration is not a valid date');
+        return;
+      }
+      if (parsed.getTime() <= Date.now()) {
+        setError('Expiration must be in the future');
+        return;
+      }
+      expiresAtIso = parsed.toISOString();
+    }
+
     const request: CreateAPIKeyRequest = {
       name: name.trim(),
       queues,
       rate_limit: parsedRateLimit,
-      expires_at: expiresAt || undefined,
+      expires_at: expiresAtIso,
     };
 
     createMutation.mutate(request);
   };
 
-  const handleCopyKey = () => {
+  const handleCopyKey = async () => {
     if (createdKey?.key) {
-      navigator.clipboard.writeText(createdKey.key);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (await copyText(createdKey.key)) {
+        setCopyFailed(false);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        // Clipboard blocked: the key is shown once, so point at the selectable field
+        setCopied(false);
+        setCopyFailed(true);
+      }
     }
   };
 
@@ -162,6 +187,11 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
                   )}
                 </Button>
               </div>
+              {copyFailed && (
+                <p role="alert" className="text-xs text-destructive">
+                  Could not copy automatically. Select the key above and copy it manually.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -241,7 +271,7 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Leave empty for a key that never expires
+                Your local time. Leave empty for a key that never expires
               </p>
             </div>
 
@@ -255,7 +285,9 @@ export function CreateApiKeyDialog({ trigger, onSuccess }: CreateApiKeyDialogPro
                 onChange={(e) => setQueuesText(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Leave empty for all queues. Use <span className="font-mono">*</span> for wildcard.
+                Leave empty for all queues. Use <span className="font-mono">*</span> for every
+                queue, or a prefix pattern such as <span className="font-mono">orders.*</span> to
+                cover every queue whose name starts with <span className="font-mono">orders.</span>
               </p>
             </div>
 

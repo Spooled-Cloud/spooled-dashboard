@@ -16,7 +16,7 @@ The dashboard is an Astro application served by the Node adapter (`output: 'serv
 | Variable                    | Required | Default                     | Purpose                                                      |
 | --------------------------- | -------: | --------------------------- | ------------------------------------------------------------ |
 | `PUBLIC_API_URL`            |       No | `https://api.spooled.cloud` | Backend HTTP API base URL                                    |
-| `PUBLIC_WS_URL`             |       No | `wss://api.spooled.cloud`   | Backend WebSocket base URL                                   |
+| `PUBLIC_WS_URL`             |       No | derived from API URL        | Backend WebSocket base URL                                   |
 | `PUBLIC_SENTRY_DSN`         |       No | unset                       | Enables Sentry browser reporting at build time               |
 | `PUBLIC_SENTRY_ENVIRONMENT` |       No | `production`                | Sentry environment label                                     |
 | `PUBLIC_SENTRY_RELEASE`     |       No | unset                       | Optional Sentry release label                                |
@@ -26,6 +26,8 @@ The dashboard is an Astro application served by the Node adapter (`output: 'serv
 | `PUBLIC_ENABLE_QUEUE_PURGE` |       No | `false`                     | Queue purge UI; keep disabled unless the backend supports it |
 | `HOST`                      |       No | `0.0.0.0` in the image      | Node server bind address                                     |
 | `PORT`                      |       No | `4321`                      | Node server port                                             |
+
+When `PUBLIC_WS_URL` is unset, `/api/config` derives it from `PUBLIC_API_URL` (`https` becomes `wss`, `http` becomes `ws`), so a deployment that only sets `PUBLIC_API_URL` never sends session tokens to the hosted WebSocket host. A `PUBLIC_WS_URL` equal to `wss://api.spooled.cloud` is also ignored when `PUBLIC_API_URL` points at another host. With neither variable set, the hosted defaults apply.
 
 These values are returned by `/api/config` and are not secrets. `PUBLIC_SENTRY_DSN` is intentionally public, but server credentials, API keys, and admin keys must never be placed in `PUBLIC_*` variables. The browser bootstrap loads this endpoint before using API/WebSocket URLs.
 

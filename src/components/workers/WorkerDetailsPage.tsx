@@ -7,16 +7,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { workersAPI } from '@/lib/api/workers';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
-import {
-  ArrowLeft,
-  RefreshCw,
-  Trash2,
-  Activity,
-  Circle,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-} from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, Activity, Circle, AlertCircle } from 'lucide-react';
 import type { WorkerStatus } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -106,10 +97,8 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
     );
   }
 
-  const successRate =
-    worker.jobs_processed > 0
-      ? (((worker.jobs_processed - worker.jobs_failed) / worker.jobs_processed) * 100).toFixed(1)
-      : '0.0';
+  const utilization =
+    worker.concurrency > 0 ? Math.min(100, (worker.current_jobs / worker.concurrency) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -142,7 +131,7 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardContent className="p-4">
             <div className="mb-1 flex items-center gap-2">
@@ -156,37 +145,10 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
               <div
                 className="h-full bg-primary transition-all"
                 style={{
-                  width: `${(worker.current_jobs / worker.concurrency) * 100}%`,
+                  width: `${utilization}%`,
                 }}
               />
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Jobs Processed</p>
-            </div>
-            <p className="text-2xl font-bold text-green-600">{worker.jobs_processed}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Jobs Failed</p>
-            </div>
-            <p className="text-2xl font-bold text-red-600">{worker.jobs_failed}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Success Rate</p>
-            </div>
-            <p className="text-2xl font-bold">{successRate}%</p>
           </CardContent>
         </Card>
       </div>
@@ -220,7 +182,7 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Started At</p>
                   <p className="mt-1 text-sm font-medium">
-                    {formatRelativeTime(worker.started_at)}
+                    {worker.started_at ? formatRelativeTime(worker.started_at) : '—'}
                   </p>
                 </div>
                 <div>
@@ -270,47 +232,15 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
               <div>
                 <div className="mb-2 flex justify-between">
                   <span className="text-sm text-muted-foreground">Utilization</span>
-                  <span className="text-sm font-medium">
-                    {((worker.current_jobs / worker.concurrency) * 100).toFixed(0)}%
-                  </span>
+                  <span className="text-sm font-medium">{utilization.toFixed(0)}%</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full bg-primary transition-all"
                     style={{
-                      width: `${(worker.current_jobs / worker.concurrency) * 100}%`,
+                      width: `${utilization}%`,
                     }}
                   />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 flex justify-between">
-                  <span className="text-sm text-muted-foreground">Success Rate</span>
-                  <span className="text-sm font-medium">{successRate}%</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full bg-green-500 transition-all"
-                    style={{ width: `${successRate}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 border-t pt-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Processed</span>
-                  <span className="font-medium">{worker.jobs_processed}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Successful</span>
-                  <span className="font-medium text-green-600">
-                    {worker.jobs_processed - worker.jobs_failed}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Failed</span>
-                  <span className="font-medium text-red-600">{worker.jobs_failed}</span>
                 </div>
               </div>
             </CardContent>

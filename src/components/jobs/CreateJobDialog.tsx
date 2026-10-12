@@ -16,23 +16,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import type { CreateJobRequest, BackoffType } from '@/lib/types';
+import type { CreateJobRequest } from '@/lib/types';
 import { APIError } from '@/lib/api/client';
+import { localDateTimeToIso, parseMaxRetries } from './job-form-utils';
 
 interface CreateJobDialogProps {
   trigger?: React.ReactNode;
   defaultQueue?: string;
   onSuccess?: (jobId: string) => void;
+}
+
+function localTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+  } catch {
+    return 'local time';
+  }
 }
 
 export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobDialogProps) {
@@ -46,7 +48,6 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
   const [payload, setPayload] = useState('{\n  \n}');
   const [priority, setPriority] = useState('0');
   const [maxRetries, setMaxRetries] = useState('3');
-  const [backoffType, setBackoffType] = useState<BackoffType>('exponential');
   const [timeoutMs, setTimeoutMs] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [metadata, setMetadata] = useState('');
@@ -84,7 +85,6 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
     setPayload('{\n  \n}');
     setPriority('0');
     setMaxRetries('3');
-    setBackoffType('exponential');
     setTimeoutMs('');
     setScheduledAt('');
     setMetadata('');
@@ -125,15 +125,20 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
       }
     }
 
+    const scheduledAtIso = localDateTimeToIso(scheduledAt);
+    if (scheduledAtIso === null) {
+      setError('Invalid schedule date');
+      return;
+    }
+
     const request: CreateJobRequest = {
       queue,
       job_type: jobType,
       payload: parsedPayload,
-      priority: parseInt(priority) || 0,
-      max_retries: parseInt(maxRetries) || 3,
-      backoff_type: backoffType,
+      priority: parseInt(priority, 10) || 0,
+      max_retries: parseMaxRetries(maxRetries),
       timeout_ms: timeoutMs ? parseInt(timeoutMs) : undefined,
-      scheduled_at: scheduledAt || undefined,
+      scheduled_at: scheduledAtIso,
       metadata: parsedMetadata,
     };
 
@@ -174,19 +179,24 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
             {/* Queue Selection */}
             <div className="grid gap-2">
               <Label htmlFor="queue">Queue *</Label>
-              <Select value={queue} onValueChange={setQueue}>
-                <SelectTrigger id="queue">
-                  <SelectValue placeholder="Select a queue" />
-                </SelectTrigger>
-                <SelectContent>
-                  {queues?.map((q) => (
-                    <SelectItem key={q.name} value={q.name}>
-                      {q.name}
-                      {q.paused && ' (paused)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                id="queue"
+                list="create-job-queues"
+                placeholder="Select or type a queue name"
+                autoComplete="off"
+                value={queue}
+                onChange={(e) => setQueue(e.target.value)}
+              />
+              <datalist id="create-job-queues">
+                {queues?.map((q) => (
+                  <option key={q.name} value={q.name}>
+                    {q.paused ? 'paused' : undefined}
+                  </option>
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Pick an existing queue or type a new name; the queue is created on first use.
+              </p>
             </div>
 
             {/* Job Type */}
@@ -231,38 +241,23 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
                   id="maxRetries"
                   type="number"
                   min="0"
-                  max="10"
+                  max="100"
                   value={maxRetries}
                   onChange={(e) => setMaxRetries(e.target.value)}
                 />
               </div>
             </div>
 
-            {/* Backoff & Timeout */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="backoffType">Backoff Type</Label>
-                <Select value={backoffType} onValueChange={(v) => setBackoffType(v as BackoffType)}>
-                  <SelectTrigger id="backoffType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="exponential">Exponential</SelectItem>
-                    <SelectItem value="linear">Linear</SelectItem>
-                    <SelectItem value="fixed">Fixed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="timeoutMs">Timeout (ms)</Label>
-                <Input
-                  id="timeoutMs"
-                  type="number"
-                  placeholder="Default from queue"
-                  value={timeoutMs}
-                  onChange={(e) => setTimeoutMs(e.target.value)}
-                />
-              </div>
+            {/* Timeout */}
+            <div className="grid gap-2">
+              <Label htmlFor="timeoutMs">Timeout (ms)</Label>
+              <Input
+                id="timeoutMs"
+                type="number"
+                placeholder="Default from queue"
+                value={timeoutMs}
+                onChange={(e) => setTimeoutMs(e.target.value)}
+              />
             </div>
 
             {/* Scheduled At */}
@@ -275,6 +270,9 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
                 onChange={(e) => setScheduledAt(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">Leave empty to process immediately</p>
+              <p className="text-xs text-muted-foreground">
+                Entered in your local time ({localTimeZone()}).
+              </p>
             </div>
 
             {/* Metadata */}

@@ -6,6 +6,8 @@ import { EmptyState } from './empty-state';
 import { InlineError } from './inline-error';
 import { Button } from './button';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { copyText } from '@/lib/utils/clipboard';
 
 // Re-export base table components
 export {
@@ -342,12 +344,14 @@ export function CopyButton({ value, className }: CopyButtonProps) {
     e.stopPropagation();
     e.preventDefault();
 
-    try {
-      await navigator.clipboard.writeText(value);
+    if (await copyText(value)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+    } else {
+      setCopied(false);
+      toast.error('Could not copy to the clipboard', {
+        description: 'Select the text and copy it manually.',
+      });
     }
   };
 

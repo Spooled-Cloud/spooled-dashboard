@@ -79,6 +79,27 @@ const SEARCH_CHUNK = 100;
 /** Upper bound on rows a client-side search will pull before giving up. */
 const SEARCH_MAX_SCAN = 500;
 
+/**
+ * Deepest page the jobs list will request. The backend pages with OFFSET, so a jump to
+ * page 400000 of a 10M-job org costs an ever larger scan; narrow with filters instead.
+ */
+export const JOBS_LIST_MAX_PAGE = 200;
+
+/**
+ * Apply the exact total from `GET /jobs/stats` (see `jobsAPI.getListTotal`) to a page
+ * whose own total is derived from the rows it fetched. Never reports fewer jobs than the
+ * page already proves exist, and never offers pages beyond `JOBS_LIST_MAX_PAGE`.
+ */
+export function withExactTotal(
+  page: PaginatedResponse<Job>,
+  exactTotal: number | undefined
+): PaginatedResponse<Job> {
+  if (typeof exactTotal !== 'number' || !Number.isFinite(exactTotal)) return page;
+  const total = Math.max(exactTotal, page.total);
+  const totalPages = Math.max(page.total_pages, Math.ceil(total / page.per_page), 1);
+  return { ...page, total, total_pages: Math.min(totalPages, JOBS_LIST_MAX_PAGE) };
+}
+
 function jobMatchesListFilters(job: Job, search?: string, jobType?: string): boolean {
   if (jobType && job.job_type !== jobType) return false;
   if (!search) return true;
@@ -240,9 +261,15 @@ export interface JobDependencies {
   dependencies_met: boolean;
 }
 
+/** Backend cap on one DLQ purge request (`MAX_PURGE_LIMIT`). */
+export const DLQ_PURGE_MAX_LIMIT = 10000;
+/** Backend cap on one DLQ retry request (`MAX_DLQ_RETRY_LIMIT`). */
+export const DLQ_RETRY_MAX_LIMIT = 100;
+
 export interface RetryDlqRequest {
   job_ids?: string[];
   queue_name?: string;
+  /** Maximum jobs to retry (backend: 1..100, default 100). */
   limit?: number;
 }
 
@@ -254,6 +281,8 @@ export interface RetryDlqResponse {
 export interface PurgeDlqRequest {
   queue_name?: string;
   older_than?: string;
+  /** Maximum jobs to purge (backend: 1..10000, default 10000). */
+  limit?: number;
   confirm: boolean;
 }
 
@@ -267,8 +296,9 @@ export const jobsAPI = {
    * List jobs with filtering and pagination
    */
   list: async (params?: JobListParams): Promise<PaginatedResponse<Job>> => {
-    const page = params?.page ?? 1;
     const perPage = params?.per_page ?? 25;
+    // A page jump is capped (see JOBS_LIST_MAX_PAGE): never an OFFSET scan past that depth.
+    const page = Math.min(Math.max(1, Math.floor(params?.page ?? 1)), JOBS_LIST_MAX_PAGE);
     const offset = (page - 1) * perPage;
 
     const queue_name = params?.queue || undefined;
@@ -307,6 +337,10 @@ export const jobsAPI = {
     if (!hasSearch) {
       let summaries: BackendJobSummary[] = [];
 
+      // `GET /jobs` returns a bare array (no total), so this total only covers what the
+      // page itself proves. The exact count comes from `getListTotal`, which callers fetch
+      // as a separate, slowly refreshed query: a stats call on every list refetch (every
+      // realtime event, every 10 s) is wasted load.
       if (statuses.length <= 1) {
         summaries = await fetchPage(statuses[0], offset, limit);
       } else if (page === 1 && offset === 0) {
@@ -322,13 +356,14 @@ export const jobsAPI = {
 
       const pageItems = summaries.slice(0, perPage).map(transformBackendJobSummaryToFrontend);
       const hasMore = summaries.length > perPage;
+      const seen = offset + pageItems.length;
 
       return {
         data: pageItems,
         page,
         per_page: perPage,
-        total: offset + pageItems.length + (hasMore ? 1 : 0),
-        total_pages: hasMore ? page + 1 : page,
+        total: seen + (hasMore ? 1 : 0),
+        total_pages: Math.min(hasMore ? page + 1 : page, JOBS_LIST_MAX_PAGE),
       };
     }
 
@@ -394,6 +429,24 @@ export const jobsAPI = {
   },
 
   /**
+   * GET /api/v1/jobs/stats — the exact number of jobs behind a list view.
+   * Defined for an unfiltered view or a single status (optionally within one queue);
+   * `undefined` for a multi-status filter, which the backend cannot count in one call.
+   * Kept apart from `list` so callers can cache it far longer than the page itself.
+   */
+  getListTotal: async (params?: {
+    queue?: string;
+    status?: JobStatus | JobStatus[];
+  }): Promise<number | undefined> => {
+    const status = params?.status;
+    const statuses = Array.isArray(status) ? status : status ? [status] : [];
+    if (statuses.length > 1) return undefined;
+    const stats = await jobsAPI.getStatistics(params?.queue || undefined);
+    const value = statuses[0] ? stats[statuses[0]] : stats.total;
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  },
+
+  /**
    * POST /api/v1/jobs
    * Create a new job
    */
@@ -428,14 +481,6 @@ export const jobsAPI = {
   },
 
   /**
-   * DELETE /api/v1/jobs/{id}
-   * Cancel or delete a job
-   */
-  delete: (id: string): Promise<void> => {
-    return apiClient.delete<void>(API_ENDPOINTS.JOBS.DELETE(id));
-  },
-
-  /**
    * POST /api/v1/jobs/{id}/retry
    * Retry a failed job
    */
@@ -446,8 +491,8 @@ export const jobsAPI = {
 
   /**
    * DELETE /api/v1/jobs/{id}
-   * Cancel a pending or scheduled job
-   * Note: Uses same endpoint as delete - backend only has DELETE /jobs/{id} for cancellation
+   * Cancel a pending or scheduled job (409 for any other status).
+   * The backend has no hard-delete route: DELETE /jobs/{id} only cancels.
    */
   cancel: (id: string): Promise<void> => {
     return apiClient.delete<void>(API_ENDPOINTS.JOBS.DELETE(id));
@@ -457,8 +502,11 @@ export const jobsAPI = {
    * GET /api/v1/jobs/stats
    * Get job statistics
    */
-  getStatistics: (): Promise<JobStatistics> => {
-    return apiClient.get<JobStatistics>(API_ENDPOINTS.JOBS.STATS);
+  getStatistics: (queue?: string): Promise<JobStatistics> => {
+    return apiClient.get<JobStatistics>(
+      API_ENDPOINTS.JOBS.STATS,
+      queue ? { queue_name: queue } : undefined
+    );
   },
 
   /**

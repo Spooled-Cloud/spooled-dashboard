@@ -20,13 +20,14 @@ import {
   CopyButton,
 } from '@/components/ui/data-table';
 import { useQuery } from '@tanstack/react-query';
-import { jobsAPI } from '@/lib/api/jobs';
+import { jobsAPI, withExactTotal, JOBS_LIST_MAX_PAGE } from '@/lib/api/jobs';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime, formatJobId } from '@/lib/utils/format';
 import { Search, RefreshCw, X } from 'lucide-react';
 import { CreateJobDialog } from './CreateJobDialog';
 import { BulkEnqueueDialog } from './BulkEnqueueDialog';
 import { QuickStatusLookup } from './QuickStatusLookup';
+import { useDebouncedValue } from './useDebouncedValue';
 import type { JobStatus } from '@/lib/types';
 
 interface JobFilters {
@@ -74,32 +75,74 @@ function syncFiltersToUrl(filters: JobFilters) {
   window.history.replaceState({}, '', next);
 }
 
+/** The exact total changes slowly; realtime events never refetch it (see queryKeys.jobTotals). */
+const JOB_TOTAL_STALE_MS = 60_000;
+
 function JobsListContent() {
   const [filters, setFilters] = useState<JobFilters>(() => parseFiltersFromUrl());
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
+  // Search scans several 100-row requests, so only query once typing pauses.
+  const [searchInput, setSearchInput] = useState(() => filters.search ?? '');
+  const debouncedSearch = useDebouncedValue(searchInput.trim());
+
+  useEffect(() => {
+    setFilters((prev) =>
+      (prev.search ?? '') === debouncedSearch
+        ? prev
+        : { ...prev, search: debouncedSearch || undefined }
+    );
+    setPage(1);
+  }, [debouncedSearch]);
+
   useEffect(() => {
     syncFiltersToUrl(filters);
   }, [filters]);
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const {
+    data: pageData,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: queryKeys.jobs.list({ ...filters, page, per_page: pageSize }),
     queryFn: () => jobsAPI.list({ ...filters, page, per_page: pageSize }),
     refetchInterval: 10000,
   });
 
-  const handleFilterChange = (key: keyof JobFilters, value: string) => {
+  // `GET /jobs` has no total, so the exact count is its own query: a long staleTime, no
+  // polling, and a key outside `jobs` so realtime invalidations leave it alone. The queue
+  // filter is applied per keystroke, so the count follows its debounced value and is only
+  // used once it matches. A search scans client-side and brings its own total.
+  const totalQueue = useDebouncedValue(filters.queue);
+  const totalIsCurrent = totalQueue === filters.queue;
+  const { data: exactTotal } = useQuery({
+    queryKey: queryKeys.jobTotals.count({ queue: totalQueue, status: filters.status }),
+    queryFn: () => jobsAPI.getListTotal({ queue: totalQueue, status: filters.status }),
+    enabled: !filters.search && !filters.job_type,
+    staleTime: JOB_TOTAL_STALE_MS,
+    refetchOnMount: true,
+    retry: false,
+  });
+  const data =
+    pageData && totalIsCurrent && !filters.search && !filters.job_type
+      ? withExactTotal(pageData, exactTotal)
+      : pageData;
+
+  const handleFilterChange = (key: Exclude<keyof JobFilters, 'search'>, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
     setPage(1);
   };
 
   const clearFilters = () => {
     setFilters({});
+    setSearchInput('');
     setPage(1);
   };
 
-  const hasFilters = Object.values(filters).some((v) => v);
+  const hasFilters = Object.values(filters).some((v) => v) || searchInput !== '';
 
   return (
     <div className="space-y-6">
@@ -132,8 +175,8 @@ function JobsListContent() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search by job ID or type..."
-                value={filters.search || ''}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -256,6 +299,11 @@ function JobsListContent() {
                 pageSize={pageSize}
                 onPageChange={setPage}
               />
+            )}
+            {data.total > JOBS_LIST_MAX_PAGE * pageSize && (
+              <p className="border-t px-4 py-2 text-xs text-muted-foreground">
+                Paging stops at page {JOBS_LIST_MAX_PAGE}. Narrow the filters to reach older jobs.
+              </p>
             )}
           </>
         )}

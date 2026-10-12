@@ -7,6 +7,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { DashboardData } from '@/lib/types';
+import { useAuthStore } from '@/stores/auth';
+import { timeseriesStorageKey } from './timeseries-storage';
 
 // Timeseries data point
 export interface TimeseriesPoint {
@@ -31,7 +33,6 @@ const TIME_RANGE_CONFIG: Record<TimeRange, { maxPoints: number; intervalMs: numb
   '6h': { maxPoints: 360, intervalMs: 60000 }, // 360 points at 60s intervals = 6hr
 };
 
-const STORAGE_KEY = 'spooled_dashboard_timeseries';
 const STORAGE_VERSION = 1;
 
 interface StoredData {
@@ -92,9 +93,10 @@ function dashboardToPoint(data: DashboardData): TimeseriesPoint {
 /**
  * Load stored data from localStorage
  */
-function loadStoredData(): TimeseriesPoint[] {
+function loadStoredData(storageKey: string | null): TimeseriesPoint[] {
+  if (!storageKey) return [];
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(storageKey);
     if (!stored) return [];
 
     const parsed: StoredData = JSON.parse(stored);
@@ -111,14 +113,15 @@ function loadStoredData(): TimeseriesPoint[] {
 /**
  * Save data to localStorage
  */
-function saveStoredData(points: TimeseriesPoint[]): void {
+function saveStoredData(storageKey: string | null, points: TimeseriesPoint[]): void {
+  if (!storageKey) return;
   try {
     const data: StoredData = {
       version: STORAGE_VERSION,
       points,
       lastUpdated: Date.now(),
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(storageKey, JSON.stringify(data));
   } catch {
     // Storage might be full or disabled
   }
@@ -151,11 +154,28 @@ export function useDashboardTimeseries(
 ): UseDashboardTimeseriesReturn {
   const { persist = true, enabled = true } = options;
 
+  // History is stored per organization + API key; without a known scope nothing is read or written.
+  const organizationId = useAuthStore((s) => s.currentOrganization?.id ?? s.user?.organization_id);
+  const userId = useAuthStore((s) => s.user?.api_key_id);
+  const storageKey = organizationId && userId ? timeseriesStorageKey(organizationId, userId) : null;
+
   // State
-  const [points, setPoints] = useState<TimeseriesPoint[]>(() => (persist ? loadStoredData() : []));
+  const [points, setPoints] = useState<TimeseriesPoint[]>(() =>
+    persist ? loadStoredData(storageKey) : []
+  );
+  const loadedKeyRef = useRef<string | null>(storageKey);
   const [timeRange, setTimeRange] = useState<TimeRange>('15m');
   const [isPaused, setIsPaused] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+
+  // The scope can become known after mount (user fetch) or change (other org): reload
+  // that scope's history instead of showing the previous scope's samples.
+  useEffect(() => {
+    if (loadedKeyRef.current === storageKey) return;
+    loadedKeyRef.current = storageKey;
+    setPoints(persist ? loadStoredData(storageKey) : []);
+    setLastUpdated(null);
+  }, [storageKey, persist]);
 
   // Ref for tracking last sample time
   const lastSampleRef = useRef<number>(0);
@@ -183,12 +203,12 @@ export function useDashboardTimeseries(
 
       // Persist if enabled
       if (persist) {
-        saveStoredData(pruned);
+        saveStoredData(storageKey, pruned);
       }
 
       return pruned;
     });
-  }, [dashboardData, enabled, isPaused, config.intervalMs, timeRange, persist]);
+  }, [dashboardData, enabled, isPaused, config.intervalMs, timeRange, persist, storageKey]);
 
   // Prune points when time range changes
   useEffect(() => {
@@ -198,11 +218,15 @@ export function useDashboardTimeseries(
   // Clear history
   const clearHistory = useCallback(() => {
     setPoints([]);
-    if (persist) {
-      localStorage.removeItem(STORAGE_KEY);
+    if (persist && storageKey) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {
+        // storage unavailable
+      }
     }
     setLastUpdated(null);
-  }, [persist]);
+  }, [persist, storageKey]);
 
   // Pause/resume
   const pause = useCallback(() => setIsPaused(true), []);

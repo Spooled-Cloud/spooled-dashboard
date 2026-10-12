@@ -18,6 +18,7 @@ export function OnboardingPage() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<CreateOrganizationResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   // Auto-generate slug from name
   const handleNameChange = (value: string) => {
@@ -33,9 +34,16 @@ export function OnboardingPage() {
 
   const handleCopyKey = async () => {
     if (result?.api_key.key) {
-      await navigator.clipboard.writeText(result.api_key.key);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(result.api_key.key);
+        setCopyFailed(false);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard blocked (permissions, insecure context): the key is selectable above
+        setCopied(false);
+        setCopyFailed(true);
+      }
     }
   };
 
@@ -122,6 +130,11 @@ export function OnboardingPage() {
                     )}
                   </Button>
                 </div>
+                {copyFailed && (
+                  <p role="alert" className="text-xs text-destructive">
+                    Could not copy automatically. Select the key above and copy it manually.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">Key name: {result.api_key.name}</p>
               </div>
 

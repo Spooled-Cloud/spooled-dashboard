@@ -88,6 +88,14 @@ function HealthStrip({ stats, isLoading }: HealthStripProps) {
       icon: AlertTriangle,
     },
     {
+      // Undefined when the backend does not report it (< 0.1.121): a dash, never a 0.
+      label: 'Dead Letter',
+      value: stats.deadletter ?? '—',
+      color: (stats.deadletter ?? 0) > 0 ? 'text-red-600' : 'text-muted-foreground',
+      bgColor: (stats.deadletter ?? 0) > 0 ? 'bg-red-500/10' : 'bg-muted/50',
+      icon: AlertTriangle,
+    },
+    {
       label: 'Active Workers',
       value: stats.active_workers,
       color: 'text-violet-600',
@@ -95,8 +103,12 @@ function HealthStrip({ stats, isLoading }: HealthStripProps) {
       icon: Users,
     },
     {
-      label: 'Throughput',
-      value: `${stats.jobs_per_second.toFixed(1)}/s`,
+      // 1000 / avg processing time: the rate of ONE worker slot, not queue throughput
+      label: 'Per-slot rate',
+      value:
+        stats.completed > 0 && stats.jobs_per_second > 0
+          ? `${stats.jobs_per_second.toFixed(1)}/s`
+          : '—',
       color: 'text-primary',
       bgColor: 'bg-primary/10',
       icon: Zap,
@@ -104,7 +116,7 @@ function HealthStrip({ stats, isLoading }: HealthStripProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
       {metrics.map((metric, idx) => (
         <motion.div
           key={metric.label}
@@ -152,7 +164,14 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
     workers?.filter((w: Worker) => w.queues.includes(queueName) || w.queues.includes('*')) || [];
 
   const totalCapacity = queueWorkers.reduce((acc: number, w: Worker) => acc + w.concurrency, 0);
-  const activeWorkers = queueWorkers.filter((w: Worker) => w.status === 'active').length;
+  // GET /workers summaries carry only each worker's primary queue, so multi-queue
+  // workers are missing from queueWorkers; the stats endpoint counts them correctly.
+  const reportedWorkers = stats?.active_workers ?? 0;
+  const activeWorkers = Math.max(
+    queueWorkers.filter((w: Worker) => w.status === 'active').length,
+    reportedWorkers
+  );
+  const hasUnlistedWorkers = reportedWorkers > queueWorkers.length;
   const currentlyProcessing = stats?.processing || 0;
   const pending = stats?.pending || 0;
 
@@ -190,7 +209,7 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
             <p className="text-lg font-semibold">
               {activeWorkers}{' '}
               <span className="text-sm font-normal text-muted-foreground">
-                / {queueWorkers.length}
+                / {Math.max(queueWorkers.length, reportedWorkers)}
               </span>
             </p>
           </div>
@@ -213,7 +232,13 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
           </div>
         )}
 
-        {queueWorkers.length === 0 && (
+        {hasUnlistedWorkers && (
+          <p className="text-xs text-muted-foreground">
+            Capacity only counts workers registered with this as their primary queue.
+          </p>
+        )}
+
+        {queueWorkers.length === 0 && reportedWorkers === 0 && (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
             <AlertTriangle className="mx-auto h-5 w-5 text-amber-600" />
             <p className="mt-1 text-sm font-medium text-amber-600">No Workers</p>
@@ -324,15 +349,11 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
   const handleSave = () => {
     const updates: UpdateQueueRequest = {};
     if (editedQueue.description !== undefined) updates.description = editedQueue.description;
-    if (editedQueue.concurrency !== undefined) updates.concurrency = editedQueue.concurrency;
-    if (editedQueue.max_retries !== undefined) updates.max_retries = editedQueue.max_retries;
-    if (editedQueue.retry_delay_ms !== undefined)
-      updates.retry_delay_ms = editedQueue.retry_delay_ms;
-    if (editedQueue.backoff_multiplier !== undefined)
-      updates.backoff_multiplier = editedQueue.backoff_multiplier;
-    if (editedQueue.max_retry_delay_ms !== undefined)
-      updates.max_retry_delay_ms = editedQueue.max_retry_delay_ms;
-    if (editedQueue.job_timeout_ms !== undefined)
+    // Concurrency / retry delay / backoff are not enforced by the backend, so they are
+    // neither shown nor written from here.
+    if (editedQueue.max_retries !== undefined && !Number.isNaN(editedQueue.max_retries))
+      updates.max_retries = editedQueue.max_retries;
+    if (editedQueue.job_timeout_ms !== undefined && !Number.isNaN(editedQueue.job_timeout_ms))
       updates.job_timeout_ms = editedQueue.job_timeout_ms;
 
     updateMutation.mutate(updates);
@@ -462,18 +483,9 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-2 gap-4">
                 {[
-                  { key: 'concurrency', label: 'Concurrency', type: 'number' },
                   { key: 'max_retries', label: 'Max Retries', type: 'number' },
-                  { key: 'retry_delay_ms', label: 'Retry Delay (ms)', type: 'number' },
-                  {
-                    key: 'backoff_multiplier',
-                    label: 'Backoff Multiplier',
-                    type: 'number',
-                    step: '0.1',
-                  },
-                  { key: 'max_retry_delay_ms', label: 'Max Retry Delay (ms)', type: 'number' },
                   { key: 'job_timeout_ms', label: 'Job Timeout (ms)', type: 'number' },
                 ].map((field) => (
                   <div key={field.key} className="bg-muted/50 rounded-lg p-3">
@@ -483,14 +495,11 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                     {isEditing ? (
                       <Input
                         type={field.type}
-                        step={field.step}
-                        value={(editedQueue as Record<string, number | string>)[field.key] || ''}
+                        value={(editedQueue as Record<string, number | string>)[field.key] ?? ''}
                         onChange={(e) =>
                           setEditedQueue({
                             ...editedQueue,
-                            [field.key]: field.step
-                              ? parseFloat(e.target.value)
-                              : parseInt(e.target.value),
+                            [field.key]: parseInt(e.target.value),
                           })
                         }
                         className="mt-1 h-8"

@@ -6,6 +6,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDashboardTimeseries } from './useDashboardTimeseries';
 import type { DashboardData } from '@/lib/types';
+import { useAuthStore } from '@/stores/auth';
+import { timeseriesStorageKey } from './timeseries-storage';
+
+const SCOPED_KEY = timeseriesStorageKey('org-1', 'key-1');
+
+function signIn(organizationId: string, apiKeyId: string) {
+  useAuthStore.setState({
+    user: {
+      organization_id: organizationId,
+      api_key_id: apiKeyId,
+      queues: [],
+      issued_at: '',
+      expires_at: '',
+    },
+    currentOrganization: null,
+  });
+}
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -90,6 +107,7 @@ describe('useDashboardTimeseries', () => {
   beforeEach(() => {
     localStorageMock.clear();
     mockNow = 1700000000000;
+    signIn('org-1', 'key-1');
   });
 
   afterEach(() => {
@@ -359,7 +377,7 @@ describe('useDashboardTimeseries', () => {
         result.current.clearHistory();
       });
 
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('spooled_dashboard_timeseries');
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith(SCOPED_KEY);
     });
   });
 
@@ -376,10 +394,7 @@ describe('useDashboardTimeseries', () => {
       mockNow += 31000;
       rerender({ data: mockData });
 
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'spooled_dashboard_timeseries',
-        expect.any(String)
-      );
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(SCOPED_KEY, expect.any(String));
     });
 
     it('should not save to localStorage when persist is false', () => {
@@ -396,7 +411,7 @@ describe('useDashboardTimeseries', () => {
 
       // Check that setItem was not called for the timeseries key
       const persistenceCalls = localStorageMock.setItem.mock.calls.filter(
-        (call: [string, string]) => call[0] === 'spooled_dashboard_timeseries'
+        (call: [string, string]) => call[0] === SCOPED_KEY
       );
       expect(persistenceCalls.length).toBe(0);
     });
@@ -425,6 +440,71 @@ describe('useDashboardTimeseries', () => {
       const { result } = renderHook(() => useDashboardTimeseries(undefined, { persist: true }));
 
       expect(result.current.pointCount).toBe(1);
+    });
+  });
+
+  describe('storage scope', () => {
+    function stored(ts: number) {
+      return JSON.stringify({
+        version: 1,
+        points: [
+          {
+            timestamp: ts,
+            pending: 7,
+            processing: 0,
+            completed: 0,
+            failed: 0,
+            deadletter: 0,
+            activeWorkers: 0,
+            totalWorkers: 0,
+            idleWorkers: 0,
+          },
+        ],
+        lastUpdated: ts,
+      });
+    }
+
+    it('does not show the history of another organization', () => {
+      localStorageMock.setItem(timeseriesStorageKey('org-2', 'key-9'), stored(mockNow - 60000));
+      localStorageMock.setItem('spooled_dashboard_timeseries', stored(mockNow - 60000));
+
+      const { result } = renderHook(() => useDashboardTimeseries(undefined));
+
+      expect(result.current.points).toEqual([]);
+    });
+
+    it('loads the history of the signed-in organization and user', () => {
+      localStorageMock.setItem(SCOPED_KEY, stored(mockNow - 60000));
+
+      const { result } = renderHook(() => useDashboardTimeseries(undefined));
+
+      expect(result.current.points.map((p) => p.pending)).toEqual([7]);
+    });
+
+    it('reloads when the signed-in scope changes', () => {
+      localStorageMock.setItem(SCOPED_KEY, stored(mockNow - 60000));
+      const { result } = renderHook(() => useDashboardTimeseries(undefined));
+      expect(result.current.points.length).toBe(1);
+
+      act(() => signIn('org-2', 'key-2'));
+
+      expect(result.current.points).toEqual([]);
+    });
+
+    it('neither reads nor writes while the scope is unknown', () => {
+      useAuthStore.setState({ user: null, currentOrganization: null });
+      localStorageMock.setItem.mockClear();
+      const mockData = createMockDashboardData();
+
+      const { result, rerender } = renderHook(
+        ({ data }) => useDashboardTimeseries(data, { persist: true }),
+        { initialProps: { data: mockData } }
+      );
+      mockNow += 31000;
+      rerender({ data: mockData });
+
+      expect(result.current.points.length).toBeGreaterThan(0);
+      expect(localStorageMock.setItem).not.toHaveBeenCalled();
     });
   });
 });

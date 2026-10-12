@@ -1,6 +1,6 @@
 # Spooled Dashboard — Agent Knowledge Base
 
-Ops console **v0.1.73** (Astro SSR + React). Public Apache-2.0 repo.
+Ops console **v0.1.74** (Astro SSR + React). Public Apache-2.0 repo.
 
 ## Read order
 

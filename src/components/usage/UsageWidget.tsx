@@ -31,20 +31,24 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadUsage();
-  }, []);
-
   const loadUsage = async () => {
     try {
       const data = await usageAPI.getUsage();
       setUsage(data);
+      setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load usage');
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    void loadUsage();
+    // Keep the numbers fresh while the page stays open.
+    const timer = setInterval(() => void loadUsage(), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   if (isLoading) {
     return compact ? (
@@ -63,7 +67,9 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
     );
   }
 
-  if (error || !usage) {
+  // The error card is for "nothing to show yet". A failed background refresh keeps the last
+  // good numbers on screen; the next successful refresh replaces them.
+  if (!usage) {
     return compact ? null : (
       <Card>
         <CardHeader>
@@ -75,7 +81,15 @@ export function UsageWidget({ compact = false, showUpgrade = true }: UsageWidget
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error || 'Usage data unavailable'}</AlertDescription>
           </Alert>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => void loadUsage()}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => {
+              setIsLoading(true);
+              void loadUsage();
+            }}
+          >
             Retry
           </Button>
         </CardContent>

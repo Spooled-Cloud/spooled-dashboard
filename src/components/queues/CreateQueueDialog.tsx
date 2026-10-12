@@ -21,6 +21,16 @@ import { toast } from 'sonner';
 import type { CreateQueueRequest } from '@/lib/types';
 import { APIError } from '@/lib/api/client';
 
+/** Mirrors the backend queue-name rule (models/queue_config.rs). */
+const QUEUE_NAME_PATTERN = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/;
+
+class QueueExistsError extends Error {
+  constructor(public queueName: string) {
+    super(`Queue "${queueName}" already exists`);
+    this.name = 'QueueExistsError';
+  }
+}
+
 interface CreateQueueDialogProps {
   trigger?: React.ReactNode;
   onSuccess?: (queueName: string) => void;
@@ -29,20 +39,28 @@ interface CreateQueueDialogProps {
 export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the typed name already has a configuration: creating would overwrite it.
+  const [existingQueue, setExistingQueue] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [concurrency, setConcurrency] = useState('10');
   const [maxRetries, setMaxRetries] = useState('3');
-  const [retryDelayMs, setRetryDelayMs] = useState('1000');
-  const [backoffMultiplier, setBackoffMultiplier] = useState('2');
-  const [maxRetryDelayMs, setMaxRetryDelayMs] = useState('60000');
   const [jobTimeoutMs, setJobTimeoutMs] = useState('300000');
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateQueueRequest) => queuesAPI.create(data),
+    mutationFn: async (data: CreateQueueRequest) => {
+      // PUT /queues/{name}/config is an upsert: creating over an existing queue would
+      // silently reset its retries and timeout. Refuse and point at the edit page.
+      try {
+        await queuesAPI.get(data.name);
+        throw new QueueExistsError(data.name);
+      } catch (err) {
+        if (!(err instanceof APIError && err.status === 404)) throw err;
+      }
+      return queuesAPI.create(data);
+    },
     onSuccess: (queue) => {
       toast.success('Queue created', { description: queue.name });
       queryClient.invalidateQueries({ queryKey: queryKeys.queues.list() });
@@ -51,6 +69,11 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
       onSuccess?.(queue.name);
     },
     onError: (err) => {
+      if (err instanceof QueueExistsError) {
+        setExistingQueue(err.queueName);
+        setError(`A queue named "${err.queueName}" already exists.`);
+        return;
+      }
       if (err instanceof APIError && err.isQuotaExceeded()) {
         setError(
           `${err.message} Compare plans at spooled.cloud/pricing, then manage billing in Settings.`
@@ -64,18 +87,16 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
   const resetForm = () => {
     setName('');
     setDescription('');
-    setConcurrency('10');
     setMaxRetries('3');
-    setRetryDelayMs('1000');
-    setBackoffMultiplier('2');
-    setMaxRetryDelayMs('60000');
     setJobTimeoutMs('300000');
     setError(null);
+    setExistingQueue(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setExistingQueue(null);
 
     // Validate required fields
     if (!name.trim()) {
@@ -83,20 +104,18 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
       return;
     }
 
-    // Validate name format (alphanumeric, underscores, hyphens)
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      setError('Queue name can only contain letters, numbers, underscores, and hyphens');
+    // Same rule as the backend: letters, numbers, dashes, underscores and dots; no leading dot or dash
+    if (!QUEUE_NAME_PATTERN.test(name.trim())) {
+      setError(
+        'Queue name can only contain letters, numbers, underscores, dashes, and dots, and cannot start with a dot or dash'
+      );
       return;
     }
 
     const request: CreateQueueRequest = {
       name: name.trim(),
       description: description.trim() || undefined,
-      concurrency: parseInt(concurrency) || 10,
-      max_retries: parseInt(maxRetries) || 3,
-      retry_delay_ms: parseInt(retryDelayMs) || 1000,
-      backoff_multiplier: parseFloat(backoffMultiplier) || 2,
-      max_retry_delay_ms: parseInt(maxRetryDelayMs) || 60000,
+      max_retries: Number.isNaN(parseInt(maxRetries)) ? 3 : parseInt(maxRetries),
       job_timeout_ms: parseInt(jobTimeoutMs) || 300000,
     };
 
@@ -130,7 +149,20 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  {error}
+                  {existingQueue && (
+                    <>
+                      {' '}
+                      <a
+                        href={`/queues/${encodeURIComponent(existingQueue)}`}
+                        className="font-medium underline"
+                      >
+                        Edit it instead
+                      </a>
+                    </>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -144,7 +176,7 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
                 onChange={(e) => setName(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Letters, numbers, underscores, and hyphens only
+                Letters, numbers, underscores, dashes, and dots; cannot start with a dot or dash
               </p>
             </div>
 
@@ -160,20 +192,8 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
               />
             </div>
 
-            {/* Concurrency & Max Retries */}
+            {/* Max Retries & Job Timeout */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="concurrency">Concurrency</Label>
-                <Input
-                  id="concurrency"
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={concurrency}
-                  onChange={(e) => setConcurrency(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Max parallel jobs</p>
-              </div>
               <div className="grid gap-2">
                 <Label htmlFor="maxRetries">Max Retries</Label>
                 <Input
@@ -185,46 +205,6 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
                   onChange={(e) => setMaxRetries(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">Retry attempts on failure</p>
-              </div>
-            </div>
-
-            {/* Retry Settings */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="retryDelayMs">Retry Delay (ms)</Label>
-                <Input
-                  id="retryDelayMs"
-                  type="number"
-                  min="100"
-                  value={retryDelayMs}
-                  onChange={(e) => setRetryDelayMs(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="backoffMultiplier">Backoff Multiplier</Label>
-                <Input
-                  id="backoffMultiplier"
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  max="10"
-                  value={backoffMultiplier}
-                  onChange={(e) => setBackoffMultiplier(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Timeout Settings */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="maxRetryDelayMs">Max Retry Delay (ms)</Label>
-                <Input
-                  id="maxRetryDelayMs"
-                  type="number"
-                  min="1000"
-                  value={maxRetryDelayMs}
-                  onChange={(e) => setMaxRetryDelayMs(e.target.value)}
-                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="jobTimeoutMs">Job Timeout (ms)</Label>

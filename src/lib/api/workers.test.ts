@@ -34,6 +34,25 @@ describe('workersAPI', () => {
     });
   });
 
+  describe('list summary fields', () => {
+    it('does not present the last heartbeat as the start time', async () => {
+      const workers = await workersAPI.list();
+      for (const w of workers) {
+        expect(w.started_at).toBeUndefined();
+        expect(w.started_at).not.toBe(w.last_heartbeat);
+      }
+    });
+
+    it('carries no per-worker counters the backend does not send', async () => {
+      const [summary] = await workersAPI.list();
+      const detail = await workersAPI.get('worker-1');
+      for (const w of [summary, detail]) {
+        expect(w).not.toHaveProperty('jobs_processed');
+        expect(w).not.toHaveProperty('jobs_failed');
+      }
+    });
+  });
+
   describe('get', () => {
     it('should get a single worker by id', async () => {
       const worker = await workersAPI.get('worker-1');

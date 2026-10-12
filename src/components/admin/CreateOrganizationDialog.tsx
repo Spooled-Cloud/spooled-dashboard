@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Copy, Check, AlertTriangle, Building2 } from 'lucide-react';
 import { adminAPI, type CreateOrgResponse } from '@/lib/api/admin';
+import { copyText } from '@/lib/utils/clipboard';
 
 interface CreateOrganizationDialogProps {
   onSuccess?: () => void;
@@ -32,6 +33,7 @@ export function CreateOrganizationDialog({ onSuccess }: CreateOrganizationDialog
   const [error, setError] = useState('');
   const [result, setResult] = useState<CreateOrgResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   // Form fields
   const [name, setName] = useState('');
@@ -47,6 +49,7 @@ export function CreateOrganizationDialog({ onSuccess }: CreateOrganizationDialog
     setError('');
     setResult(null);
     setCopied(false);
+    setCopyFailed(false);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -94,9 +97,15 @@ export function CreateOrganizationDialog({ onSuccess }: CreateOrganizationDialog
 
   const handleCopyKey = async () => {
     if (result?.api_key.key) {
-      await navigator.clipboard.writeText(result.api_key.key);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (await copyText(result.api_key.key)) {
+        setCopyFailed(false);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        // Clipboard blocked: the key is shown once, so point at the selectable text
+        setCopied(false);
+        setCopyFailed(true);
+      }
     }
   };
 
@@ -270,6 +279,11 @@ export function CreateOrganizationDialog({ onSuccess }: CreateOrganizationDialog
                       )}
                     </Button>
                   </div>
+                  {copyFailed && (
+                    <p role="alert" className="mt-2 text-xs text-destructive">
+                      Could not copy automatically. Select the key above and copy it manually.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>

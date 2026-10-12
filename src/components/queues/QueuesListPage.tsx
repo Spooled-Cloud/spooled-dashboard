@@ -163,18 +163,10 @@ function QueuesListContent() {
                         <p className="mb-3 text-sm text-muted-foreground">{queue.description}</p>
                       )}
 
-                      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-                        <div className="bg-muted/50 rounded-lg p-3">
-                          <p className="text-xs font-medium text-muted-foreground">Concurrency</p>
-                          <p className="text-lg font-semibold">{queue.concurrency}</p>
-                        </div>
+                      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-2 lg:max-w-md">
                         <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs font-medium text-muted-foreground">Max Retries</p>
                           <p className="text-lg font-semibold">{queue.max_retries}</p>
-                        </div>
-                        <div className="bg-muted/50 rounded-lg p-3">
-                          <p className="text-xs font-medium text-muted-foreground">Retry Delay</p>
-                          <p className="text-lg font-semibold">{queue.retry_delay_ms}ms</p>
                         </div>
                         <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs font-medium text-muted-foreground">Job Timeout</p>

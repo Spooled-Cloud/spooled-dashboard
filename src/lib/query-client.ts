@@ -5,6 +5,21 @@
  */
 
 import { QueryClient } from '@tanstack/react-query';
+import { APIError } from '@/lib/api/client';
+
+const MAX_QUERY_RETRIES = 3;
+
+/**
+ * Retry transient failures only. A 4xx is a definitive answer (bad id, forbidden,
+ * rate limited, expired session); repeating it just delays the error and burns
+ * rate limit.
+ */
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (error instanceof APIError && error.status >= 400 && error.status < 500) {
+    return false;
+  }
+  return failureCount < MAX_QUERY_RETRIES;
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,8 +30,8 @@ export const queryClient = new QueryClient({
       // Cache time: 5 minutes
       gcTime: 5 * 60 * 1000,
 
-      // Retry failed requests up to 3 times
-      retry: 3,
+      // Retry transient failures up to 3 times, never 4xx
+      retry: shouldRetryQuery,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
 
       // Refetch on window focus
@@ -26,7 +41,9 @@ export const queryClient = new QueryClient({
       refetchOnMount: 'always',
     },
     mutations: {
-      retry: 1,
+      // Never re-send a mutation: creates are not idempotent, and a 5xx/timeout can
+      // arrive after the server already committed.
+      retry: false,
     },
   },
 });
@@ -49,6 +66,14 @@ export const queryKeys = {
     details: () => [...queryKeys.jobs.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.jobs.details(), id] as const,
     stats: () => [...queryKeys.jobs.all, 'stats'] as const,
+  },
+
+  // Exact job counts behind list pagination. Deliberately NOT under `jobs`: realtime job
+  // events invalidate `jobs.all` on every change, and these counts only need a slow refresh.
+  jobTotals: {
+    all: ['job-totals'] as const,
+    count: (filters: { queue?: string; status?: string }) =>
+      [...queryKeys.jobTotals.all, filters] as const,
   },
 
   // Queues

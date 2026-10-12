@@ -7,6 +7,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import {
   workflowsAPI,
+  canCancelWorkflow,
   getWorkflowStatusInfo,
   buildDependencyGraph,
   getRootJobs,
@@ -383,5 +384,41 @@ describe('getJobLevels', () => {
     const levels = getJobLevels(jobs, dependencies);
 
     expect(levels.length).toBe(0);
+  });
+});
+
+describe('canCancelWorkflow', () => {
+  it('offers Cancel only while the workflow can still progress', () => {
+    expect(canCancelWorkflow('pending')).toBe(true);
+    expect(canCancelWorkflow('running')).toBe(true);
+    expect(canCancelWorkflow('completed')).toBe(false);
+    expect(canCancelWorkflow('failed')).toBe(false);
+    expect(canCancelWorkflow('cancelled')).toBe(false);
+  });
+});
+
+describe('workflow retry limits', () => {
+  it('surfaces the backend message when a retry would exceed max_workflows', async () => {
+    server.use(
+      http.post(`${API_BASE}/api/v1/workflows/:id/retry`, () =>
+        HttpResponse.json(
+          { code: 'LIMIT_EXCEEDED', message: 'Workflow limit reached (5/5)' },
+          { status: 429 }
+        )
+      )
+    );
+    await expect(workflowsAPI.retry('wf-1')).rejects.toThrow('Workflow limit reached (5/5)');
+  });
+
+  it('surfaces the 409 message when cancelling a finished workflow', async () => {
+    server.use(
+      http.post(`${API_BASE}/api/v1/workflows/:id/cancel`, () =>
+        HttpResponse.json(
+          { code: 'CONFLICT', message: 'Workflow is already completed' },
+          { status: 409 }
+        )
+      )
+    );
+    await expect(workflowsAPI.cancel('wf-1')).rejects.toThrow('Workflow is already completed');
   });
 });
