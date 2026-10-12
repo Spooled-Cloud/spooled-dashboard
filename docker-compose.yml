@@ -37,6 +37,10 @@ services:
 
       # Analytics (optional)
       PUBLIC_ENABLE_ANALYTICS: ${PUBLIC_ENABLE_ANALYTICS:-false}
+
+      # Reverse proxy (optional): true only behind a proxy that rewrites Host and sets
+      # X-Forwarded-Host itself (see docs/DEPLOYMENT.md, "Reverse proxy")
+      TRUST_FORWARDED_HOST: ${TRUST_FORWARDED_HOST:-false}
     restart: unless-stopped
     healthcheck:
       # Explicit IPv4 + /api/config (Alpine wget localhost may hit IPv6 ::1 → connection refused)

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { isPlainHttpRequest, parsePublicHost, resolveHttpsRedirect } from './https-redirect';
+import {
+  isPlainHttpRequest,
+  parsePublicHost,
+  resolveHttpsRedirect,
+  trustForwardedHostFromEnv,
+} from './https-redirect';
 
 /** The Node adapter hands the middleware `http://localhost/...` whatever the client asked for. */
 function req(path: string, headers: Record<string, string>): Request {
@@ -126,7 +131,19 @@ describe('resolveHttpsRedirect', () => {
     expect(result).toEqual({ kind: 'redirect', location: 'https://dash.example.com/queues' });
   });
 
-  it('prefers X-Forwarded-Host (the public host) over a rewritten Host header', () => {
+  it('uses Host and ignores a client-supplied X-Forwarded-Host', () => {
+    // The 2026-10-12 review: this request used to get a 301 to https://evil.example/jobs.
+    const result = resolveHttpsRedirect(
+      req('/jobs', {
+        'x-forwarded-proto': 'http',
+        host: 'dashboard.spooled.cloud',
+        'x-forwarded-host': 'evil.example',
+      })
+    );
+    expect(result).toEqual({ kind: 'redirect', location: 'https://dashboard.spooled.cloud/jobs' });
+  });
+
+  it('uses Host even when X-Forwarded-Host is a well-formed public name', () => {
     const result = resolveHttpsRedirect(
       req('/jobs', {
         'x-forwarded-proto': 'http',
@@ -134,21 +151,88 @@ describe('resolveHttpsRedirect', () => {
         host: 'dashboard-internal:4321',
       })
     );
-    expect(result).toEqual({
-      kind: 'redirect',
-      location: 'https://dashboard.selfhosted.example/jobs',
-    });
+    expect(result).toEqual({ kind: 'redirect', location: 'https://dashboard-internal:4321/jobs' });
   });
 
-  it('uses the first entry of a multi-proxy X-Forwarded-Host', () => {
+  it('falls back to X-Forwarded-Host (first entry) only when Host is missing', () => {
     const result = resolveHttpsRedirect(
       req('/jobs', {
         'x-forwarded-proto': 'http',
         'x-forwarded-host': 'dashboard.spooled.cloud, proxy.internal',
-        host: 'dashboard-internal',
       })
     );
     expect(result).toEqual({ kind: 'redirect', location: 'https://dashboard.spooled.cloud/jobs' });
+  });
+
+  it('does not replace an invalid Host with X-Forwarded-Host', () => {
+    const result = resolveHttpsRedirect(
+      req('/jobs', {
+        'x-forwarded-proto': 'http',
+        host: 'evil.example/x',
+        'x-forwarded-host': 'dashboard.spooled.cloud',
+      })
+    );
+    expect(result).toEqual({ kind: 'bad-host' });
+  });
+
+  describe('with trustForwardedHost (a proxy that rewrites Host to an internal name)', () => {
+    const trust = { trustForwardedHost: true };
+
+    it('prefers X-Forwarded-Host (the public host) over the rewritten Host', () => {
+      const result = resolveHttpsRedirect(
+        req('/jobs', {
+          'x-forwarded-proto': 'http',
+          'x-forwarded-host': 'dashboard.selfhosted.example',
+          host: 'dashboard-internal:4321',
+        }),
+        trust
+      );
+      expect(result).toEqual({
+        kind: 'redirect',
+        location: 'https://dashboard.selfhosted.example/jobs',
+      });
+    });
+
+    it('uses the first entry of a multi-proxy X-Forwarded-Host', () => {
+      const result = resolveHttpsRedirect(
+        req('/jobs', {
+          'x-forwarded-proto': 'http',
+          'x-forwarded-host': 'dashboard.spooled.cloud, proxy.internal',
+          host: 'dashboard-internal',
+        }),
+        trust
+      );
+      expect(result).toEqual({
+        kind: 'redirect',
+        location: 'https://dashboard.spooled.cloud/jobs',
+      });
+    });
+
+    it('uses Host when the proxy sent no X-Forwarded-Host', () => {
+      const result = resolveHttpsRedirect(
+        req('/jobs', { 'x-forwarded-proto': 'http', host: 'dashboard.spooled.cloud' }),
+        trust
+      );
+      expect(result).toEqual({
+        kind: 'redirect',
+        location: 'https://dashboard.spooled.cloud/jobs',
+      });
+    });
+
+    it('still refuses a malformed X-Forwarded-Host', () => {
+      for (const forwarded of ['https://evil.example', 'evil.example/x', 'user@evil.example']) {
+        expect(
+          resolveHttpsRedirect(
+            req('/jobs', {
+              'x-forwarded-proto': 'http',
+              'x-forwarded-host': forwarded,
+              host: 'dashboard.spooled.cloud',
+            }),
+            trust
+          )
+        ).toEqual({ kind: 'bad-host' });
+      }
+    });
   });
 
   it('works for any self-hosted domain, nothing is hard-coded', () => {
@@ -172,13 +256,20 @@ describe('resolveHttpsRedirect', () => {
     }
   });
 
-  it('refuses a malicious X-Forwarded-Host even when Host is fine', () => {
+  it('ignores a malformed X-Forwarded-Host when Host is fine', () => {
     const result = resolveHttpsRedirect(
       req('/jobs', {
         'x-forwarded-proto': 'http',
         'x-forwarded-host': 'evil.example/x',
         host: 'dashboard.spooled.cloud',
       })
+    );
+    expect(result).toEqual({ kind: 'redirect', location: 'https://dashboard.spooled.cloud/jobs' });
+  });
+
+  it('refuses a malformed X-Forwarded-Host when it is the only host', () => {
+    const result = resolveHttpsRedirect(
+      req('/jobs', { 'x-forwarded-proto': 'http', 'x-forwarded-host': 'evil.example/x' })
     );
     expect(result).toEqual({ kind: 'bad-host' });
   });
@@ -217,5 +308,21 @@ describe('resolveHttpsRedirect', () => {
     expect(resolveHttpsRedirect(req('/jobs', { host: 'evil.example/x' }))).toEqual({
       kind: 'none',
     });
+  });
+});
+
+describe('trustForwardedHostFromEnv', () => {
+  it('is on only for TRUE / true', () => {
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: 'true' })).toBe(true);
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: 'TRUE' })).toBe(true);
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: ' true ' })).toBe(true);
+  });
+
+  it('is off by default and for anything else', () => {
+    expect(trustForwardedHostFromEnv({})).toBe(false);
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: '' })).toBe(false);
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: 'false' })).toBe(false);
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: '1' })).toBe(false);
+    expect(trustForwardedHostFromEnv({ TRUST_FORWARDED_HOST: 'yes' })).toBe(false);
   });
 });

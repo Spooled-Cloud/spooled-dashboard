@@ -32,7 +32,7 @@ The dashboard uses the query string on those routes only, and only with the shor
 
 Use HTTPS for the dashboard and API in production, and use `wss://` for WebSocket traffic. Redirect plaintext HTTP at the ingress, reverse proxy, or CDN.
 
-As a second line of defence the Node server (`src/middleware.ts`) answers a request that the proxy marked `X-Forwarded-Proto: http` with a `301` to the same host over HTTPS. The host comes from `X-Forwarded-Host`, else `Host`, and is accepted only as a bare `hostname[:port]` (`src/lib/utils/https-redirect.ts`); a value with a scheme, path, userinfo or whitespace gets a `400`, so the redirect cannot be aimed at another site. The response is `Cache-Control: no-store`.
+As a second line of defence the Node server (`src/middleware.ts`) answers a request that the proxy marked `X-Forwarded-Proto: http` with a `301` to the same host over HTTPS. The host is the one the request itself names in its `Host` header (`X-Forwarded-Host` is used only when `Host` is missing, or first when `TRUST_FORWARDED_HOST=true`), and is accepted only as a bare `hostname[:port]` (`src/lib/utils/https-redirect.ts`); a value with a scheme, path, userinfo or whitespace gets a `400`. This is a syntax check, not an allowlist: a request that sends `Host: other.example` is redirected to `https://other.example/`, which only sends that client where it said it was going. The response is `Cache-Control: no-store`, so no cache should keep it. A proxy that forwards a client-supplied `X-Forwarded-Host` should strip it, and `TRUST_FORWARDED_HOST` should be set only behind a proxy that overwrites that header itself.
 
 ## Security headers
 

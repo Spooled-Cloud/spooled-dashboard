@@ -6,10 +6,19 @@
  * the URL host is always `localhost`. A redirect built from that URL sent every plain-HTTP
  * visitor to `https://localhost/...`.
  *
- * The public host is therefore taken from the request headers (`X-Forwarded-Host`, else
- * `Host`) and accepted only when it is a bare `hostname[:port]`. Anything else (a scheme, path,
- * userinfo, whitespace, a list, an unparsable address) is refused, so the redirect can only
- * ever point back at the host the client itself asked for and never at an arbitrary one.
+ * The public host is therefore taken from the request headers. `Host` comes first: Cloudflare
+ * Tunnel, Caddy and ingress-nginx pass it through unchanged. `X-Forwarded-Host` is used only when
+ * `Host` is missing, or before `Host` when the operator opts in with `TRUST_FORWARDED_HOST=true`
+ * (a proxy that rewrites `Host` to an internal name). The value is accepted only when it is a
+ * bare `hostname[:port]`; anything else (a scheme, path, userinfo, whitespace, a list, an
+ * unparsable address) is refused.
+ *
+ * This is a syntax check, not an allowlist. The redirect points at the host the request itself
+ * names: a client that sends `Host: other.example` gets a 301 to `https://other.example/`. It
+ * only sends a client where that client said it was going, and the 301 is `no-store`. A browser
+ * cannot be made to send a forged Host or X-Forwarded-Host for another user, but a proxy that
+ * forwards a client-supplied `X-Forwarded-Host` should strip it (and no cache rule should
+ * override `no-store` on this response).
  */
 
 /**
@@ -98,20 +107,42 @@ export function isPlainHttpRequest(headers: Headers): boolean {
   return firstHeaderValue(headers.get('x-forwarded-proto'))?.toLowerCase() === 'http';
 }
 
+export interface HttpsRedirectOptions {
+  /**
+   * Take the host from `X-Forwarded-Host` before `Host`. Off by default: only a proxy that
+   * rewrites `Host` to an internal name needs it, and only then is the header trustworthy.
+   */
+  trustForwardedHost?: boolean;
+}
+
+/** True when `TRUST_FORWARDED_HOST` is `true` (any case) in `env`. Read on every request. */
+export function trustForwardedHostFromEnv(
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  return env.TRUST_FORWARDED_HOST?.trim().toLowerCase() === 'true';
+}
+
 /**
  * Decide what to do with a request that may have arrived over plain HTTP.
  *
  * Only requests the proxy marked `X-Forwarded-Proto: http` are touched; HTTPS requests and
  * direct requests without the header are served as before.
+ *
+ * The host is `Host`; `X-Forwarded-Host` is the fallback when `Host` is absent, and takes
+ * priority only with `options.trustForwardedHost`. A present but invalid value is never
+ * replaced by the other header: it answers `bad-host`.
  */
-export function resolveHttpsRedirect(request: Request): HttpsRedirect {
+export function resolveHttpsRedirect(
+  request: Request,
+  options: HttpsRedirectOptions = {}
+): HttpsRedirect {
   if (!isPlainHttpRequest(request.headers)) return { kind: 'none' };
 
-  const requested =
-    firstHeaderValue(request.headers.get('x-forwarded-host')) ??
-    firstHeaderValue(request.headers.get('host'));
-  const host = parsePublicHost(requested);
-  if (host === null) return { kind: 'bad-host' };
+  const host = firstHeaderValue(request.headers.get('host'));
+  const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'));
+  const requested = options.trustForwardedHost ? (forwardedHost ?? host) : (host ?? forwardedHost);
+  const publicHost = parsePublicHost(requested);
+  if (publicHost === null) return { kind: 'bad-host' };
 
   let path: string;
   try {
@@ -121,5 +152,5 @@ export function resolveHttpsRedirect(request: Request): HttpsRedirect {
     path = '/';
   }
   // The authority is already complete, so a path such as `//evil.example/` stays a path.
-  return { kind: 'redirect', location: `https://${host}${path}` };
+  return { kind: 'redirect', location: `https://${publicHost}${path}` };
 }

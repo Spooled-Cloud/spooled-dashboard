@@ -1,80 +1,126 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { blend, contrastRatio, oklchToSrgb } from '@/test/contrast';
+import { blend, contrastRatio } from '@/test/contrast';
+import {
+  THEMES,
+  WCAG_AA_TEXT,
+  solidOnlyForegrounds,
+  surfaces,
+  themeTokens,
+  tokenColor,
+} from '@/test/design-tokens';
 
 const SRC = resolve(__dirname, '..');
-const css = readFileSync(resolve(__dirname, 'global.css'), 'utf8');
+const tailwindConfig = readFileSync(resolve(SRC, '..', 'tailwind.config.js'), 'utf8');
 
-/** Custom properties declared in the first `selector { ... }` block of global.css. */
-function tokens(selector: string): Record<string, string> {
-  const start = css.indexOf(`${selector} {`);
-  if (start < 0) throw new Error(`no ${selector} block in global.css`);
-  const end = css.indexOf('\n  }', start);
-  const out: Record<string, string> = {};
-  for (const m of css.slice(start, end).matchAll(/(--[\w-]+):\s*(oklch\([^)]*\));/g)) {
-    out[m[1]] = m[2];
-  }
-  return out;
-}
+/** Status colours that have a dark text token (`--status-NAME-text`) next to their solid fill. */
+const TEXT_TOKENS = Object.keys(themeTokens('light'))
+  .map((key) => /^--(status-[\w-]+)-text$/.exec(key)?.[1])
+  .filter((name): name is string => name !== undefined);
 
-const WCAG_AA_TEXT = 4.5;
-
-describe.each([
-  ['light theme (:root)', ':root'],
-  ['dark theme (.dark)', '.dark'],
-])('failed / dead-letter text contrast, %s', (_name, selector) => {
-  const t = tokens(selector);
-  const text = oklchToSrgb(t['--status-failed-text']);
-  const page = oklchToSrgb(t['--background']);
-  const card = oklchToSrgb(t['--card']);
-  const failed = oklchToSrgb(t['--status-failed']);
-
-  it('is readable on the page background', () => {
-    expect(contrastRatio(text, page)).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+describe('status text tokens', () => {
+  it('exist for failed and processing', () => {
+    expect(TEXT_TOKENS).toEqual(expect.arrayContaining(['status-failed', 'status-processing']));
   });
 
-  it('is readable on a card', () => {
-    expect(contrastRatio(text, card)).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+  it.each(THEMES)('are defined in the %s theme too', (theme) => {
+    for (const name of TEXT_TOKENS) {
+      expect(themeTokens(theme)[`--${name}-text`], `--${name}-text`).toBeDefined();
+    }
   });
 
-  it.each([0.05, 0.1, 0.2, 0.3])('is readable on a %s tint of --status-failed', (alpha) => {
-    expect(contrastRatio(text, blend(failed, card, alpha))).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
-    expect(contrastRatio(text, blend(failed, page, alpha))).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+  it('are reachable as text-status-NAME-text in tailwind.config.js', () => {
+    for (const name of TEXT_TOKENS) {
+      expect(tailwindConfig).toContain(`'var(--${name}-text)'`);
+    }
   });
 });
 
-describe('status-failed-foreground', () => {
-  const light = tokens(':root');
+describe.each(THEMES)('status text contrast, %s theme', (theme) => {
+  const { page, card } = surfaces(theme);
 
-  it('is near-white, so only valid as text on a solid --status-failed fill', () => {
-    const foreground = oklchToSrgb(light['--status-failed-foreground']);
-    const solid = oklchToSrgb(light['--status-failed']);
-    expect(contrastRatio(foreground, solid)).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+  describe.each(TEXT_TOKENS)('--%s-text', (name) => {
+    const text = tokenColor(theme, `--${name}-text`);
+    const fill = tokenColor(theme, `--${name}`);
 
-    // The 2026-10-12 bug: the same token as text on the card or a pale tint is unreadable.
-    const card = oklchToSrgb(light['--card']);
-    expect(contrastRatio(foreground, card)).toBeLessThan(1.5);
-    expect(contrastRatio(foreground, blend(solid, card, 0.2))).toBeLessThan(1.5);
+    it('is readable on the page background', () => {
+      expect(contrastRatio(text, page)).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+    });
+
+    it('is readable on a card', () => {
+      expect(contrastRatio(text, card)).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+    });
+
+    it.each([0.05, 0.1, 0.2, 0.3])('is readable on a %s tint of the solid fill', (alpha) => {
+      expect(contrastRatio(text, blend(fill, card, alpha))).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+      expect(contrastRatio(text, blend(fill, page, alpha))).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+    });
+  });
+});
+
+describe('solid-fill foreground tokens', () => {
+  const solidOnly = solidOnlyForegrounds();
+
+  it('are the near-white ones: primary, destructive, failed and processing', () => {
+    // If this list changes, a token became unreadable (or readable) as plain text: review it.
+    expect(solidOnly).toEqual(['destructive', 'primary', 'status-failed', 'status-processing']);
   });
 
-  it('is not used as a text colour anywhere in src (use text-status-failed-text)', () => {
+  it('are readable on their own solid fill in the light theme', () => {
+    for (const name of solidOnly.filter((n) => n !== 'primary')) {
+      expect(
+        contrastRatio(
+          tokenColor('light', `--${name}-foreground`),
+          tokenColor('light', `--${name}`)
+        ),
+        name
+      ).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+    }
+  });
+
+  it('are near-invisible as text on the card or a pale tint (the 2026-10-12 bug)', () => {
+    const { card } = surfaces('light');
+    for (const name of ['status-failed', 'status-processing']) {
+      const foreground = tokenColor('light', `--${name}-foreground`);
+      expect(contrastRatio(foreground, card), name).toBeLessThan(1.5);
+      expect(
+        contrastRatio(foreground, blend(tokenColor('light', `--${name}`), card, 0.2)),
+        name
+      ).toBeLessThan(1.5);
+    }
+  });
+
+  it('each status one has a --status-NAME-text token to use for text instead', () => {
+    for (const name of solidOnly.filter((n) => n.startsWith('status-'))) {
+      expect(TEXT_TOKENS, `--${name}-text`).toContain(name);
+    }
+  });
+
+  it('are not aliased to another tailwind colour', () => {
+    for (const name of solidOnly) {
+      const uses = tailwindConfig.split(`'var(--${name}-foreground)'`).length - 1;
+      expect(uses, `--${name}-foreground in tailwind.config.js`).toBe(1);
+    }
+  });
+
+  it('are used as a text colour only next to their solid bg-NAME fill', () => {
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir)) {
         const path = join(dir, entry);
         if (statSync(path).isDirectory()) {
-          walk(path);
-        } else if (/\.(tsx?|astro)$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
+          if (path !== resolve(SRC, 'test')) walk(path);
+        } else if (/\.(tsx?|astro|css)$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
           readFileSync(path, 'utf8')
             .split('\n')
             .forEach((line, i) => {
-              // Allowed only next to a solid fill, e.g. "bg-status-failed text-status-failed-foreground".
-              if (
-                line.includes('text-status-failed-foreground') &&
-                !/\bbg-status-failed(?![\w/-])/.test(line)
-              ) {
-                offenders.push(`${path.slice(SRC.length + 1)}:${i + 1}`);
+              for (const name of solidOnly) {
+                const asText = new RegExp(`(?<![\\w-])text-${name}-foreground(?![\\w-])`);
+                const onFill = new RegExp(`(?<![\\w-])bg-${name}(?![\\w/-])`);
+                if (asText.test(line) && !onFill.test(line)) {
+                  offenders.push(`${path.slice(SRC.length + 1)}:${i + 1} text-${name}-foreground`);
+                }
               }
             });
         }

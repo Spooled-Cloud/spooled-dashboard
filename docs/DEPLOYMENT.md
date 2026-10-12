@@ -24,6 +24,7 @@ The dashboard is an Astro application served by the Node adapter (`output: 'serv
 | `PUBLIC_ENABLE_SCHEDULES`   |       No | `true`                      | Schedule UI feature flag                                     |
 | `PUBLIC_ENABLE_ANALYTICS`   |       No | `false`                     | Analytics feature flag                                       |
 | `PUBLIC_ENABLE_QUEUE_PURGE` |       No | `false`                     | Queue purge UI; keep disabled unless the backend supports it |
+| `TRUST_FORWARDED_HOST`      |       No | `false`                     | `true`: HTTP to HTTPS redirect prefers `X-Forwarded-Host`    |
 | `HOST`                      |       No | `0.0.0.0` in the image      | Node server bind address                                     |
 | `PORT`                      |       No | `4321`                      | Node server port                                             |
 
@@ -150,7 +151,7 @@ Use a process supervisor and reverse proxy in production.
 
 ## Reverse proxy
 
-The server redirects a request to HTTPS when the proxy marks it `X-Forwarded-Proto: http` (301 to `https://<host>/<path>?<query>`). The target host is the one the client asked for, taken from `X-Forwarded-Host` when the proxy sets it, otherwise from the `Host` header (Cloudflare Tunnel and most proxies pass the original `Host` through). It must be a bare `hostname[:port]`; anything else (a scheme, path, userinfo, spaces) is answered with `400`, so the redirect cannot be pointed at another site. Nothing is hard-coded, so self-hosted domains work unchanged. If your proxy rewrites `Host` to an internal name, make it send `X-Forwarded-Host` with the public name. Prefer also redirecting HTTP to HTTPS at the proxy or CDN edge.
+The server redirects a request to HTTPS when the proxy marks it `X-Forwarded-Proto: http` (301 to `https://<host>/<path>?<query>`). The target host is the one the request itself names in its `Host` header (Cloudflare Tunnel, Caddy and ingress-nginx pass the original `Host` through). It must be a bare `hostname[:port]`; anything else (a scheme, path, userinfo, spaces) is answered with `400`. That is a syntax check, not an allowlist: a request with `Host: other.example` is redirected to `https://other.example/`, so the redirect only ever sends a client where it said it was going, and the `301` is `Cache-Control: no-store`. Nothing is hard-coded, so self-hosted domains work unchanged. `X-Forwarded-Host` is ignored unless `Host` is missing, because a client can send it and nothing in front of the server guarantees otherwise. If your proxy rewrites `Host` to an internal name, make the proxy set `X-Forwarded-Host` to the public name (overwriting any value the client sent) and set `TRUST_FORWARDED_HOST=true` (both Compose files pass it through; for Kubernetes add it to the ConfigMap) so the server prefers that header. A proxy that passes a client-supplied `X-Forwarded-Host` through should strip it. Prefer also redirecting HTTP to HTTPS at the proxy or CDN edge.
 
 Proxy HTTP traffic to port `4321`. The dashboard's WebSocket connection goes directly to `PUBLIC_WS_URL`, not through the dashboard server, unless both services intentionally share a proxy hostname.
 

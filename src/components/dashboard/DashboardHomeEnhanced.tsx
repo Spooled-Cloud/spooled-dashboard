@@ -551,7 +551,7 @@ export function DeadLetterActionBar() {
 // Queues panel — flat table, sorted by backlog, with pause/resume controls
 // ============================================================================
 
-function QueuesPanel() {
+export function QueuesPanel() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useDashboard();
 
@@ -655,7 +655,7 @@ function QueuesPanel() {
                     pending
                   </span>
                   <span>
-                    <span className="font-medium text-status-processing-foreground">
+                    <span className="font-medium text-status-processing-text">
                       {formatNumber(queue.processing)}
                     </span>{' '}
                     processing

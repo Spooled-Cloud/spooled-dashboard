@@ -75,7 +75,10 @@ export default {
           },
           processing: {
             DEFAULT: 'var(--status-processing)',
+            // Text on a solid status-processing fill.
             foreground: 'var(--status-processing-foreground)',
+            // Text on the page, a card or a pale tint (the dark colour in the light theme).
+            text: 'var(--status-processing-text)',
           },
           retrying: {
             DEFAULT: 'var(--status-retrying)',
