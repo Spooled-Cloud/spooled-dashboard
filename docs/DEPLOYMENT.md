@@ -4,7 +4,7 @@ This guide covers the deployment paths that are maintained in this repository.
 
 ## Requirements
 
-- Node.js `20.19.0` or newer when building outside Docker
+- Node.js 22 LTS (`22.13.0` or newer) when building outside Docker; the image uses `node:22-alpine`
 - Docker with Compose v2 for container deployment
 - `kubectl` for Kubernetes deployment
 - `kustomize` only when using `kustomize edit`; `kubectl apply -k` has built-in Kustomize support

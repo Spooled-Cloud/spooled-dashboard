@@ -3,7 +3,7 @@
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ RUN npm run build
 RUN npm prune --omit=dev --no-audit --no-fund
 
 # Production stage
-FROM --platform=$TARGETPLATFORM node:20-alpine AS production
+FROM --platform=$TARGETPLATFORM node:22-alpine AS production
 
 ARG SOURCE_COMMIT=unknown
 ARG APP_VERSION=0.0.0-dev

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 20.19.0 or newer
+- Node.js 22 LTS, 22.13.0 or newer
 - npm
 - Spooled Backend running (see [spooled-backend](https://github.com/spooled-cloud/spooled-backend))
 

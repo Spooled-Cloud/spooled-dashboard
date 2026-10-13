@@ -55,7 +55,7 @@ For 5 copy/paste “real life” setups (Stripe → jobs, GitHub Actions → job
 
 ### Prerequisites
 
-- Node.js 20.19.0 or newer
+- Node.js 22 LTS, 22.13.0 or newer
 - npm (the repository uses `package-lock.json`)
 - Spooled Backend running (see [spooled-backend](https://github.com/spooled-cloud/spooled-backend))
 

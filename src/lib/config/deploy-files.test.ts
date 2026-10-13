@@ -92,3 +92,17 @@ describe('Kubernetes overlays', () => {
     expect(values.PUBLIC_WS_URL).toBe('ws://localhost:3000');
   });
 });
+
+describe('Node version', () => {
+  it('the image build, the runtime image and CI use the same Node major, 22 or newer', () => {
+    const images = [
+      ...read('Dockerfile').matchAll(/^FROM\s+(?:--platform=\S+\s+)?node:(\d+)-alpine\b/gm),
+    ].map((m) => m[1]);
+    const ci = read('.github/workflows/ci.yml').match(/^\s*NODE_VERSION:\s*'(\d+)\./m)?.[1];
+
+    expect(images).toHaveLength(2);
+    expect(ci).toBeDefined();
+    expect(new Set([...images, ci])).toEqual(new Set([ci]));
+    expect(Number(ci)).toBeGreaterThanOrEqual(22);
+  });
+});
