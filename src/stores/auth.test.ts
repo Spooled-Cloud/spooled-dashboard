@@ -41,7 +41,7 @@ describe('useAuthStore', () => {
   });
 
   describe('setAuth', () => {
-    it('should set auth data from login response', () => {
+    it('should set auth data from login response', async () => {
       const mockLoginResponse = {
         access_token: 'access-123',
         refresh_token: 'refresh-456',
@@ -57,6 +57,10 @@ describe('useAuthStore', () => {
       expect(state.refreshToken).toBe('refresh-456');
       expect(state.isAuthenticated).toBe(true);
       expect(state.expiresAt).toBeDefined();
+
+      // setAuth starts fetchCurrentUser without awaiting it. Let it finish here, or it sets the
+      // organization in the middle of a later test.
+      await waitFor(() => expect(useAuthStore.getState().currentOrganization).not.toBeNull());
     });
   });
 
@@ -79,7 +83,7 @@ describe('useAuthStore', () => {
   });
 
   describe('clearAuth', () => {
-    it('should clear all auth state', () => {
+    it('should clear all auth state', async () => {
       // First, set some state
       useAuthStore.getState().setAuth({
         access_token: 'access-123',
@@ -89,8 +93,11 @@ describe('useAuthStore', () => {
         refresh_expires_in: 86400,
       });
 
-      // Verify it was set
+      // Verify it was set, including the user and organization setAuth fetches in the background
+      // (left running, that fetch would set them again after the clear, during a later test)
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      await waitFor(() => expect(useAuthStore.getState().currentOrganization).not.toBeNull());
+      expect(useAuthStore.getState().user).not.toBeNull();
 
       // Clear auth
       useAuthStore.getState().clearAuth();
