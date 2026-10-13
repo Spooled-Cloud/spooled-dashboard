@@ -106,3 +106,32 @@ describe('Node version', () => {
     expect(Number(ci)).toBeGreaterThanOrEqual(22);
   });
 });
+
+describe('runtime image dependencies', () => {
+  const manifest = () =>
+    JSON.parse(read('package.json')) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+
+  it('the build stage drops devDependencies before the runtime stage copies node_modules', () => {
+    const dockerfile = read('Dockerfile');
+    const prune = dockerfile.search(/^RUN npm prune --omit=dev\b/m);
+    const copy = dockerfile.search(/^COPY --from=builder\b.*\/app\/node_modules\b/m);
+    expect(prune).toBeGreaterThan(-1);
+    expect(copy).toBeGreaterThan(prune);
+  });
+
+  // Used only by `astro check` and `astro build` (astro.config.mjs, tailwind.config.js); the
+  // server bundle in dist/server imports none of them.
+  it.each([
+    '@astrojs/check',
+    '@astrojs/tailwind',
+    'tailwindcss',
+    'tailwindcss-animate',
+    'typescript',
+  ])('%s is a devDependency', (name) => {
+    expect(Object.keys(manifest().dependencies)).not.toContain(name);
+    expect(Object.keys(manifest().devDependencies)).toContain(name);
+  });
+});
