@@ -126,10 +126,10 @@ The production overlay currently configures:
 - limits of 1000m CPU / 1Gi memory
 - non-root user `1001`, dropped Linux capabilities, and a read-only root filesystem
 
-To deploy an immutable image tag without permanently editing the checked-in overlay, copy the entire `k8s/` tree so the overlay's `../../base` reference remains valid. Set `RELEASE_TAG` to an existing GHCR tag; `v0.1.75` is an example:
+To deploy an immutable image tag without permanently editing the checked-in overlay, copy the entire `k8s/` tree so the overlay's `../../base` reference remains valid. Set `RELEASE_TAG` to an existing GHCR tag; `v0.1.76` is an example:
 
 ```bash
-RELEASE_TAG=v0.1.75
+RELEASE_TAG=v0.1.76
 rm -rf /tmp/spooled-dashboard-k8s
 cp -R k8s /tmp/spooled-dashboard-k8s
 cd /tmp/spooled-dashboard-k8s/overlays/production
@@ -213,18 +213,18 @@ This checklist is advisory evidence tracking. Items may be marked `N/A`, or an e
 - [ ] Record the successful release workflow and the immutable multi-architecture GHCR digest for `ghcr.io/spooled-cloud/spooled-dashboard:${RELEASE_TAG}`.
 - [ ] Confirm tag, source commit, image tag, and image digest identify the same artifact. Do not use `latest` as release identity.
 
-Example preparation for the next release (`v0.1.76` is illustrative; select an unused value):
+Example preparation for the next release (`v0.1.77` is illustrative; select an unused value):
 
 ```bash
-npm version 0.1.76 --no-git-tag-version
+npm version 0.1.77 --no-git-tag-version
 npm run format:check
 npm run lint
 npm run type-check
 npm run test
 npm run build
 git add package.json package-lock.json
-git commit -m "chore(release): v0.1.76"
-RELEASE_TAG=v0.1.76
+git commit -m "chore(release): v0.1.77"
+RELEASE_TAG=v0.1.77
 git tag "${RELEASE_TAG}"
 git push origin "${RELEASE_TAG}"
 ```
