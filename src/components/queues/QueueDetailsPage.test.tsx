@@ -1,10 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { toast } from 'sonner';
 import { http, HttpResponse } from 'msw';
 import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor, mockAuthenticatedState } from '@/test/utils';
 import { server } from '@/test/mocks/server';
 import { queryClient } from '@/lib/query-client';
 import { QueueDetailsPage } from './QueueDetailsPage';
+
+vi.mock('sonner', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('sonner')>();
+  return {
+    ...actual,
+    toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+  };
+});
 
 const API_BASE = 'https://api.spooled.cloud';
 
@@ -123,5 +132,29 @@ describe('QueueDetailsPage', () => {
     await waitFor(() => expect(body.queue_name).toBe('default'));
     expect(body.max_retries).toBe(0);
     expect(body.settings).toBeUndefined();
+  });
+
+  it('does not save a job timeout that is not a whole number of seconds', async () => {
+    let puts = 0;
+    server.use(
+      http.get(`${API_BASE}/api/v1/queues/:name`, () => HttpResponse.json(config(3))),
+      http.put(`${API_BASE}/api/v1/queues/:name/config`, () => {
+        puts += 1;
+        return HttpResponse.json(config(3));
+      })
+    );
+    vi.mocked(toast.error).mockClear();
+    const user = userEvent.setup();
+    render(<QueueDetailsPage queueName="default" />);
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+
+    const inputs = await screen.findAllByRole('spinbutton');
+    await user.clear(inputs[1]!);
+    await user.type(inputs[1]!, '1500');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(puts).toBe(0);
+    expect(JSON.stringify(vi.mocked(toast.error).mock.calls)).toMatch(/whole number of seconds/);
   });
 });

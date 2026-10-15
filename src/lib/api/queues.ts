@@ -8,6 +8,7 @@
 import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
 import type { Queue, QueueStats, CreateQueueRequest } from '@/lib/types';
+import { timeoutMsToSeconds } from './timeout';
 
 // Backend response types (match actual API response)
 interface BackendQueueConfig {
@@ -156,9 +157,10 @@ function transformUpdateRequest(
   return {
     queue_name: name, // Required by backend UpsertQueueConfigRequest
     max_retries: data.max_retries,
-    default_timeout: data.job_timeout_ms
-      ? Math.max(1, Math.floor(data.job_timeout_ms / 1000))
-      : undefined,
+    // Whole seconds only. 1500 ms must not be stored as 1 second, and 0 must
+    // not be dropped (that used to leave the old timeout in place with no error).
+    default_timeout:
+      data.job_timeout_ms !== undefined ? timeoutMsToSeconds(data.job_timeout_ms) : undefined,
     settings: Object.keys(settings).length > 0 ? settings : undefined,
   };
 }
@@ -181,9 +183,10 @@ export const queuesAPI = {
     const backendData = {
       queue_name: data.name,
       max_retries: data.max_retries ?? 3,
-      default_timeout: data.job_timeout_ms
-        ? Math.max(1, Math.floor(data.job_timeout_ms / 1000))
-        : 300,
+      // Omitted timeout keeps the 300s default. 0 and any non-multiple of 1000 ms
+      // are an error, not a silent shorten or a swap for that default.
+      default_timeout:
+        data.job_timeout_ms === undefined ? 300 : timeoutMsToSeconds(data.job_timeout_ms),
       // Only settings the caller set: no invented concurrency / retry-delay defaults
       // (the backend stores but does not enforce them).
       settings: Object.fromEntries(

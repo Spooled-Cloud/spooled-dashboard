@@ -21,6 +21,7 @@ import { Plus, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateJobRequest } from '@/lib/types';
 import { APIError } from '@/lib/api/client';
+import { timeoutMsToSeconds } from '@/lib/api/timeout';
 import { localDateTimeToIso, parseMaxRetries } from './job-form-utils';
 
 interface CreateJobDialogProps {
@@ -131,13 +132,27 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
       return;
     }
 
+    // Blank uses the queue default. A typed timeout must be whole seconds;
+    // 1500 ms used to be sent as timeout_seconds 1.
+    let timeout_ms: number | undefined;
+    if (timeoutMs.trim() !== '') {
+      const ms = Number(timeoutMs.trim());
+      try {
+        timeoutMsToSeconds(ms);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Invalid timeout');
+        return;
+      }
+      timeout_ms = ms;
+    }
+
     const request: CreateJobRequest = {
       queue,
       job_type: jobType,
       payload: parsedPayload,
       priority: parseInt(priority, 10) || 0,
       max_retries: parseMaxRetries(maxRetries),
-      timeout_ms: timeoutMs ? parseInt(timeoutMs) : undefined,
+      timeout_ms,
       scheduled_at: scheduledAtIso,
       metadata: parsedMetadata,
     };

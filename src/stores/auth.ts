@@ -58,7 +58,7 @@ interface AuthState {
   isAuthenticated: boolean;
 
   // Actions
-  setAuth: (data: LoginResponse) => void;
+  setAuth: (data: LoginResponse) => Promise<void>;
   clearAuth: () => void;
   setUser: (user: CurrentUser) => void;
   fetchCurrentUser: () => Promise<void>;
@@ -80,7 +80,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
       isAuthenticated: false,
 
-      // Set authentication data from login response
+      // Set authentication data from login response.
+      // A new token is a different organization. Clear the previous user and
+      // organization in this same update, or persist keeps org A's name next to
+      // org B's token and the next page skips fetchCurrentUser while both are set.
       setAuth: (data: LoginResponse) => {
         set({
           accessToken: data.access_token,
@@ -88,9 +91,11 @@ export const useAuthStore = create<AuthState>()(
           expiresAt: Date.now() + data.expires_in * 1000,
           isAuthenticated: true,
           isLoading: false,
+          user: null,
+          organizations: [],
+          currentOrganization: null,
         });
-        // Fetch user info after setting tokens
-        get().fetchCurrentUser();
+        return get().fetchCurrentUser();
       },
 
       // Clear authentication

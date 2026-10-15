@@ -362,6 +362,28 @@ describe('CreateJobDialog', () => {
       expect(posted).not.toHaveProperty('backoff_type');
     });
 
+    it('rejects a timeout that is not a whole number of seconds', async () => {
+      let posted = false;
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs`, async () => {
+          posted = true;
+          return HttpResponse.json({ id: 'job-created-1', created: true }, { status: 201 });
+        })
+      );
+      const user = userEvent.setup();
+      render(<CreateJobDialog />);
+      await user.click(screen.getByRole('button', { name: /create job/i }));
+      await waitFor(() => expect(screen.getByLabelText('Job Type *')).toBeInTheDocument());
+      await user.type(screen.getByLabelText(/^queue/i), 'emails');
+      await user.type(screen.getByLabelText('Job Type *'), 'send_email');
+      await user.type(screen.getByLabelText('Timeout (ms)'), '1500');
+      const buttons = screen.getAllByRole('button', { name: /create job/i });
+      await user.click(buttons[buttons.length - 1]);
+
+      expect(await screen.findByText(/whole number of seconds/i)).toBeInTheDocument();
+      expect(posted).toBe(false);
+    });
+
     it('labels the schedule field as local time', async () => {
       const user = userEvent.setup();
       render(<CreateJobDialog />);

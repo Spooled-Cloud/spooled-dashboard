@@ -59,15 +59,13 @@ export function LoginPage() {
         { skipAuth: true }
       );
 
-      setAuth(response);
+      // Persist the new organization before leaving. Navigating sooner left the
+      // previous org's name in storage, and the next page would not fetch again.
+      await setAuth(response);
 
       // Return to the page the user was sent away from (same-origin paths only).
       const redirectPath = consumeReturnPath();
-
-      // Small delay to ensure state is persisted before navigation
-      setTimeout(() => {
-        window.location.href = redirectPath || '/dashboard';
-      }, 100);
+      window.location.href = redirectPath || '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please check your API key.');
     } finally {
@@ -124,11 +122,9 @@ export function LoginPage() {
         return;
       }
 
-      setAuth(login);
+      await setAuth(login);
       const redirectPath = consumeReturnPath();
-      setTimeout(() => {
-        window.location.href = redirectPath || '/dashboard';
-      }, 100);
+      window.location.href = redirectPath || '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or code.');
     } finally {

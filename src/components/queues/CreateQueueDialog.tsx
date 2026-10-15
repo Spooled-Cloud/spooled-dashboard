@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI } from '@/lib/api/queues';
+import { timeoutMsToSeconds } from '@/lib/api/timeout';
 import { queryKeys } from '@/lib/query-client';
 import {
   Dialog,
@@ -112,11 +113,22 @@ export function CreateQueueDialog({ trigger, onSuccess }: CreateQueueDialogProps
       return;
     }
 
+    // Blank keeps the 5-minute default. 0 used to become that default via `||`,
+    // and 1500 used to be stored as 1 second. Both are a validation error.
+    const timeoutRaw = jobTimeoutMs.trim();
+    const jobTimeout = timeoutRaw === '' ? 300000 : Number(timeoutRaw);
+    try {
+      timeoutMsToSeconds(jobTimeout);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid timeout');
+      return;
+    }
+
     const request: CreateQueueRequest = {
       name: name.trim(),
       description: description.trim() || undefined,
       max_retries: Number.isNaN(parseInt(maxRetries)) ? 3 : parseInt(maxRetries),
-      job_timeout_ms: parseInt(jobTimeoutMs) || 300000,
+      job_timeout_ms: jobTimeout,
     };
 
     createMutation.mutate(request);

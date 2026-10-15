@@ -4,7 +4,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
+import { mockOrganization } from '@/test/mocks/handlers';
 import { useAuthStore } from './auth';
+
+const API_BASE = 'https://api.spooled.cloud';
 
 // Mock window.location
 const mockLocation = { href: '' };
@@ -50,17 +55,80 @@ describe('useAuthStore', () => {
         refresh_expires_in: 86400,
       };
 
-      useAuthStore.getState().setAuth(mockLoginResponse);
+      await useAuthStore.getState().setAuth(mockLoginResponse);
 
       const state = useAuthStore.getState();
       expect(state.accessToken).toBe('access-123');
       expect(state.refreshToken).toBe('refresh-456');
       expect(state.isAuthenticated).toBe(true);
       expect(state.expiresAt).toBeDefined();
+      expect(state.currentOrganization).not.toBeNull();
+    });
 
-      // setAuth starts fetchCurrentUser without awaiting it. Let it finish here, or it sets the
-      // organization in the middle of a later test.
-      await waitFor(() => expect(useAuthStore.getState().currentOrganization).not.toBeNull());
+    it('drops the previous organization before the new profile loads', async () => {
+      useAuthStore.setState({
+        accessToken: 'old-token',
+        user: {
+          organization_id: 'org-a',
+          api_key_id: 'key-a',
+          queues: ['*'],
+          issued_at: '2024-01-01T00:00:00Z',
+          expires_at: '2099-01-01T00:00:00Z',
+        },
+        currentOrganization: {
+          id: 'org-a',
+          name: 'Acme',
+          slug: 'acme',
+          plan_tier: 'free',
+          settings: {},
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        isAuthenticated: true,
+      });
+
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(`${API_BASE}/api/v1/auth/me`, async () => {
+          await gate;
+          return HttpResponse.json({
+            organization_id: 'org-b',
+            api_key_id: 'key-b',
+            queues: ['*'],
+            issued_at: '2024-01-01T00:00:00Z',
+            expires_at: '2099-01-01T00:00:00Z',
+          });
+        }),
+        http.get(`${API_BASE}/api/v1/organizations/:id`, ({ params }) =>
+          HttpResponse.json({
+            ...mockOrganization,
+            id: String(params.id),
+            name: 'Beta',
+          })
+        )
+      );
+
+      const pending = useAuthStore.getState().setAuth({
+        access_token: 'access-b',
+        refresh_token: 'refresh-b',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        refresh_expires_in: 86400,
+      });
+
+      expect(useAuthStore.getState().accessToken).toBe('access-b');
+      expect(useAuthStore.getState().user).toBeNull();
+      expect(useAuthStore.getState().currentOrganization).toBeNull();
+
+      release();
+      await pending;
+
+      expect(useAuthStore.getState().user?.organization_id).toBe('org-b');
+      expect(useAuthStore.getState().currentOrganization?.id).toBe('org-b');
+      expect(useAuthStore.getState().currentOrganization?.name).toBe('Beta');
     });
   });
 
@@ -85,7 +153,7 @@ describe('useAuthStore', () => {
   describe('clearAuth', () => {
     it('should clear all auth state', async () => {
       // First, set some state
-      useAuthStore.getState().setAuth({
+      await useAuthStore.getState().setAuth({
         access_token: 'access-123',
         refresh_token: 'refresh-456',
         token_type: 'Bearer',
@@ -93,10 +161,8 @@ describe('useAuthStore', () => {
         refresh_expires_in: 86400,
       });
 
-      // Verify it was set, including the user and organization setAuth fetches in the background
-      // (left running, that fetch would set them again after the clear, during a later test)
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
-      await waitFor(() => expect(useAuthStore.getState().currentOrganization).not.toBeNull());
+      expect(useAuthStore.getState().currentOrganization).not.toBeNull();
       expect(useAuthStore.getState().user).not.toBeNull();
 
       // Clear auth

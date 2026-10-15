@@ -4,6 +4,7 @@
 
 import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
+import { timeoutMsToSeconds } from './timeout';
 import type {
   Job,
   CreateJobRequest,
@@ -479,20 +480,21 @@ export const jobsAPI = {
    * POST /api/v1/jobs
    * Create a new job
    */
-  create: (data: CreateJobRequest): Promise<BackendCreateJobResponse> => {
+  create: async (data: CreateJobRequest): Promise<BackendCreateJobResponse> => {
     // Backend payload is serde_json::Value. job_type is not a column; merge it
     // only when payload is a JSON object so arrays/strings are not spread.
     const payload = payloadWithJobType(data.payload, data.job_type);
+    // Empty leaves the queue default. Anything else must be whole seconds:
+    // flooring 1500 ms to 1 second made the job eligible to fail early.
+    const timeout_seconds =
+      data.timeout_ms != null ? timeoutMsToSeconds(data.timeout_ms) : undefined;
 
     return apiClient.post<BackendCreateJobResponse>(API_ENDPOINTS.JOBS.CREATE, {
       queue_name: data.queue,
       payload,
       priority: data.priority,
       max_retries: data.max_retries,
-      timeout_seconds:
-        data.timeout_ms != null && data.timeout_ms > 0
-          ? Math.max(1, Math.floor(data.timeout_ms / 1000))
-          : undefined,
+      timeout_seconds,
       scheduled_at: data.scheduled_at,
       tags: data.metadata,
       idempotency_key: data.idempotency_key,

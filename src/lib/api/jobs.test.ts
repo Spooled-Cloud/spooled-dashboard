@@ -636,7 +636,35 @@ describe('jobsAPI', () => {
       expect(posted?.payload).toEqual({ test: true, job_type: 'test_job' });
     });
 
-    it('clamps timeout_ms under one second to timeout_seconds 1', async () => {
+    it('rejects a timeout that is not a whole number of seconds', async () => {
+      let posted = false;
+      server.use(
+        http.post(`${API_BASE}/api/v1/jobs`, async () => {
+          posted = true;
+          return HttpResponse.json({ id: 'job-timeout', created: true }, { status: 201 });
+        })
+      );
+
+      await expect(
+        jobsAPI.create({
+          queue: 'default',
+          job_type: 'test_job',
+          payload: { test: true },
+          timeout_ms: 1500,
+        })
+      ).rejects.toThrow(/whole number of seconds/);
+      await expect(
+        jobsAPI.create({
+          queue: 'default',
+          job_type: 'test_job',
+          payload: { test: true },
+          timeout_ms: 500,
+        })
+      ).rejects.toThrow(/whole number of seconds/);
+      expect(posted).toBe(false);
+    });
+
+    it('sends a whole-second timeout as timeout_seconds', async () => {
       let posted: Record<string, unknown> | undefined;
       server.use(
         http.post(`${API_BASE}/api/v1/jobs`, async ({ request }) => {
@@ -649,10 +677,10 @@ describe('jobsAPI', () => {
         queue: 'default',
         job_type: 'test_job',
         payload: { test: true },
-        timeout_ms: 500,
+        timeout_ms: 2000,
       });
 
-      expect(posted?.timeout_seconds).toBe(1);
+      expect(posted?.timeout_seconds).toBe(2);
       expect(posted).not.toHaveProperty('timeout_ms');
     });
   });

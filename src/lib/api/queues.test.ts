@@ -136,7 +136,28 @@ describe('queuesAPI', () => {
       expect(newQueue.name).toBe('full-queue');
     });
 
-    it('clamps job_timeout_ms under one second to default_timeout 1', async () => {
+    it('rejects a timeout that is not a whole number of seconds', async () => {
+      let posted = false;
+      server.use(
+        http.put(`${API_BASE}/api/v1/queues/:name/config`, async () => {
+          posted = true;
+          return HttpResponse.json({}, { status: 500 });
+        })
+      );
+
+      await expect(
+        queuesAPI.create({ name: 'timeout-queue', job_timeout_ms: 500 })
+      ).rejects.toThrow(/whole number of seconds/);
+      await expect(
+        queuesAPI.create({ name: 'timeout-queue', job_timeout_ms: 1500 })
+      ).rejects.toThrow(/whole number of seconds/);
+      await expect(queuesAPI.create({ name: 'timeout-queue', job_timeout_ms: 0 })).rejects.toThrow(
+        /whole number of seconds/
+      );
+      expect(posted).toBe(false);
+    });
+
+    it('stores a whole-second timeout as seconds', async () => {
       let posted: Record<string, unknown> | undefined;
       server.use(
         http.put(`${API_BASE}/api/v1/queues/:name/config`, async ({ request }) => {
@@ -146,7 +167,7 @@ describe('queuesAPI', () => {
             organization_id: 'org-1',
             queue_name: 'timeout-queue',
             max_retries: 3,
-            default_timeout: posted.default_timeout ?? 1,
+            default_timeout: posted.default_timeout ?? 2,
             rate_limit: null,
             enabled: true,
             settings: {},
@@ -158,10 +179,10 @@ describe('queuesAPI', () => {
 
       await queuesAPI.create({
         name: 'timeout-queue',
-        job_timeout_ms: 500,
+        job_timeout_ms: 2000,
       });
 
-      expect(posted?.default_timeout).toBe(1);
+      expect(posted?.default_timeout).toBe(2);
       expect(posted).not.toHaveProperty('job_timeout_ms');
     });
   });
@@ -176,30 +197,19 @@ describe('queuesAPI', () => {
       expect(updated.concurrency).toBe(20);
     });
 
-    it('clamps job_timeout_ms under one second to default_timeout 1', async () => {
-      let posted: Record<string, unknown> | undefined;
+    it('rejects a timeout that is not a whole number of seconds', async () => {
+      let posted = false;
       server.use(
-        http.put(`${API_BASE}/api/v1/queues/default/config`, async ({ request }) => {
-          posted = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json({
-            id: 'queue-default',
-            organization_id: 'org-1',
-            queue_name: 'default',
-            max_retries: 3,
-            default_timeout: posted.default_timeout ?? 1,
-            rate_limit: null,
-            enabled: true,
-            settings: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
+        http.put(`${API_BASE}/api/v1/queues/default/config`, async () => {
+          posted = true;
+          return HttpResponse.json({}, { status: 500 });
         })
       );
 
-      await queuesAPI.update('default', { job_timeout_ms: 500 });
-
-      expect(posted?.default_timeout).toBe(1);
-      expect(posted).not.toHaveProperty('job_timeout_ms');
+      await expect(queuesAPI.update('default', { job_timeout_ms: 1500 })).rejects.toThrow(
+        /whole number of seconds/
+      );
+      expect(posted).toBe(false);
     });
 
     it('should update queue with multiple fields', async () => {

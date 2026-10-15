@@ -496,9 +496,15 @@ function OrganizationSettingsContent() {
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateOrganizationRequest) => organizationsAPI.update(orgId!, data),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       toast.success('Organization updated');
       queryClient.invalidateQueries({ queryKey: queryKeys.organizations.detail(orgId!) });
+      // The header reads the persisted currentOrganization, and hydration does not
+      // refetch it while that object is set. Write the renamed organization now.
+      useAuthStore.setState({
+        currentOrganization: updated,
+        organizations: [updated],
+      });
       setIsEditing(false);
     },
     onError: (error) => {

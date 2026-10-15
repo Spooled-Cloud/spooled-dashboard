@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI, type UpdateQueueRequest } from '@/lib/api/queues';
+import { timeoutMsToSeconds } from '@/lib/api/timeout';
 import { workersAPI } from '@/lib/api/workers';
 import { useQueueSSE } from '@/lib/hooks/use-sse';
 import { queryKeys } from '@/lib/query-client';
@@ -353,8 +354,18 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
     // neither shown nor written from here.
     if (editedQueue.max_retries !== undefined && !Number.isNaN(editedQueue.max_retries))
       updates.max_retries = editedQueue.max_retries;
-    if (editedQueue.job_timeout_ms !== undefined && !Number.isNaN(editedQueue.job_timeout_ms))
+    if (editedQueue.job_timeout_ms !== undefined && !Number.isNaN(editedQueue.job_timeout_ms)) {
+      // 1500 ms used to be stored as 1 second and the field reloaded as 1000.
+      try {
+        timeoutMsToSeconds(editedQueue.job_timeout_ms);
+      } catch (err) {
+        toast.error('Invalid job timeout', {
+          description: err instanceof Error ? err.message : 'Invalid timeout',
+        });
+        return;
+      }
       updates.job_timeout_ms = editedQueue.job_timeout_ms;
+    }
 
     updateMutation.mutate(updates);
   };
@@ -485,8 +496,20 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { key: 'max_retries', label: 'Max Retries', type: 'number' },
-                  { key: 'job_timeout_ms', label: 'Job Timeout (ms)', type: 'number' },
+                  {
+                    key: 'max_retries',
+                    label: 'Max Retries',
+                    type: 'number',
+                    min: undefined,
+                    step: undefined,
+                  },
+                  {
+                    key: 'job_timeout_ms',
+                    label: 'Job Timeout (ms)',
+                    type: 'number',
+                    min: 1000,
+                    step: 1000,
+                  },
                 ].map((field) => (
                   <div key={field.key} className="bg-muted/50 rounded-lg p-3">
                     <label className="text-xs font-medium text-muted-foreground">
@@ -495,6 +518,8 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
                     {isEditing ? (
                       <Input
                         type={field.type}
+                        min={field.min}
+                        step={field.step}
                         value={(editedQueue as Record<string, number | string>)[field.key] ?? ''}
                         onChange={(e) =>
                           setEditedQueue({

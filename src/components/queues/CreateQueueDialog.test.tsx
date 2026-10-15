@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { fireEvent } from '@testing-library/react';
 import { render, screen, waitFor } from '@/test/utils';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
@@ -336,6 +337,31 @@ describe('CreateQueueDialog', () => {
       } else {
         expect(await screen.findByText(/can only contain/i)).toBeInTheDocument();
       }
+    });
+  });
+
+  describe('Job timeout', () => {
+    it.each(['0', '1500'])('rejects %s instead of storing a shorter timeout', async (value) => {
+      let puts = 0;
+      server.use(
+        http.put('https://api.spooled.cloud/api/v1/queues/:name/config', async () => {
+          puts += 1;
+          return HttpResponse.json({}, { status: 201 });
+        })
+      );
+      const user = userEvent.setup();
+      render(<CreateQueueDialog />);
+      await user.click(screen.getByRole('button', { name: /create queue/i }));
+      await user.type(await screen.findByLabelText(/queue name/i), 'ms-timeout');
+      const timeout = screen.getByLabelText('Job Timeout (ms)');
+      fireEvent.change(timeout, { target: { value } });
+      // min="1000" blocks 0 before onSubmit. Skip native checks so this reaches
+      // the handler that used to turn 0 into the 5-minute default.
+      timeout.closest('form')!.noValidate = true;
+      await user.click(screen.getAllByRole('button', { name: /create queue/i }).pop()!);
+
+      expect(await screen.findByText(/whole number of seconds/i)).toBeInTheDocument();
+      expect(puts).toBe(0);
     });
   });
 });
