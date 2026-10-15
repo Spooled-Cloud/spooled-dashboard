@@ -274,7 +274,7 @@ npm run test:coverage
 npm run test:ui
 ```
 
-Current baseline (2026-10-15): **1309 passing tests across 94 test files**. Run `npm run test:coverage` for the current coverage report rather than relying on a checked-in percentage.
+Current baseline (2026-10-15): **1321 passing tests across 97 test files**. Run `npm run test:coverage` for the current coverage report rather than relying on a checked-in percentage.
 
 ## Documentation
 
