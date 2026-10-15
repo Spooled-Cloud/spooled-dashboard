@@ -42,6 +42,24 @@ test.describe('public surfaces', () => {
   });
 });
 
+test.describe('routes without a page redirect to the one that exists', () => {
+  const redirects: Array<[string, string]> = [
+    ['/settings/members', '/settings/organization'],
+    ['/webhooks', '/settings/webhooks'],
+    ['/dlq', '/jobs/dlq'],
+    ['/settings/webhooks/wh_123', '/settings/webhooks?webhook=wh_123'],
+  ];
+
+  for (const [from, to] of redirects) {
+    test(`${from} -> ${to}`, async ({ request }) => {
+      const res = await request.get(from, { maxRedirects: 0 });
+      expect(res.status()).toBe(302);
+      expect(res.headers()['location']).toBe(to);
+      expect(res.headers()['x-content-type-options']).toBe('nosniff');
+    });
+  }
+});
+
 test.describe('responsive shell (unauthenticated)', () => {
   test('login usable at mobile width', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });

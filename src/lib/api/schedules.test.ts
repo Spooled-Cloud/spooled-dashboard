@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
-import { schedulesAPI } from './schedules';
+import { schedulesAPI, isScheduleRunInFlight } from './schedules';
 
 const API_BASE = 'https://api.spooled.cloud';
 
@@ -189,6 +189,67 @@ describe('schedulesAPI', () => {
           error: 'plan limit',
         },
       ]);
+    });
+
+    it('keeps pending and running runs apart from success and failure (backend 0.1.125)', async () => {
+      const history = await schedulesAPI.getHistory('schedule-1');
+
+      expect(history.map((run) => [run.id, run.status, run.job_status])).toEqual([
+        ['run-pending', 'pending', 'pending'],
+        ['run-running', 'running', 'processing'],
+        ['run-completed', 'success', 'completed'],
+        ['run-failed', 'failed', 'deadletter'],
+        ['run-not-enqueued', 'failed', undefined],
+      ]);
+      expect(history.find((run) => run.id === 'run-failed')?.error).toBe('handler exploded');
+    });
+
+    it('shows a run as in progress while its job is, whatever status an older backend wrote', async () => {
+      const row = (id: string, status: string, job_status: string | null) => ({
+        id,
+        schedule_id: 'schedule-1',
+        job_id: job_status ? `job-${id}` : null,
+        status,
+        job_status,
+        error_message: null,
+        started_at: '2024-01-01T00:00:00Z',
+        completed_at: null,
+      });
+      server.use(
+        http.get(`${API_BASE}/api/v1/schedules/:id/history`, () =>
+          HttpResponse.json([
+            // 0.1.124 and older: `completed` the moment the job was enqueued
+            row('old-pending', 'completed', 'pending'),
+            row('old-scheduled', 'completed', 'scheduled'),
+            row('old-running', 'completed', 'processing'),
+            row('old-done', 'completed', 'completed'),
+            row('old-no-job-status', 'completed', null),
+            row('legacy-success', 'success', 'completed'),
+            row('unknown', 'cancelled', 'cancelled'),
+          ])
+        )
+      );
+
+      const history = await schedulesAPI.getHistory('schedule-1');
+
+      expect(history.map((run) => [run.id, run.status])).toEqual([
+        ['old-pending', 'pending'],
+        ['old-scheduled', 'pending'],
+        ['old-running', 'running'],
+        ['old-done', 'success'],
+        ['old-no-job-status', 'success'],
+        ['legacy-success', 'success'],
+        ['unknown', 'failed'],
+      ]);
+    });
+  });
+
+  describe('isScheduleRunInFlight', () => {
+    it('is true only for pending and running', () => {
+      expect(isScheduleRunInFlight('pending')).toBe(true);
+      expect(isScheduleRunInFlight('running')).toBe(true);
+      expect(isScheduleRunInFlight('success')).toBe(false);
+      expect(isScheduleRunInFlight('failed')).toBe(false);
     });
   });
 });

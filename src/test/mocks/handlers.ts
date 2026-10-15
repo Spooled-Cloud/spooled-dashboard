@@ -359,6 +359,67 @@ export const mockSchedules = [
   },
 ];
 
+/**
+ * `GET /schedules/{id}/history` rows per schedule id, newest first, as the backend sends them
+ * since 0.1.125: `status` is `pending` | `running` | `completed` | `failed`, derived from the
+ * enqueued job (`job_status`), and a run is `completed` only once that job is. A run that
+ * enqueued no job (plan limit, validation) has no `job_id` / `job_status` and is `failed`.
+ */
+export const mockScheduleHistory: Record<string, Array<Record<string, unknown>>> = {
+  'schedule-1': [
+    {
+      id: 'run-pending',
+      schedule_id: 'schedule-1',
+      job_id: 'job-pending-0001',
+      status: 'pending',
+      job_status: 'pending',
+      error_message: null,
+      started_at: '2024-01-04T00:00:00Z',
+      completed_at: null,
+    },
+    {
+      id: 'run-running',
+      schedule_id: 'schedule-1',
+      job_id: 'job-running-0001',
+      status: 'running',
+      job_status: 'processing',
+      error_message: null,
+      started_at: '2024-01-03T00:00:00Z',
+      completed_at: null,
+    },
+    {
+      id: 'run-completed',
+      schedule_id: 'schedule-1',
+      job_id: 'job-completed-001',
+      status: 'completed',
+      job_status: 'completed',
+      error_message: null,
+      started_at: '2024-01-02T00:00:00Z',
+      completed_at: '2024-01-02T00:00:05Z',
+    },
+    {
+      id: 'run-failed',
+      schedule_id: 'schedule-1',
+      job_id: 'job-failed-00001',
+      status: 'failed',
+      job_status: 'deadletter',
+      error_message: 'handler exploded',
+      started_at: '2024-01-01T00:00:00Z',
+      completed_at: '2024-01-01T00:00:09Z',
+    },
+    {
+      id: 'run-not-enqueued',
+      schedule_id: 'schedule-1',
+      job_id: null,
+      status: 'failed',
+      job_status: null,
+      error_message: 'plan limit reached',
+      started_at: '2023-12-31T00:00:00Z',
+      completed_at: '2023-12-31T00:00:00Z',
+    },
+  ],
+};
+
 export const mockWorkflows = [
   {
     id: 'workflow-1',
@@ -1139,8 +1200,8 @@ export const handlers = [
     );
   }),
 
-  http.get(`${API_BASE}/api/v1/schedules/:id/history`, () => {
-    return HttpResponse.json([]);
+  http.get(`${API_BASE}/api/v1/schedules/:id/history`, ({ params }) => {
+    return HttpResponse.json(mockScheduleHistory[String(params.id)] ?? []);
   }),
 
   http.put(`${API_BASE}/api/v1/schedules/:id`, async ({ params, request }) => {

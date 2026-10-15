@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor, within, mockAuthenticatedState } from '@/test/utils';
@@ -88,5 +88,69 @@ describe('WebhooksListPage', () => {
       expect(screen.queryByTestId('inbound-webhook-log')).not.toBeInTheDocument()
     );
     expect(screen.getByText('Slack Notifications')).toBeInTheDocument();
+  });
+
+  describe('deep link /settings/webhooks?webhook={id}', () => {
+    // /settings/webhooks/{id} redirects to this address on the server.
+    const open = (search: string, hash = '') =>
+      window.history.replaceState({}, '', `/settings/webhooks${search}${hash}`);
+
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+    });
+
+    it('opens that webhook’s delivery history and keeps the address a deep link', async () => {
+      open('?webhook=webhook-1');
+      render(<WebhooksListPage />);
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Delivery History')).toBeInTheDocument();
+      expect(within(dialog).getByText(/Deliveries to "Slack Notifications"/)).toBeInTheDocument();
+      expect(window.location.pathname + window.location.search).toBe(
+        '/settings/webhooks?webhook=webhook-1'
+      );
+    });
+
+    it('drops the id from the address when the history is closed', async () => {
+      const user = userEvent.setup();
+      open('?webhook=webhook-1', '#incoming-webhook-log');
+      render(<WebhooksListPage />);
+
+      const dialog = await screen.findByRole('dialog');
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(window.location.pathname + window.location.search).toBe('/settings/webhooks');
+      expect(dialog).not.toBeInTheDocument();
+      expect(window.location.hash).toBe('#incoming-webhook-log');
+    });
+
+    it('puts the id in the address when the history button is used', async () => {
+      const user = userEvent.setup();
+      open('');
+      render(<WebhooksListPage />);
+
+      await user.click(await screen.findByTitle('View Delivery History'));
+      await screen.findByRole('dialog');
+      expect(window.location.search).toBe('?webhook=webhook-1');
+    });
+
+    it('shows the list with a toast when the id is not a webhook of this organization', async () => {
+      open('?webhook=does-not-exist');
+      render(<WebhooksListPage />);
+
+      expect(await screen.findByText('Webhook not found')).toBeInTheDocument();
+      expect(screen.getByText('Slack Notifications')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(window.location.pathname + window.location.search).toBe('/settings/webhooks');
+    });
+
+    it('opens nothing without the query', async () => {
+      open('');
+      render(<WebhooksListPage />);
+
+      expect(await screen.findByText('Slack Notifications')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Webhook not found')).not.toBeInTheDocument();
+    });
   });
 });

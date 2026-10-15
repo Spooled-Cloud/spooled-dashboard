@@ -158,6 +158,42 @@ describe('mock backend contract', () => {
     expect((error as APIError).status).toBe(404);
   });
 
+  it('GET /schedules/{id}/history reports pending|running|completed|failed with job_status (backend 0.1.125)', async () => {
+    const rows = await apiClient.get<Array<Record<string, unknown>>>(
+      '/api/v1/schedules/schedule-1/history'
+    );
+    expect(rows.map((r) => r.status)).toEqual([
+      'pending',
+      'running',
+      'completed',
+      'failed',
+      'failed',
+    ]);
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual(
+        [
+          'completed_at',
+          'error_message',
+          'id',
+          'job_id',
+          'job_status',
+          'schedule_id',
+          'started_at',
+          'status',
+        ].sort()
+      );
+    }
+    // A run counts as finished only once its job did: in-flight runs have no completed_at
+    expect(rows.filter((r) => r.completed_at === null).map((r) => r.job_status)).toEqual([
+      'pending',
+      'processing',
+    ]);
+    // No job, no job_status
+    expect(rows[4]).toMatchObject({ job_id: null, job_status: null });
+
+    await expect(apiClient.get('/api/v1/schedules/unknown/history')).resolves.toEqual([]);
+  });
+
   it('workers carry jobs_processed and jobs_failed (backend 0.1.122)', async () => {
     const list = await apiClient.get<Array<Record<string, unknown>>>('/api/v1/workers');
     const detail = await apiClient.get<Record<string, unknown>>('/api/v1/workers/worker-1');

@@ -7,10 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { schedulesAPI } from '@/lib/api/schedules';
-import type { UpdateScheduleRequest } from '@/lib/api/schedules';
+import { schedulesAPI, isScheduleRunInFlight } from '@/lib/api/schedules';
+import type {
+  ScheduleExecution,
+  ScheduleExecutionStatus,
+  UpdateScheduleRequest,
+} from '@/lib/api/schedules';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
+import { cn } from '@/lib/utils/cn';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -24,18 +29,63 @@ import {
   CheckCircle,
   XCircle,
   Calendar,
+  Loader2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Schedule } from '@/lib/types';
 
 interface ScheduleDetailsContentProps {
   scheduleId: string;
 }
 
+const EXECUTION_STATUS: Record<
+  ScheduleExecutionStatus,
+  { label: string; Icon: LucideIcon; color: string; spin?: boolean }
+> = {
+  pending: { label: 'Pending', Icon: Clock, color: 'text-amber-600' },
+  running: { label: 'Running', Icon: Loader2, color: 'text-blue-600', spin: true },
+  success: { label: 'Completed', Icon: CheckCircle, color: 'text-green-600' },
+  failed: { label: 'Failed', Icon: XCircle, color: 'text-red-600' },
+};
+
+/** Job states that only repeat what the run state already says. */
+const RESTATED_BY_RUN_STATUS: Record<ScheduleExecutionStatus, string[]> = {
+  pending: ['pending', 'scheduled'],
+  running: ['processing'],
+  success: ['completed'],
+  failed: ['failed'],
+};
+
+/** The job's own state, when it tells more than the run state (a failed run whose job is in the DLQ). */
+function jobStatusNote(execution: ScheduleExecution): string | null {
+  const { job_status: jobStatus, status } = execution;
+  if (!jobStatus || RESTATED_BY_RUN_STATUS[status].includes(jobStatus)) return null;
+  return jobStatus;
+}
+
+// Runs still in flight are polled faster, so they turn into completed or failed soon after.
+const IN_FLIGHT_REFETCH_MS = 5000;
+const IDLE_REFETCH_MS = 30000;
+/** A run in flight for longer than this is polled at the idle rate. */
+const IN_FLIGHT_WINDOW_MS = 15 * 60 * 1000;
+
 function ExecutionHistory({ scheduleId }: { scheduleId: string }) {
   const { data: history, isLoading } = useQuery({
     queryKey: queryKeys.schedules.history(scheduleId),
     queryFn: () => schedulesAPI.getHistory(scheduleId),
-    refetchInterval: 30000,
+    // Poll fast only while a run on screen (the newest 10) is in flight and
+    // recent: a run stuck pending (paused queue, no worker) must not keep the
+    // page polling every 5 s for as long as the tab stays open.
+    refetchInterval: (query) =>
+      query.state.data
+        ?.slice(0, 10)
+        .some(
+          (execution) =>
+            isScheduleRunInFlight(execution.status) &&
+            Date.now() - new Date(execution.triggered_at).getTime() < IN_FLIGHT_WINDOW_MS
+        )
+        ? IN_FLIGHT_REFETCH_MS
+        : IDLE_REFETCH_MS,
   });
 
   if (isLoading) {
@@ -59,35 +109,46 @@ function ExecutionHistory({ scheduleId }: { scheduleId: string }) {
 
   return (
     <div className="space-y-2">
-      {history.slice(0, 10).map((execution) => (
-        <div key={execution.id} className="flex items-center justify-between rounded-lg border p-3">
-          <div className="flex items-center gap-3">
-            {execution.status === 'success' ? (
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            ) : (
-              <XCircle className="h-4 w-4 text-red-600" />
-            )}
-            <div>
-              {execution.job_id ? (
-                <a
-                  href={`/jobs/${execution.job_id}`}
-                  className="font-mono text-sm hover:text-primary"
-                >
-                  {execution.job_id.slice(0, 12)}...
-                </a>
-              ) : (
-                <span className="text-sm text-muted-foreground">No job created</span>
-              )}
-              {execution.error && (
-                <p className="mt-1 text-xs text-destructive">{execution.error}</p>
-              )}
+      {history.slice(0, 10).map((execution) => {
+        const { label, Icon, color, spin } = EXECUTION_STATUS[execution.status];
+        const inFlight = isScheduleRunInFlight(execution.status);
+        const jobNote = jobStatusNote(execution);
+        return (
+          <div
+            key={execution.id}
+            data-testid={`schedule-run-${execution.id}`}
+            className="flex items-center justify-between rounded-lg border p-3"
+          >
+            <div className="flex items-center gap-3">
+              <span role="img" aria-label={`Run ${label.toLowerCase()}`} title={label}>
+                <Icon className={cn('h-4 w-4', color, spin && 'animate-spin')} aria-hidden="true" />
+              </span>
+              <div>
+                {execution.job_id ? (
+                  <a
+                    href={`/jobs/${execution.job_id}`}
+                    className="font-mono text-sm hover:text-primary"
+                  >
+                    {execution.job_id.slice(0, 12)}...
+                  </a>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No job created</span>
+                )}
+                {jobNote && <p className="mt-1 text-xs text-muted-foreground">Job: {jobNote}</p>}
+                {execution.error && (
+                  <p className="mt-1 text-xs text-destructive">{execution.error}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {inFlight && <span className={`text-xs font-medium ${color}`}>{label}</span>}
+              <span className="text-xs text-muted-foreground">
+                {formatRelativeTime(execution.triggered_at)}
+              </span>
             </div>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(execution.triggered_at)}
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

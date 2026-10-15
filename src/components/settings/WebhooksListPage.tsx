@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ProtectedPage } from '@/components/providers/ProtectedPage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,8 @@ import { CreateWebhookDialog } from './CreateWebhookDialog';
 import { EditWebhookDialog } from './EditWebhookDialog';
 import { WebhookDeliveriesDialog } from './WebhookDeliveriesDialog';
 import { InboundWebhookLog } from './InboundWebhookLog';
+
+const WEBHOOKS_PATH = '/settings/webhooks';
 
 function WebhookStatusBadge({ webhook }: { webhook: Webhook }) {
   if (isAutoDisabled(webhook)) {
@@ -112,10 +114,25 @@ function WebhooksListContent() {
     queryFn: () => webhooksAPI.list(),
   });
 
-  // Deep link: /settings/webhooks/{id} redirects here with ?webhook={id}; open
-  // that webhook's delivery history (its detail view) once the list is loaded.
+  // Keep the address a link to the open history: /settings/webhooks?webhook={id}. Only the
+  // query changes; the hash (#incoming-webhook-log) stays.
+  const syncDeepLink = (id: string | null) => {
+    const query = id ? `?webhook=${encodeURIComponent(id)}` : '';
+    window.history.replaceState({}, '', `${WEBHOOKS_PATH}${query}${window.location.hash}`);
+  };
+
+  const showDeliveries = (webhook: Webhook | null) => {
+    setViewingDeliveries(webhook);
+    syncDeepLink(webhook?.id ?? null);
+  };
+
+  // Deep link: /settings/webhooks/{id} redirects here with ?webhook={id}. Once the list is
+  // loaded (once per visit), open that webhook's delivery history, its detail view. An id that
+  // is not in the list (deleted, or another organization's) leaves the plain list with a toast.
+  const deepLinkHandled = useRef(false);
   useEffect(() => {
-    if (!webhooks) return;
+    if (!webhooks || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
     const wanted = new URLSearchParams(window.location.search).get('webhook');
     if (!wanted) return;
     const match = webhooks.find((w) => w.id === wanted);
@@ -123,8 +140,8 @@ function WebhooksListContent() {
       setViewingDeliveries(match);
     } else {
       toast.error('Webhook not found', { description: 'It may have been deleted.' });
+      window.history.replaceState({}, '', `${WEBHOOKS_PATH}${window.location.hash}`);
     }
-    window.history.replaceState({}, '', '/settings/webhooks');
   }, [webhooks]);
 
   const deleteMutation = useMutation({
@@ -371,7 +388,7 @@ function WebhooksListContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setViewingDeliveries(webhook)}
+                        onClick={() => showDeliveries(webhook)}
                         title="View Delivery History"
                       >
                         <History className="h-4 w-4" />
@@ -420,7 +437,7 @@ function WebhooksListContent() {
         <WebhookDeliveriesDialog
           webhook={viewingDeliveries}
           open={!!viewingDeliveries}
-          onOpenChange={(open) => !open && setViewingDeliveries(null)}
+          onOpenChange={(open) => !open && showDeliveries(null)}
         />
       )}
     </div>

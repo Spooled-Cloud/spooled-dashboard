@@ -29,14 +29,29 @@ export interface UpdateScheduleRequest {
   metadata?: Record<string, string>;
 }
 
+/**
+ * Outcome of one scheduled run. Backend 0.1.125 derives it from the enqueued job:
+ * `pending` / `running` while the job is in flight, `completed` / `failed` once it ended
+ * (`completed` is `success` here). Before 0.1.125 the scheduler wrote `completed` as soon as
+ * it enqueued the job.
+ */
+export type ScheduleExecutionStatus = 'pending' | 'running' | 'success' | 'failed';
+
 export interface ScheduleExecution {
   id: string;
   schedule_id: string;
   /** Null when enqueue failed (plan limit, validation) and no job was created. */
   job_id: string | null;
-  status: 'success' | 'failed';
+  status: ScheduleExecutionStatus;
+  /** Status of the enqueued job (`pending`, `processing`, `completed`, ...); absent without a job. */
+  job_status?: string;
   triggered_at: string;
   error?: string;
+}
+
+/** A run whose job has not ended yet: it is neither a success nor a failure. */
+export function isScheduleRunInFlight(status: ScheduleExecutionStatus): boolean {
+  return status === 'pending' || status === 'running';
 }
 
 // Backend types
@@ -73,10 +88,48 @@ interface BackendScheduleRunRecord {
   id: string;
   schedule_id: string;
   job_id: string | null;
+  /** `pending` | `running` | `completed` | `failed` (0.1.125); older backends send only the last two. */
   status: string;
+  /** Status of the enqueued job; null when no job was created. */
+  job_status?: string | null;
   error_message: string | null;
   started_at: string;
   completed_at: string | null;
+}
+
+/** The run state a still-running job stands for, or null once the job has ended (or is unknown). */
+function inFlightRunStatus(jobStatus: string | null | undefined): 'pending' | 'running' | null {
+  switch (jobStatus) {
+    case 'pending':
+    case 'scheduled':
+      return 'pending';
+    case 'processing':
+      return 'running';
+    default:
+      return null;
+  }
+}
+
+function mapRunStatus(
+  status: string,
+  jobStatus: string | null | undefined
+): ScheduleExecutionStatus {
+  switch (status) {
+    case 'pending':
+    case 'scheduled':
+      return 'pending';
+    case 'running':
+    case 'processing':
+      return 'running';
+    case 'completed':
+    case 'success':
+      // Backend before 0.1.125 wrote `completed` when it enqueued the job: the job's own
+      // state still says whether the run is really over.
+      return inFlightRunStatus(jobStatus) ?? 'success';
+    default:
+      // The scheduler writes only the states above; anything else is a failure.
+      return 'failed';
+  }
 }
 
 function extractJobType(payloadTemplate: unknown): string {
@@ -238,8 +291,8 @@ export const schedulesAPI = {
       id: r.id,
       schedule_id: r.schedule_id,
       job_id: r.job_id,
-      // Scheduler writes 'completed' / 'failed', never 'success'.
-      status: r.status === 'completed' || r.status === 'success' ? 'success' : 'failed',
+      status: mapRunStatus(r.status, r.job_status),
+      job_status: r.job_status ?? undefined,
       triggered_at: r.started_at,
       error: r.error_message ?? undefined,
     }));
