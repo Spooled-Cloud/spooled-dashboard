@@ -287,7 +287,7 @@ function WorkersListContent() {
           workerToDeregister?.current_jobs && workerToDeregister.current_jobs > 0
             ? [
                 `Worker has ${workerToDeregister.current_jobs} job(s) currently processing`,
-                'Jobs may be interrupted and returned to the queue',
+                'Jobs return to the queue when their lease expires, not right away',
               ]
             : ['Worker will stop receiving new jobs', 'Worker can re-register by reconnecting']
         }
