@@ -197,7 +197,7 @@ export interface CreateQueueRequest {
 // Worker Types
 // ============================================================================
 
-export type WorkerStatus = 'active' | 'idle' | 'offline' | 'draining';
+export type WorkerStatus = 'active' | 'idle' | 'offline' | 'draining' | 'degraded';
 
 export interface Worker {
   id: string;
@@ -346,6 +346,12 @@ export interface DashboardData {
     deadletter: number;
     avg_wait_time_ms: number | null;
     avg_processing_time_ms: number | null;
+    /**
+     * Jobs waiting out a retry backoff or a future `scheduled_at`.
+     * Absent on backends that do not count this status in the overview (0.1.127);
+     * `GET /jobs/stats` still has it. Never treat absence as zero.
+     */
+    scheduled?: number;
   };
   queues: Array<{
     name: string;
@@ -357,6 +363,11 @@ export interface DashboardData {
     total: number;
     healthy: number;
     unhealthy: number;
+    /**
+     * Workers with no recent heartbeat. Set when the overview counts them
+     * itself; absent when a silent worker is missing from `total` entirely.
+     */
+    offline?: number;
   };
   recent_activity: {
     jobs_created_1h: number;

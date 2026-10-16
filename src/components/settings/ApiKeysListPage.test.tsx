@@ -298,3 +298,65 @@ describe('ApiKeysListPage session-key guard when /auth/me did not load', () => {
     expect(puts).toEqual([]);
   });
 });
+
+describe('ApiKeysListPage paging', () => {
+  beforeEach(async () => {
+    await mockAuthenticatedState();
+    queryClient.clear();
+  });
+
+  it('shows keys past the first page in the total', async () => {
+    const rows = Array.from({ length: 101 }, (_, i) => ({
+      id: `key-page-${i}`,
+      name: i === 100 ? 'Oldest live key' : `Key ${i}`,
+      queues: ['*'],
+      rate_limit: null,
+      is_active: true,
+      is_system: false,
+      created_at: '2024-01-01T00:00:00Z',
+      last_used: null,
+      expires_at: null,
+    }));
+    server.use(
+      http.get('https://api.spooled.cloud/api/v1/api-keys', ({ request }) => {
+        const url = new URL(request.url);
+        const offset = Number(url.searchParams.get('offset') ?? 0);
+        const limit = Number(url.searchParams.get('limit') ?? rows.length);
+        const slice = rows.slice(offset, offset + limit);
+        return HttpResponse.json(slice, {
+          headers: { 'X-Has-More': String(offset + limit < rows.length) },
+        });
+      })
+    );
+
+    render(<ApiKeysListPage />);
+    expect(await screen.findByText('Oldest live key')).toBeInTheDocument();
+    expect(screen.getByText('Total Keys').nextElementSibling).toHaveTextContent('101');
+    expect(document.querySelector('p.text-green-600')).toHaveTextContent('101');
+    expect(screen.queryByText('Only the newest 100 are shown.')).not.toBeInTheDocument();
+  });
+
+  it('says only the newest 100 are shown when a full page repeats', async () => {
+    const page = Array.from({ length: 100 }, (_, i) => ({
+      id: `key-revoked-${i}`,
+      name: `Revoked ${i}`,
+      queues: ['*'],
+      rate_limit: null,
+      is_active: false,
+      is_system: false,
+      created_at: '2024-01-01T00:00:00Z',
+      last_used: null,
+      expires_at: null,
+    }));
+    server.use(
+      http.get('https://api.spooled.cloud/api/v1/api-keys', () => HttpResponse.json(page))
+    );
+
+    render(<ApiKeysListPage />);
+    expect(await screen.findByText('Only the newest 100 are shown.')).toBeInTheDocument();
+    expect(screen.queryByText('Total Keys')).not.toBeInTheDocument();
+    expect(screen.getByText('Newest keys').nextElementSibling).toHaveTextContent('100');
+    expect(screen.getByText('Active shown').nextElementSibling).toHaveTextContent('0');
+    expect(screen.getByText('Only the newest 100 are shown.')).toHaveAttribute('role', 'status');
+  });
+});

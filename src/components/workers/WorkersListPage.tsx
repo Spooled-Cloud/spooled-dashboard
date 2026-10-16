@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workersAPI } from '@/lib/api/workers';
 import { queryKeys } from '@/lib/query-client';
 import { formatNumber, formatRelativeTime } from '@/lib/utils/format';
-import { RefreshCw, Trash2, Server, Activity, Circle, Cpu } from 'lucide-react';
+import { RefreshCw, Trash2, Server, Activity, Circle, Cpu, Pause } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Worker, WorkerStatus } from '@/lib/types';
 
@@ -23,6 +23,8 @@ function WorkerStatusBadge({ status }: { status: WorkerStatus }) {
     idle: 'inactive',
     offline: 'unhealthy',
     draining: 'paused',
+    // Not `active`: a degraded worker is over capacity. The label stays "degraded".
+    degraded: 'unhealthy',
   };
   return <StatusBadge status={statusMap[status] || 'inactive'} label={status} size="sm" />;
 }
@@ -97,6 +99,10 @@ function WorkersListContent() {
 
   const activeWorkers = workers?.filter((w) => w.status === 'active').length || 0;
   const idleWorkers = workers?.filter((w) => w.status === 'idle').length || 0;
+  const degradedWorkers = workers?.filter((w) => w.status === 'degraded').length || 0;
+  // Home counts draining as unhealthy. It is in the total and in none of the
+  // other status cards, so it needs its own card or that total does not add up.
+  const drainingWorkers = workers?.filter((w) => w.status === 'draining').length || 0;
   const offlineWorkers = workers?.filter((w) => w.status === 'offline').length || 0;
   const totalConcurrency = workers?.reduce((acc, w) => acc + w.concurrency, 0) || 0;
 
@@ -115,7 +121,7 @@ function WorkersListContent() {
 
       {/* Stats Grid */}
       {!isLoading && workers && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
           <StatCard
             title="Total Workers"
             value={workers.length}
@@ -133,6 +139,18 @@ function WorkersListContent() {
             value={idleWorkers}
             icon={<Circle className="h-5 w-5 text-blue-600" />}
             color="bg-blue-500/10"
+          />
+          <StatCard
+            title="Degraded"
+            value={degradedWorkers}
+            icon={<Activity className="h-5 w-5 text-amber-700" />}
+            color="bg-amber-500/10"
+          />
+          <StatCard
+            title="Draining"
+            value={drainingWorkers}
+            icon={<Pause className="h-5 w-5 text-yellow-700" />}
+            color="bg-yellow-500/10"
           />
           <StatCard
             title="Offline"

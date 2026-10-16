@@ -13,20 +13,103 @@ const API_BASE = 'https://api.spooled.cloud';
 describe('apiKeysAPI', () => {
   describe('list', () => {
     it('should list all API keys', async () => {
-      const keys = await apiKeysAPI.list();
+      const { keys, newestOnly } = await apiKeysAPI.list();
 
       expect(Array.isArray(keys)).toBe(true);
       expect(keys.length).toBeGreaterThan(0);
+      expect(newestOnly).toBe(false);
     });
 
     it('should return API keys with required fields', async () => {
-      const keys = await apiKeysAPI.list();
+      const { keys } = await apiKeysAPI.list();
       const key = keys[0];
 
       expect(key).toHaveProperty('id');
       expect(key).toHaveProperty('name');
       expect(key).toHaveProperty('queues');
       expect(key).toHaveProperty('is_active');
+    });
+
+    function keyRow(id: string, name = id) {
+      return {
+        id,
+        name,
+        queues: ['*'],
+        rate_limit: null,
+        is_active: true,
+        created_at: '2024-01-01T00:00:00Z',
+        last_used: null,
+        expires_at: null,
+      };
+    }
+
+    it('pages with limit and offset until X-Has-More is false', async () => {
+      const all = Array.from({ length: 150 }, (_, i) =>
+        keyRow(`key-${i}`, i === 149 ? 'Oldest live key' : `Key ${i}`)
+      );
+      const offsets: number[] = [];
+      server.use(
+        http.get(`${API_BASE}/api/v1/api-keys`, ({ request }) => {
+          const url = new URL(request.url);
+          const offset = Number(url.searchParams.get('offset') ?? 0);
+          const limit = Number(url.searchParams.get('limit') ?? 0);
+          offsets.push(offset);
+          expect(limit).toBe(100);
+          const slice = all.slice(offset, offset + limit);
+          return HttpResponse.json(slice, {
+            headers: { 'X-Has-More': String(offset + limit < all.length) },
+          });
+        })
+      );
+
+      const { keys, newestOnly } = await apiKeysAPI.list();
+      expect(offsets).toEqual([0, 100]);
+      expect(newestOnly).toBe(false);
+      expect(keys).toHaveLength(150);
+      expect(keys.some((key) => key.name === 'Oldest live key')).toBe(true);
+    });
+
+    it('pages when the server honors offset but does not send X-Has-More', async () => {
+      const all = Array.from({ length: 120 }, (_, i) => keyRow(`key-${i}`));
+      server.use(
+        http.get(`${API_BASE}/api/v1/api-keys`, ({ request }) => {
+          const url = new URL(request.url);
+          const offset = Number(url.searchParams.get('offset') ?? 0);
+          const limit = Number(url.searchParams.get('limit') ?? 0);
+          return HttpResponse.json(all.slice(offset, offset + limit));
+        })
+      );
+
+      const { keys, newestOnly } = await apiKeysAPI.list();
+      expect(newestOnly).toBe(false);
+      expect(keys).toHaveLength(120);
+    });
+
+    it('stops when an old server ignores limit and offset and repeats the first page', async () => {
+      const page = Array.from({ length: 100 }, (_, i) => keyRow(`key-${i}`, `Revoked ${i}`));
+      let calls = 0;
+      server.use(
+        http.get(`${API_BASE}/api/v1/api-keys`, () => {
+          calls += 1;
+          return HttpResponse.json(page);
+        })
+      );
+
+      const { keys, newestOnly } = await apiKeysAPI.list();
+      expect(newestOnly).toBe(true);
+      expect(keys).toHaveLength(100);
+      expect(new Set(keys.map((key) => key.id)).size).toBe(100);
+      expect(calls).toBe(2);
+    });
+
+    it('does not mark a complete short page as only the newest 100', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/api-keys`, () => HttpResponse.json([keyRow('only-key')]))
+      );
+
+      const { keys, newestOnly } = await apiKeysAPI.list();
+      expect(newestOnly).toBe(false);
+      expect(keys).toHaveLength(1);
     });
   });
 

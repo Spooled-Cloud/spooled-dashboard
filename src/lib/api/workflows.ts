@@ -88,8 +88,89 @@ export interface WorkflowWithDetails extends Workflow {
     failed: number;
     pending: number;
     processing: number;
+    /**
+     * Steps cancelled on purpose. Absent on backends that still add those
+     * jobs to `failed` (0.1.127); present once the progress object splits them.
+     */
+    cancelled?: number;
   };
   estimated_completion?: string;
+}
+
+/** How often to refetch a workflow that can still change under the open page. */
+export const WORKFLOW_POLL_MS = 2000;
+
+/**
+ * Poll while a workflow is pending or running. Pending used to be excluded,
+ * so a page opened before the first job started never saw it leave Pending.
+ * Completed, failed and cancelled stay put until the operator acts.
+ */
+export function workflowPollInterval(status: string | undefined | null): number | false {
+  return status === 'pending' || status === 'running' ? WORKFLOW_POLL_MS : false;
+}
+
+export function workflowListPollInterval(
+  workflows: Array<{ status?: string }> | undefined
+): number | false {
+  if (!workflows?.some((workflow) => workflowPollInterval(workflow.status) !== false)) {
+    return false;
+  }
+  return WORKFLOW_POLL_MS;
+}
+
+export interface WorkflowProgressCounts {
+  total: number;
+  completed: number;
+  failed: number;
+  pending: number;
+  processing: number;
+  cancelled: number;
+}
+
+/**
+ * Cancelled steps for the detail bar.
+ *
+ * Prefer `progress.cancelled` when the backend sends it, and only take those
+ * jobs back out of `failed` when the buckets add up to more than `total`
+ * (a backend that reports the new field but still folds cancelled into failed).
+ * Without the field, 0.1.127 counts cancelled inside `failed`; the jobs on
+ * this payload are the source for how many of those are cancelled.
+ */
+export function workflowProgressCounts(workflow: {
+  progress: WorkflowWithDetails['progress'];
+  jobs?: Array<{ status?: string }>;
+}): WorkflowProgressCounts {
+  const progress = workflow.progress;
+  const completed = Math.max(0, progress.completed);
+  const processing = Math.max(0, progress.processing);
+  const pending = Math.max(0, progress.pending);
+
+  if (typeof progress.cancelled === 'number' && Number.isFinite(progress.cancelled)) {
+    const cancelled = Math.max(0, progress.cancelled);
+    let failed = Math.max(0, progress.failed);
+    const sum = completed + processing + pending + failed + cancelled;
+    if (progress.total > 0 && sum > progress.total && failed >= cancelled) {
+      failed -= cancelled;
+    }
+    return {
+      total: progress.total,
+      completed,
+      processing,
+      pending,
+      failed,
+      cancelled,
+    };
+  }
+
+  const cancelled = (workflow.jobs ?? []).filter((job) => job.status === 'cancelled').length;
+  return {
+    total: progress.total,
+    completed,
+    processing,
+    pending,
+    failed: Math.max(0, progress.failed - cancelled),
+    cancelled,
+  };
 }
 
 function extractJobTypeFromPayload(payload: unknown): string {

@@ -17,7 +17,7 @@ import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { copyText } from '@/lib/utils/clipboard';
-import { isUnrestrictedKey } from '@/lib/utils/key-scope';
+import { isQueueScopedKey, isUnrestrictedKey } from '@/lib/utils/key-scope';
 import { APIError } from '@/lib/api/client';
 import {
   Save,
@@ -488,11 +488,19 @@ function OrganizationSettingsContent() {
     enabled: !!orgId,
   });
 
-  const { data: members, isLoading: membersLoading } = useQuery({
+  // That route is the active-key count, and it answers 403 for a queue-scoped
+  // key. Skip it then. A 403 (or any other failure) must not render as 0 keys.
+  const queueScoped = isQueueScopedKey(keyQueues);
+  const {
+    data: members,
+    isLoading: membersLoading,
+    isError: membersUnavailable,
+  } = useQuery({
     queryKey: queryKeys.organizations.members(orgId || ''),
     queryFn: () => organizationsAPI.getMembers(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !queueScoped,
   });
+  const activeKeyCountUnavailable = queueScoped || membersUnavailable;
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateOrganizationRequest) => organizationsAPI.update(orgId!, data),
@@ -692,8 +700,12 @@ function OrganizationSettingsContent() {
               {membersLoading ? (
                 <Skeleton className="mt-1 h-5 w-10" />
               ) : (
-                <p className="text-sm font-medium" data-testid="active-api-key-count">
-                  {members?.length ?? 0}
+                <p
+                  className="text-sm font-medium"
+                  data-testid="active-api-key-count"
+                  title={activeKeyCountUnavailable ? 'Not available for this session' : undefined}
+                >
+                  {activeKeyCountUnavailable ? 'Unavailable' : (members?.length ?? 0)}
                 </p>
               )}
             </div>

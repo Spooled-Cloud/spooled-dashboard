@@ -16,6 +16,7 @@ const statusColors: Record<WorkerStatus, { badge: string; dot: string }> = {
   idle: { badge: 'bg-blue-500/10 text-blue-700 border-blue-500', dot: 'bg-blue-500' },
   offline: { badge: 'bg-gray-500/10 text-gray-700 border-gray-500', dot: 'bg-gray-500' },
   draining: { badge: 'bg-yellow-500/10 text-yellow-700 border-yellow-500', dot: 'bg-yellow-500' },
+  degraded: { badge: 'bg-amber-500/10 text-amber-800 border-amber-500', dot: 'bg-amber-500' },
 };
 
 function WorkerStatusBadge({ status }: { status: WorkerStatus }) {

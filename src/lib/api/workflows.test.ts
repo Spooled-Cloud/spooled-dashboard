@@ -14,6 +14,10 @@ import {
   getJobLevels,
   toBackendWorkflowJob,
   withPayloadJobType,
+  workflowListPollInterval,
+  workflowPollInterval,
+  workflowProgressCounts,
+  WORKFLOW_POLL_MS,
 } from './workflows';
 import type { WorkflowDependency, Job } from '@/lib/types';
 
@@ -384,6 +388,59 @@ describe('getJobLevels', () => {
     const levels = getJobLevels(jobs, dependencies);
 
     expect(levels.length).toBe(0);
+  });
+});
+
+describe('workflow polling', () => {
+  it('polls a pending or running workflow and stops once it is terminal', () => {
+    expect(workflowPollInterval('pending')).toBe(WORKFLOW_POLL_MS);
+    expect(workflowPollInterval('running')).toBe(WORKFLOW_POLL_MS);
+    expect(workflowPollInterval('completed')).toBe(false);
+    expect(workflowPollInterval('failed')).toBe(false);
+    expect(workflowPollInterval('cancelled')).toBe(false);
+    expect(workflowPollInterval(undefined)).toBe(false);
+  });
+
+  it('polls the list only while some row is still pending or running', () => {
+    expect(workflowListPollInterval([{ status: 'completed' }, { status: 'pending' }])).toBe(
+      WORKFLOW_POLL_MS
+    );
+    expect(workflowListPollInterval([{ status: 'completed' }, { status: 'cancelled' }])).toBe(
+      false
+    );
+    expect(workflowListPollInterval(undefined)).toBe(false);
+  });
+});
+
+describe('workflowProgressCounts', () => {
+  const cancelledJob = { status: 'cancelled' as const };
+  const failedJob = { status: 'failed' as const };
+
+  it('splits cancelled jobs out of failed when the backend has no cancelled field', () => {
+    const counts = workflowProgressCounts({
+      progress: { total: 3, completed: 0, failed: 3, pending: 0, processing: 0 },
+      jobs: [cancelledJob, cancelledJob, failedJob],
+    });
+    expect(counts.cancelled).toBe(2);
+    expect(counts.failed).toBe(1);
+  });
+
+  it('uses progress.cancelled when the backend sends it', () => {
+    const counts = workflowProgressCounts({
+      progress: { total: 2, completed: 0, failed: 1, pending: 0, processing: 0, cancelled: 1 },
+      jobs: [cancelledJob, failedJob],
+    });
+    expect(counts.cancelled).toBe(1);
+    expect(counts.failed).toBe(1);
+  });
+
+  it('does not paint cancelled twice when the new field is still folded into failed', () => {
+    const counts = workflowProgressCounts({
+      progress: { total: 2, completed: 0, failed: 2, pending: 0, processing: 0, cancelled: 2 },
+      jobs: [cancelledJob, cancelledJob],
+    });
+    expect(counts.cancelled).toBe(2);
+    expect(counts.failed).toBe(0);
   });
 });
 

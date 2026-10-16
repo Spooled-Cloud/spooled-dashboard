@@ -37,6 +37,34 @@ describe('workersAPI', () => {
       expect(workers.find((w) => w.id === 'worker-1')?.status).toBe('active');
       expect(workers.find((w) => w.id === 'worker-2')?.status).toBe('idle');
     });
+
+    it('keeps a degraded worker degraded on the list and the detail', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/workers`, () =>
+          HttpResponse.json([
+            {
+              ...mockWorkersSummary[0],
+              id: 'worker-hot',
+              status: 'degraded',
+              current_jobs: 10,
+            },
+          ])
+        ),
+        http.get(`${API_BASE}/api/v1/workers/:id`, () =>
+          HttpResponse.json({
+            ...mockWorkerDetails['worker-1'],
+            id: 'worker-hot',
+            status: 'degraded',
+            current_jobs: 10,
+          })
+        )
+      );
+
+      const [summary] = await workersAPI.list();
+      const detail = await workersAPI.get('worker-hot');
+      expect(summary.status).toBe('degraded');
+      expect(detail.status).toBe('degraded');
+    });
   });
 
   describe('list summary fields', () => {

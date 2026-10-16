@@ -4,6 +4,7 @@
 
 import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
+import { parseHasMore } from './jobs';
 
 export interface APIKey {
   id: string;
@@ -56,6 +57,15 @@ export interface CreateAPIKeyResponse {
   created_at: string;
 }
 
+export interface ApiKeyList {
+  keys: APIKey[];
+  /**
+   * True when a full page repeated, so `keys` is only the newest
+   * `API_KEYS_PAGE_SIZE` rows. Backend 0.1.127 ignores limit and offset.
+   */
+  newestOnly: boolean;
+}
+
 export interface UpdateAPIKeyRequest {
   name?: string;
   queues?: string[];
@@ -64,13 +74,63 @@ export interface UpdateAPIKeyRequest {
   is_active?: boolean;
 }
 
+/**
+ * `MAX_API_KEYS_PER_PAGE` on the backend. A larger limit is clamped, and
+ * 0.1.127 ignores limit and offset entirely and always returns this many
+ * of the newest rows (revoked included).
+ */
+export const API_KEYS_PAGE_SIZE = 100;
+
+/** Stop paging even if a server keeps answering that another page exists. */
+const API_KEYS_MAX_PAGES = 100;
+
 export const apiKeysAPI = {
   /**
    * GET /api/v1/api-keys
-   * List all API keys
+   * Every key, walking limit/offset until `X-Has-More` is false.
+   *
+   * A server that ignores those params (0.1.127) repeats the same page and
+   * sends no `X-Has-More`. A repeated id, or a short page with no header,
+   * ends the walk so the first page is still shown and the loop stops.
+   * A repeated full page sets `newestOnly`: the caller must not label that
+   * slice as every key the organization has.
    */
-  list: (): Promise<APIKey[]> => {
-    return apiClient.get<APIKey[]>(API_ENDPOINTS.API_KEYS.LIST);
+  list: async (): Promise<ApiKeyList> => {
+    const keys: APIKey[] = [];
+    const seen = new Set<string>();
+    let offset = 0;
+    let newestOnly = false;
+
+    for (let page = 0; page < API_KEYS_MAX_PAGES; page++) {
+      const { data, headers } = await apiClient.getWithHeaders<APIKey[]>(
+        API_ENDPOINTS.API_KEYS.LIST,
+        { limit: API_KEYS_PAGE_SIZE, offset }
+      );
+      const rows = Array.isArray(data) ? data : [];
+      let added = 0;
+      for (const key of rows) {
+        if (!key || typeof key.id !== 'string' || seen.has(key.id)) continue;
+        seen.add(key.id);
+        keys.push(key);
+        added++;
+      }
+      const hasMore = parseHasMore(headers);
+      // Nothing new: the previous page repeated (offset ignored) or the body was empty.
+      if (added === 0) {
+        // A full page of ids already seen means offset was ignored. An empty
+        // body is just the end of a complete list.
+        newestOnly = rows.length >= API_KEYS_PAGE_SIZE && keys.length > 0;
+        break;
+      }
+      if (hasMore === false) break;
+      // No header and a short page is the end. A full page without a header
+      // may be a server that paged but did not expose the header, so continue;
+      // the repeated-id check above stops a server that ignored offset.
+      if (hasMore !== true && rows.length < API_KEYS_PAGE_SIZE) break;
+      offset += rows.length;
+    }
+
+    return { keys, newestOnly };
   },
 
   /**

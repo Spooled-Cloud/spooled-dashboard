@@ -22,6 +22,14 @@ import { getRuntimeConfig } from '@/lib/config/runtime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI } from '@/lib/api/queues';
 import { jobsAPI, DLQ_PURGE_MAX_LIMIT, DLQ_RETRY_MAX_LIMIT } from '@/lib/api/jobs';
+import { workersAPI } from '@/lib/api/workers';
+import {
+  mergeHomeQueues,
+  reconcileWorkerHealth,
+  scheduledCountFromOverview,
+  scheduledCountFromStats,
+  visibleHomeQueues,
+} from '@/lib/dashboard/operations';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
@@ -93,6 +101,9 @@ function computeSignals(data: DashboardData | undefined): Signal[] {
       href: '/jobs/dlq',
     });
   }
+
+  // Scheduled jobs (delayed jobs, retries waiting for their backoff) are
+  // normal work, not an incident: they are a neutral stat in "Current state".
 
   const unhealthyWorkers = data.workers?.unhealthy ?? 0;
   if (unhealthyWorkers > 0) {
@@ -554,6 +565,11 @@ export function DeadLetterActionBar() {
 export function QueuesPanel() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useDashboard();
+  const { data: configuredQueues, isFetched: queuesFetched } = useQuery({
+    queryKey: queryKeys.queues.list(),
+    queryFn: () => queuesAPI.list(),
+    refetchInterval: 30000,
+  });
 
   const pauseMutation = useMutation({
     mutationFn: ({ name, reason }: { name: string; reason?: string }) =>
@@ -584,11 +600,11 @@ export function QueuesPanel() {
     },
   });
 
-  const queues = data?.queues ?? [];
-  const sortedQueues = [...queues].sort(
-    (a, b) => b.pending + b.processing - (a.pending + a.processing)
-  );
-  const topQueues = sortedQueues.slice(0, 6);
+  // Overview queues come from job rows. A configured queue with none left
+  // is only on GET /queues; keep it, including when it is paused.
+  const queues = mergeHomeQueues(data?.queues, configuredQueues);
+  const topQueues = visibleHomeQueues(queues);
+  const queuesPending = isLoading || (!queuesFetched && topQueues.length === 0);
 
   return (
     <div className="rounded-sm border border-border">
@@ -604,7 +620,7 @@ export function QueuesPanel() {
         </a>
       </div>
 
-      {isLoading ? (
+      {queuesPending ? (
         <div className="space-y-2 p-4">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-10 w-full" />
@@ -862,6 +878,24 @@ function DashboardSkeleton() {
 export function DashboardHomeEnhanced() {
   const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useDashboard();
   useTick(15000);
+  const workersQuery = useQuery({
+    queryKey: queryKeys.workers.list(),
+    queryFn: () => workersAPI.list(),
+    refetchInterval: 30000,
+  });
+  const queuesQuery = useQuery({
+    queryKey: queryKeys.queues.list(),
+    queryFn: () => queuesAPI.list(),
+    refetchInterval: 30000,
+  });
+  const scheduledFromOverview = scheduledCountFromOverview(data?.jobs);
+  const statsQuery = useQuery({
+    queryKey: queryKeys.jobs.stats(),
+    queryFn: () => jobsAPI.getStatistics(),
+    // The overview already counted scheduled jobs. Don't replace that with stats.
+    enabled: Boolean(data) && scheduledFromOverview === undefined,
+    refetchInterval: 30000,
+  });
 
   if (error) {
     return (
@@ -885,12 +919,34 @@ export function DashboardHomeEnhanced() {
   }
 
   const jobs = data?.jobs;
-  const workers = data?.workers;
-  const queues = data?.queues ?? [];
   const recentActivity = data?.recent_activity;
   const system = data?.system;
+  const scheduledCount =
+    scheduledFromOverview ??
+    (statsQuery.isSuccess ? scheduledCountFromStats(statsQuery.data) : undefined);
+  const queues = mergeHomeQueues(data?.queues, queuesQuery.data);
+  const workerHealth = reconcileWorkerHealth(
+    data?.workers,
+    workersQuery.isSuccess ? workersQuery.data : undefined
+  );
+  const workersReady = workersQuery.isFetched;
+  const queuesReady = queuesQuery.isFetched;
   const pausedCount = queues.filter((q) => q.paused).length;
-  const signals = computeSignals(data);
+  // Hold the all-clear band until scheduled, queue config and the worker list
+  // have answered. Otherwise a 0.1.127 overview flashes "all systems normal"
+  // in the gap before those fallbacks return.
+  const supplementsPending =
+    !workersReady || !queuesReady || (scheduledFromOverview === undefined && !statsQuery.isFetched);
+  const signals = computeSignals(
+    data && jobs
+      ? {
+          ...data,
+          jobs: scheduledCount !== undefined ? { ...jobs, scheduled: scheduledCount } : jobs,
+          queues,
+          workers: workerHealth,
+        }
+      : data
+  );
 
   const freshnessLabel = dataUpdatedAt ? formatRelativeTime(new Date(dataUpdatedAt)) : 'never';
 
@@ -915,7 +971,7 @@ export function DashboardHomeEnhanced() {
       </div>
 
       {/* Incident detection — highest priority, first thing an operator sees */}
-      <IncidentBand signals={signals} isLoading={isLoading} />
+      <IncidentBand signals={signals} isLoading={supplementsPending} />
 
       {/* Dead-letter queue — always visible, actionable when non-empty */}
       <DeadLetterActionBar />
@@ -929,6 +985,11 @@ export function DashboardHomeEnhanced() {
             href="/jobs?status=pending"
           />
           <StatRow
+            label="Scheduled"
+            value={scheduledCount !== undefined ? formatNumber(scheduledCount) : '—'}
+            href="/jobs?status=scheduled"
+          />
+          <StatRow
             label="Processing"
             value={jobs ? formatNumber(jobs.processing) : '—'}
             href="/jobs?status=processing"
@@ -936,15 +997,17 @@ export function DashboardHomeEnhanced() {
           <StatRow
             label="Workers healthy"
             value={
-              workers ? `${formatNumber(workers.healthy)} / ${formatNumber(workers.total)}` : '—'
+              workersReady
+                ? `${formatNumber(workerHealth.healthy)} / ${formatNumber(workerHealth.total)}`
+                : '—'
             }
-            tone={workers && workers.unhealthy > 0 ? 'warning' : 'completed'}
+            tone={!workersReady ? 'default' : workerHealth.unhealthy > 0 ? 'warning' : 'completed'}
             href="/workers"
           />
           <StatRow
             label="Queues paused"
-            value={`${pausedCount} / ${queues.length}`}
-            tone={pausedCount > 0 ? 'warning' : 'default'}
+            value={queuesReady ? `${pausedCount} / ${queues.length}` : '—'}
+            tone={!queuesReady ? 'default' : pausedCount > 0 ? 'warning' : 'default'}
             href="/queues"
           />
           <StatRow

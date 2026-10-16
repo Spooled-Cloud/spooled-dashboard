@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiKeysAPI, getApiKeyStatus } from '@/lib/api/api-keys';
+import { API_KEYS_PAGE_SIZE, apiKeysAPI, getApiKeyStatus } from '@/lib/api/api-keys';
 import type { APIKey } from '@/lib/api/api-keys';
 import { useAuthStore } from '@/stores/auth';
 import { queryKeys } from '@/lib/query-client';
@@ -41,7 +41,7 @@ function ApiKeysListContent() {
   const [checkingSession, setCheckingSession] = useState(false);
 
   const {
-    data: apiKeys,
+    data: keyList,
     isLoading,
     error,
     refetch,
@@ -49,6 +49,9 @@ function ApiKeysListContent() {
     queryKey: queryKeys.apiKeys.list(),
     queryFn: () => apiKeysAPI.list(),
   });
+  const apiKeys = keyList?.keys;
+  // A repeated full page is only the newest 100. Do not call that slice the total.
+  const newestOnly = keyList?.newestOnly === true;
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => apiKeysAPI.revoke(id),
@@ -126,7 +129,9 @@ function ApiKeysListContent() {
                   <Key className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Total Keys</p>
+                  <p className="text-xs text-muted-foreground">
+                    {newestOnly ? 'Newest keys' : 'Total Keys'}
+                  </p>
                   <p className="text-2xl font-bold">{apiKeys.length}</p>
                 </div>
               </div>
@@ -139,7 +144,9 @@ function ApiKeysListContent() {
                   <Shield className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Active</p>
+                  <p className="text-xs text-muted-foreground">
+                    {newestOnly ? 'Active shown' : 'Active'}
+                  </p>
                   <p className="text-2xl font-bold text-green-600">{activeKeys}</p>
                 </div>
               </div>
@@ -152,13 +159,21 @@ function ApiKeysListContent() {
                   <Clock className="h-5 w-5 text-gray-600" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Revoked/Expired</p>
+                  <p className="text-xs text-muted-foreground">
+                    {newestOnly ? 'Revoked/Expired shown' : 'Revoked/Expired'}
+                  </p>
                   <p className="text-2xl font-bold text-gray-600">{apiKeys.length - activeKeys}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {newestOnly && (
+        <p role="status" className="text-sm text-amber-700">
+          Only the newest {API_KEYS_PAGE_SIZE} are shown.
+        </p>
       )}
 
       {/* Important Notice */}

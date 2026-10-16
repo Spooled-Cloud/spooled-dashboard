@@ -218,6 +218,54 @@ describe('WorkersListPage', () => {
 
       expect(screen.getByText('Offline')).toBeInTheDocument();
     });
+
+    it('does not show a degraded worker as Active', async () => {
+      server.use(
+        http.get('https://api.spooled.cloud/api/v1/workers', () =>
+          HttpResponse.json([
+            {
+              ...mockWorkersSummary[0],
+              id: 'worker-hot',
+              hostname: 'hot-box',
+              status: 'degraded',
+              current_jobs: 10,
+            },
+          ])
+        )
+      );
+
+      render(<WorkersListPage />);
+      expect(await screen.findByText('hot-box')).toBeInTheDocument();
+      expect(screen.getByText('degraded')).toBeInTheDocument();
+      expect(screen.getByText('Active').nextElementSibling).toHaveTextContent('0');
+      expect(screen.getByText('Degraded').nextElementSibling).toHaveTextContent('1');
+    });
+
+    it('counts a draining worker on its own card, which home still calls unhealthy', async () => {
+      server.use(
+        http.get('https://api.spooled.cloud/api/v1/workers', () =>
+          HttpResponse.json([
+            {
+              ...mockWorkersSummary[0],
+              id: 'worker-drain',
+              hostname: 'drain-box',
+              status: 'draining',
+              current_jobs: 1,
+            },
+          ])
+        )
+      );
+
+      render(<WorkersListPage />);
+      expect(await screen.findByText('drain-box')).toBeInTheDocument();
+      expect(screen.getByText('draining')).toBeInTheDocument();
+      expect(screen.getByText('Draining').nextElementSibling).toHaveTextContent('1');
+      expect(screen.getByText('Total Workers').nextElementSibling).toHaveTextContent('1');
+      expect(screen.getByText('Active').nextElementSibling).toHaveTextContent('0');
+      expect(screen.getByText('Idle').nextElementSibling).toHaveTextContent('0');
+      expect(screen.getByText('Degraded').nextElementSibling).toHaveTextContent('0');
+      expect(screen.getByText('Offline').nextElementSibling).toHaveTextContent('0');
+    });
   });
 
   describe('Worker Actions', () => {

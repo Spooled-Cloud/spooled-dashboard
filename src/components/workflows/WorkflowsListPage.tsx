@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { workflowsAPI, canCancelWorkflow, getWorkflowStatusInfo } from '@/lib/api/workflows';
+import {
+  workflowsAPI,
+  canCancelWorkflow,
+  getWorkflowStatusInfo,
+  workflowListPollInterval,
+} from '@/lib/api/workflows';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import {
@@ -99,6 +104,9 @@ function WorkflowsListContent() {
   } = useQuery({
     queryKey: queryKeys.workflows.list({}),
     queryFn: () => workflowsAPI.list(),
+    // A pending workflow stays pending until a job starts. Without this poll
+    // the open list never leaves the status it first loaded.
+    refetchInterval: (query) => workflowListPollInterval(query.state.data),
   });
 
   const cancelMutation = useMutation({

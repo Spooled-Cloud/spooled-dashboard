@@ -285,8 +285,8 @@ describe('Queue Types', () => {
 describe('Worker Types', () => {
   describe('WorkerStatus', () => {
     it('should define all worker statuses', () => {
-      const statuses: WorkerStatus[] = ['active', 'idle', 'offline', 'draining'];
-      expect(statuses.length).toBe(4);
+      const statuses: WorkerStatus[] = ['active', 'idle', 'offline', 'draining', 'degraded'];
+      expect(statuses.length).toBe(5);
     });
   });
 

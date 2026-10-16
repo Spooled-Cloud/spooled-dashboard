@@ -10,6 +10,8 @@ import {
   canCancelWorkflow,
   getWorkflowStatusInfo,
   getJobLevels,
+  workflowPollInterval,
+  workflowProgressCounts,
 } from '@/lib/api/workflows';
 import type { WorkflowWithDetails } from '@/lib/api/workflows';
 import { queryKeys } from '@/lib/query-client';
@@ -143,7 +145,7 @@ function WorkflowDiagram({ workflow }: { workflow: WorkflowWithDetails }) {
 }
 
 function ProgressBar({ workflow }: { workflow: WorkflowWithDetails }) {
-  const { progress } = workflow;
+  const progress = workflowProgressCounts(workflow);
   const total = progress.total || 1;
 
   return (
@@ -163,6 +165,12 @@ function ProgressBar({ workflow }: { workflow: WorkflowWithDetails }) {
           className="h-full bg-blue-500 transition-all"
           style={{ width: `${(progress.processing / total) * 100}%` }}
         />
+        {progress.cancelled > 0 && (
+          <div
+            className="h-full bg-orange-500 transition-all"
+            style={{ width: `${(progress.cancelled / total) * 100}%` }}
+          />
+        )}
         <div
           className="h-full bg-red-500 transition-all"
           style={{ width: `${(progress.failed / total) * 100}%` }}
@@ -177,6 +185,12 @@ function ProgressBar({ workflow }: { workflow: WorkflowWithDetails }) {
           <span className="h-2 w-2 rounded-full bg-blue-500" />
           Processing ({progress.processing})
         </span>
+        {progress.cancelled > 0 && (
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-orange-500" />
+            Cancelled ({progress.cancelled})
+          </span>
+        )}
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-red-500" />
           Failed ({progress.failed})
@@ -201,18 +215,16 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
   } = useQuery({
     queryKey: queryKeys.workflows.detail(workflowId),
     queryFn: () => workflowsAPI.get(workflowId),
-    refetchInterval: (query) => {
-      const data = query.state.data as WorkflowWithDetails | undefined;
-      // Auto-refresh while running
-      return data?.status === 'running' ? 2000 : false;
-    },
+    // Pending as well as running: the row stays pending until a job has
+    // started, and a poll that waits for `running` never observes that change.
+    refetchInterval: (query) => workflowPollInterval(query.state.data?.status),
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => workflowsAPI.cancel(workflowId),
     onSuccess: () => {
       toast.success('Workflow cancelled', { description: 'All pending jobs have been cancelled' });
-      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflowId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
     },
     onError: (error) => {
       toast.error('Failed to cancel workflow', {
@@ -225,7 +237,7 @@ function WorkflowDetailsContent({ workflowId }: WorkflowDetailsPageProps) {
     mutationFn: () => workflowsAPI.retry(workflowId),
     onSuccess: () => {
       toast.success('Workflow retry started', { description: 'Failed jobs are being reprocessed' });
-      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflowId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
     },
     onError: (error) => {
       toast.error('Failed to retry workflow', {

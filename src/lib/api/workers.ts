@@ -52,14 +52,16 @@ function counterFrom(value: unknown): number | undefined {
 }
 
 /**
- * Backend workers are healthy/degraded/offline/draining. The UI uses
- * active/idle/offline/draining: healthy with no current jobs is idle.
+ * Backend workers are healthy/degraded/offline/draining. Healthy with no
+ * current jobs is idle. Degraded stays degraded: the worker is heartbeating
+ * but over capacity, and home already counts it as unhealthy. Mapping it to
+ * active made the workers page call that same worker Active.
  */
 function mapWorkerStatus(status: string, currentJobs: number): Worker['status'] {
   if (status === 'offline') return 'offline';
   if (status === 'draining') return 'draining';
   if (status === 'idle') return 'idle';
-  if (status === 'degraded') return 'active';
+  if (status === 'degraded') return 'degraded';
   if (status === 'healthy' || status === 'active') {
     return currentJobs > 0 ? 'active' : 'idle';
   }
