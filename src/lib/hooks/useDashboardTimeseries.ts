@@ -35,6 +35,14 @@ const TIME_RANGE_CONFIG: Record<TimeRange, { maxPoints: number; intervalMs: numb
 
 const STORAGE_VERSION = 1;
 
+/**
+ * History kept whatever range is selected: the longest range (6 h), at most one sample per
+ * 30 s. Pruning the stored history to the selected range threw away everything older than
+ * 15 minutes on the default range, so 1 h and 6 h could never show more than that.
+ */
+const RETENTION_MS = 6 * 60 * 60 * 1000;
+const RETENTION_MAX_POINTS = RETENTION_MS / 30000;
+
 interface StoredData {
   version: number;
   points: TimeseriesPoint[];
@@ -128,21 +136,26 @@ function saveStoredData(storageKey: string | null, points: TimeseriesPoint[]): v
 }
 
 /**
- * Prune points based on time range configuration
+ * Drop stored points older than the retention window (6 h), whatever range is selected.
  */
-function prunePoints(points: TimeseriesPoint[], timeRange: TimeRange): TimeseriesPoint[] {
+function prunePoints(points: TimeseriesPoint[]): TimeseriesPoint[] {
+  const cutoff = Date.now() - RETENTION_MS;
+  const kept = points.filter((p) => p.timestamp > cutoff);
+  return kept.length > RETENTION_MAX_POINTS ? kept.slice(-RETENTION_MAX_POINTS) : kept;
+}
+
+/**
+ * The points the selected range shows: those inside it, thinned evenly to at most
+ * `maxPoints` (the newest point always stays).
+ */
+function pointsInRange(points: TimeseriesPoint[], timeRange: TimeRange): TimeseriesPoint[] {
   const config = TIME_RANGE_CONFIG[timeRange];
   const cutoff = Date.now() - config.maxPoints * config.intervalMs;
-
-  // Keep points within the time range
-  const filtered = points.filter((p) => p.timestamp > cutoff);
-
-  // If still too many points, downsample
-  if (filtered.length > config.maxPoints) {
-    return filtered.slice(-config.maxPoints);
-  }
-
-  return filtered;
+  const inRange = points.filter((p) => p.timestamp > cutoff);
+  if (inRange.length <= config.maxPoints) return inRange;
+  const step = Math.ceil(inRange.length / config.maxPoints);
+  const last = inRange.length - 1;
+  return inRange.filter((_, index) => (last - index) % step === 0);
 }
 
 /**
@@ -159,8 +172,8 @@ export function useDashboardTimeseries(
   const userId = useAuthStore((s) => s.user?.api_key_id);
   const storageKey = organizationId && userId ? timeseriesStorageKey(organizationId, userId) : null;
 
-  // State
-  const [points, setPoints] = useState<TimeseriesPoint[]>(() =>
+  // State: every stored point of the retention window, not only the selected range.
+  const [storedPoints, setPoints] = useState<TimeseriesPoint[]>(() =>
     persist ? loadStoredData(storageKey) : []
   );
   const loadedKeyRef = useRef<string | null>(storageKey);
@@ -199,7 +212,7 @@ export function useDashboardTimeseries(
 
     setPoints((prev) => {
       const updated = [...prev, newPoint];
-      const pruned = prunePoints(updated, timeRange);
+      const pruned = prunePoints(updated);
 
       // Persist if enabled
       if (persist) {
@@ -208,12 +221,10 @@ export function useDashboardTimeseries(
 
       return pruned;
     });
-  }, [dashboardData, enabled, isPaused, config.intervalMs, timeRange, persist, storageKey]);
+  }, [dashboardData, enabled, isPaused, config.intervalMs, persist, storageKey]);
 
-  // Prune points when time range changes
-  useEffect(() => {
-    setPoints((prev) => prunePoints(prev, timeRange));
-  }, [timeRange]);
+  // What the selected range shows. Changing the range only changes this view.
+  const points = pointsInRange(storedPoints, timeRange);
 
   // Clear history
   const clearHistory = useCallback(() => {
