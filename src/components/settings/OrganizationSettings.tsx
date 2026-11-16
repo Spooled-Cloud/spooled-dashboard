@@ -19,6 +19,7 @@ import { formatRelativeTime } from '@/lib/utils/format';
 import { copyText } from '@/lib/utils/clipboard';
 import { isQueueScopedKey, isUnrestrictedKey } from '@/lib/utils/key-scope';
 import { APIError } from '@/lib/api/client';
+import { InlineError } from '@/components/ui/inline-error';
 import {
   Save,
   Loader2,
@@ -182,11 +183,19 @@ export function BillingEmailVerification({ org }: { org: Organization }) {
 export function WebhookTokenSection({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient();
   const [showToken, setShowToken] = useState(false);
+  // Reading and rotating the token need an unrestricted key; a queue-scoped key gets 403.
+  const queueScoped = isQueueScopedKey(useAuthStore((s) => s.user?.queues));
 
-  const { data: webhookData, isLoading } = useQuery({
+  const {
+    data: webhookData,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ['webhook-token', orgId],
     queryFn: () => organizationsAPI.getWebhookToken(),
-    enabled: !!orgId,
+    enabled: !!orgId && !queueScoped,
   });
 
   const regenerateMutation = useMutation({
@@ -217,6 +226,11 @@ export function WebhookTokenSection({ orgId }: { orgId: string }) {
     ? webhookData.webhook_token.substring(0, 8) + '••••••••••••••••••••••••'
     : null;
 
+  // A 403 means this session may not manage the token: there is nothing it can do here.
+  if (queueScoped || (error instanceof APIError && error.status === 403)) {
+    return null;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -234,6 +248,16 @@ export function WebhookTokenSection({ orgId }: { orgId: string }) {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
+        ) : error ? (
+          // The token may well exist: a failed read must not say "no token" and invite a
+          // regenerate that would break every sender using the live token.
+          <InlineError
+            compact
+            title="Could not load the webhook token"
+            error={error}
+            onRetry={() => refetch()}
+            isRetrying={isFetching}
+          />
         ) : (
           <>
             {/* Webhook URL */}
