@@ -10,6 +10,7 @@ import {
   withExactTotal,
   JOBS_FILTER_UNSUPPORTED_MESSAGE,
   JOBS_LIST_MAX_PAGE,
+  nextRetryAtFrom,
   resetHasMoreProbe,
 } from './jobs';
 import type { JobListPage } from './jobs';
@@ -580,6 +581,31 @@ describe('jobsAPI', () => {
       expect(job.status).toBe('pending');
       expect(job.next_retry_at).toBe('2024-01-01T00:05:00Z');
     });
+
+    it('maps next_retry_at for a retry the backend parked as scheduled', async () => {
+      server.use(
+        http.get(`${API_BASE}/api/v1/jobs/job-retrying`, () =>
+          HttpResponse.json({
+            id: 'job-retrying',
+            organization_id: 'org-1',
+            queue_name: 'emails',
+            status: 'scheduled',
+            payload: { job_type: 'send_email' },
+            retry_count: 1,
+            max_retries: 3,
+            last_error: 'SMTP timeout',
+            created_at: '2026-11-16T10:00:00Z',
+            scheduled_at: '2026-11-16T10:00:04Z',
+            priority: 0,
+            timeout_seconds: 300,
+            updated_at: '2026-11-16T10:00:02Z',
+          })
+        )
+      );
+      const job = await jobsAPI.get('job-retrying');
+      expect(job.status).toBe('scheduled');
+      expect(job.next_retry_at).toBe('2026-11-16T10:00:04Z');
+    });
   });
 
   describe('create', () => {
@@ -872,5 +898,20 @@ describe('jobsAPI', () => {
         error: { type: 'Error', message: 'Connection refused' },
       });
     });
+  });
+});
+
+describe('nextRetryAtFrom', () => {
+  it('is the scheduled time of a failed attempt waiting for its retry', () => {
+    expect(nextRetryAtFrom('scheduled', 'boom', '2026-11-16T10:00:04Z')).toBe(
+      '2026-11-16T10:00:04Z'
+    );
+    expect(nextRetryAtFrom('pending', 'boom', '2026-11-16T10:00:04Z')).toBe('2026-11-16T10:00:04Z');
+  });
+
+  it('is undefined for a delayed job that never failed, or a job no longer waiting', () => {
+    expect(nextRetryAtFrom('scheduled', null, '2026-11-16T10:00:04Z')).toBeUndefined();
+    expect(nextRetryAtFrom('processing', 'boom', '2026-11-16T10:00:04Z')).toBeUndefined();
+    expect(nextRetryAtFrom('deadletter', 'boom', '2026-11-16T10:00:04Z')).toBeUndefined();
   });
 });

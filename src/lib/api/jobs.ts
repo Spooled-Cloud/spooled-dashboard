@@ -161,12 +161,18 @@ function failedAtFrom(
   return completedAt ?? updatedAt ?? undefined;
 }
 
-function nextRetryAtFrom(
+/**
+ * A retry waiting out its backoff: the worker's failure left `last_error` and a future
+ * `scheduled_at`. The backend parks it as `scheduled` (fail_by_worker, 0.1.126 on); older
+ * backends left it `pending`. Only `pending` used to count, so Next Retry never showed.
+ */
+export function nextRetryAtFrom(
   status: string,
   lastError?: string | null,
   scheduledAt?: string | null
 ): string | undefined {
-  if (status !== 'pending' || !lastError || !scheduledAt) return undefined;
+  if (status !== 'scheduled' && status !== 'pending') return undefined;
+  if (!lastError || !scheduledAt) return undefined;
   return scheduledAt;
 }
 
