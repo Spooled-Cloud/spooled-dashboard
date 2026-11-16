@@ -32,9 +32,9 @@ export function getApiKeyStatus(key: APIKey): 'active' | 'revoked' | 'expired' {
   return 'active';
 }
 
-/** Get key prefix from queues for display (shows first queue or *) */
+/** Get key prefix from queues for display (shows first queue, or all queues for none or *) */
 export function getKeyDisplayPrefix(key: APIKey): string {
-  if (key.queues.length === 0) return 'none';
+  if (key.queues.length === 0) return 'all queues';
   if (key.queues[0] === '*') return 'all queues';
   return key.queues[0];
 }

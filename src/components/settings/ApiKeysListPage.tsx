@@ -97,7 +97,8 @@ function ApiKeysListContent() {
     }
   };
 
-  const activeKeys = apiKeys?.filter((k) => k.is_active).length || 0;
+  // An expired key keeps is_active true; its badge says Expired, so it is not counted active.
+  const activeKeys = apiKeys?.filter((k) => getApiKeyStatus(k) === 'active').length || 0;
 
   return (
     <div className="space-y-6">
@@ -242,6 +243,12 @@ function ApiKeysListContent() {
                         <div>
                           <p className="text-xs text-muted-foreground">Queue Access</p>
                           <div className="mt-1 flex flex-wrap gap-1">
+                            {/* No queues means every queue (the create dialog's "leave empty") */}
+                            {apiKey.queues.length === 0 && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                all queues
+                              </Badge>
+                            )}
                             {apiKey.queues.slice(0, 3).map((queue) => (
                               <Badge key={queue} variant="outline" className="font-mono text-xs">
                                 {queue === '*' ? 'all queues' : queue}
