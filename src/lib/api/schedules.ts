@@ -4,6 +4,7 @@
 
 import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
+import { fetchAllPages } from './paging';
 import type { Schedule } from '@/lib/types';
 
 export interface CreateScheduleRequest {
@@ -176,14 +177,29 @@ function buildPayloadTemplate(payload: unknown, jobType?: string): unknown {
   return payload;
 }
 
+/** `MAX_SCHEDULE_LIMIT` on the backend; a larger limit is clamped. */
+export const SCHEDULES_PAGE_SIZE = 500;
+/** Stop after this many pages (10,000 schedules) even if every page is full. */
+const SCHEDULES_MAX_PAGES = 20;
+
 export const schedulesAPI = {
   /**
    * GET /api/v1/schedules
-   * List all schedules
+   * Every schedule, newest first.
+   *
+   * The backend returns 100 rows unless asked for more (at most 500 per page) and sends no
+   * total, so the list pages with limit/offset until a short page. Without paging, every
+   * schedule older than the newest 100 silently disappeared.
    */
   list: async (): Promise<Schedule[]> => {
-    const response = await apiClient.get<BackendSchedule[]>(API_ENDPOINTS.SCHEDULES.LIST);
-    return response.map(transformBackendSchedule);
+    const rows = await fetchAllPages(
+      (limit, offset) =>
+        apiClient.get<BackendSchedule[]>(API_ENDPOINTS.SCHEDULES.LIST, { limit, offset }),
+      (schedule) => schedule.id,
+      SCHEDULES_PAGE_SIZE,
+      SCHEDULES_MAX_PAGES
+    );
+    return rows.map(transformBackendSchedule);
   },
 
   /**

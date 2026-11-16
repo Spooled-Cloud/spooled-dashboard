@@ -4,6 +4,7 @@
 
 import { apiClient } from './client';
 import { API_ENDPOINTS } from '@/lib/constants/api';
+import { fetchAllPages } from './paging';
 import type {
   Workflow,
   WorkflowSummary,
@@ -191,13 +192,28 @@ export function withPayloadJobType<T extends { job_type?: string; payload?: unkn
   };
 }
 
+/** `MAX_WORKFLOWS_PER_PAGE` on the backend; a larger limit is clamped. */
+export const WORKFLOWS_PAGE_SIZE = 100;
+/** Stop after this many pages (10,000 workflows) even if every page is full. */
+const WORKFLOWS_MAX_PAGES = 100;
+
 export const workflowsAPI = {
   /**
    * GET /api/v1/workflows
-   * List all workflows (returns summaries with job counts, not full job arrays)
+   * Every workflow (summaries with job counts, not full job arrays), newest first.
+   *
+   * The backend returns 50 rows unless asked for more (at most 100 per page) and sends no
+   * total, so the list pages with limit/offset until a short page. Without paging, every
+   * workflow older than the newest 50 silently disappeared.
    */
   list: (): Promise<WorkflowSummary[]> => {
-    return apiClient.get<WorkflowSummary[]>(API_ENDPOINTS.WORKFLOWS.LIST);
+    return fetchAllPages(
+      (limit, offset) =>
+        apiClient.get<WorkflowSummary[]>(API_ENDPOINTS.WORKFLOWS.LIST, { limit, offset }),
+      (workflow) => workflow.id,
+      WORKFLOWS_PAGE_SIZE,
+      WORKFLOWS_MAX_PAGES
+    );
   },
 
   /**
