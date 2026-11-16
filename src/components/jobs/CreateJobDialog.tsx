@@ -48,7 +48,8 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
   const [jobType, setJobType] = useState('');
   const [payload, setPayload] = useState('{\n  \n}');
   const [priority, setPriority] = useState('0');
-  const [maxRetries, setMaxRetries] = useState('3');
+  // Blank = the queue's max_retries (the field is left out of the request), like Timeout.
+  const [maxRetries, setMaxRetries] = useState('');
   const [timeoutMs, setTimeoutMs] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [metadata, setMetadata] = useState('');
@@ -85,7 +86,7 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
     setJobType('');
     setPayload('{\n  \n}');
     setPriority('0');
-    setMaxRetries('3');
+    setMaxRetries('');
     setTimeoutMs('');
     setScheduledAt('');
     setMetadata('');
@@ -257,6 +258,7 @@ export function CreateJobDialog({ trigger, defaultQueue, onSuccess }: CreateJobD
                   type="number"
                   min="0"
                   max="100"
+                  placeholder="Default from queue"
                   value={maxRetries}
                   onChange={(e) => setMaxRetries(e.target.value)}
                 />

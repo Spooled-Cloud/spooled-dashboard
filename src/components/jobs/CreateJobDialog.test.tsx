@@ -342,12 +342,12 @@ describe('CreateJobDialog', () => {
       expect(posted.max_retries).toBe(0);
     });
 
-    it('defaults an empty max retries field to 3', async () => {
+    it('leaves max_retries out when the field is cleared, so the queue default applies', async () => {
       const posted = await submit(async (user) => {
         await user.type(screen.getByLabelText(/^queue/i), 'emails');
         await user.clear(screen.getByLabelText('Max Retries'));
       });
-      expect(posted.max_retries).toBe(3);
+      expect(posted).not.toHaveProperty('max_retries');
     });
 
     it('sends scheduled_at as an RFC 3339 instant and accepts a brand-new queue name', async () => {

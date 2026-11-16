@@ -19,12 +19,7 @@ import type { BulkEnqueueRequest } from '@/lib/api/jobs';
 import { queryKeys } from '@/lib/query-client';
 import { toast } from 'sonner';
 import { Layers, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
-import {
-  MAX_RETRIES_DEFAULT,
-  MAX_RETRIES_MAX,
-  MAX_RETRIES_MIN,
-  parseMaxRetries,
-} from './job-form-utils';
+import { MAX_RETRIES_MAX, MAX_RETRIES_MIN, parseMaxRetries } from './job-form-utils';
 
 interface BulkEnqueueDialogProps {
   onSuccess?: (result: { success_count: number; failure_count: number }) => void;
@@ -43,7 +38,8 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
     '[\n  { "payload": { "key": "value" } },\n  { "payload": { "key": "value2" } }\n]'
   );
   const [defaultPriority, setDefaultPriority] = useState(0);
-  const [defaultMaxRetries, setDefaultMaxRetries] = useState(String(MAX_RETRIES_DEFAULT));
+  // Blank = the queue's max_retries: default_max_retries is left out of the request.
+  const [defaultMaxRetries, setDefaultMaxRetries] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ success_count: number; failure_count: number } | null>(
     null
@@ -81,7 +77,7 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
     setQueueName('');
     setJobsJson('[\n  { "payload": { "key": "value" } },\n  { "payload": { "key": "value2" } }\n]');
     setDefaultPriority(0);
-    setDefaultMaxRetries(String(MAX_RETRIES_DEFAULT));
+    setDefaultMaxRetries('');
     setError('');
     setResult(null);
   };
@@ -196,6 +192,7 @@ export function BulkEnqueueDialog({ onSuccess }: BulkEnqueueDialogProps) {
                 type="number"
                 min={MAX_RETRIES_MIN}
                 max={MAX_RETRIES_MAX}
+                placeholder="Default from queue"
                 value={defaultMaxRetries}
                 onChange={(e) => setDefaultMaxRetries(e.target.value)}
               />

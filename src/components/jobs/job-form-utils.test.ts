@@ -6,9 +6,9 @@ describe('parseMaxRetries', () => {
     expect(parseMaxRetries('0')).toBe(0);
   });
 
-  it('falls back to 3 only when the value is not a number', () => {
-    expect(parseMaxRetries('')).toBe(3);
-    expect(parseMaxRetries('abc')).toBe(3);
+  it('is undefined for a blank or non-numeric field, so the queue default applies', () => {
+    expect(parseMaxRetries('')).toBeUndefined();
+    expect(parseMaxRetries('abc')).toBeUndefined();
   });
 
   it('clamps to 0..100', () => {

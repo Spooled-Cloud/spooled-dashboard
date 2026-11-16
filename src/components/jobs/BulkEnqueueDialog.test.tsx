@@ -34,8 +34,17 @@ describe('BulkEnqueueDialog default max retries', () => {
     expect((await enqueueWithRetries('0')).default_max_retries).toBe(0);
   });
 
-  it('defaults an empty field to 3', async () => {
-    expect((await enqueueWithRetries('')).default_max_retries).toBe(3);
+  it('leaves default_max_retries out for an empty field, so the queue default applies', async () => {
+    expect(await enqueueWithRetries('')).not.toHaveProperty('default_max_retries');
+  });
+
+  it('starts empty with a queue-default placeholder', async () => {
+    const user = userEvent.setup();
+    render(<BulkEnqueueDialog />);
+    await user.click(screen.getByRole('button', { name: /bulk enqueue/i }));
+    const retries = await screen.findByLabelText('Default Max Retries');
+    expect(retries).toHaveValue(null);
+    expect(retries).toHaveAttribute('placeholder', 'Default from queue');
   });
 });
 

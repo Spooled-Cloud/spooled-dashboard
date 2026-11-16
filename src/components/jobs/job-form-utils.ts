@@ -5,7 +5,6 @@
 /** Backend range for max_retries (CreateJobRequest / BulkEnqueueRequest). */
 export const MAX_RETRIES_MIN = 0;
 export const MAX_RETRIES_MAX = 100;
-export const MAX_RETRIES_DEFAULT = 3;
 
 /**
  * Parse a number input, keeping an explicit 0. Only an unparseable value (empty, NaN)
@@ -17,8 +16,15 @@ export function parseIntInRange(value: string, fallback: number, min: number, ma
   return Math.min(max, Math.max(min, n));
 }
 
-export function parseMaxRetries(value: string): number {
-  return parseIntInRange(value, MAX_RETRIES_DEFAULT, MAX_RETRIES_MIN, MAX_RETRIES_MAX);
+/**
+ * Max retries typed into a job form, or undefined when the field is blank (or not a number).
+ * Undefined must be left out of the request: the backend then uses the queue's configured
+ * `max_retries`, and only uses a sent value. Sending a made-up 3 overrode the queue setting.
+ */
+export function parseMaxRetries(value: string): number | undefined {
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n)) return undefined;
+  return Math.min(MAX_RETRIES_MAX, Math.max(MAX_RETRIES_MIN, n));
 }
 
 /**
