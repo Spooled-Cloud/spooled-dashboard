@@ -63,6 +63,9 @@ function SubscriptionStatusBadge({ status }: { status: string | null }) {
   );
 }
 
+/** Subscription states that still run to (and, unless canceling, renew at) the period end. */
+const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'past_due']);
+
 function getPlanSummary(billing: {
   plan_tier: string;
   has_stripe_customer: boolean;
@@ -147,6 +150,14 @@ function BillingContent() {
   const hasStripeCustomer = billing?.has_stripe_customer ?? false;
   const hasSubscription = billing?.stripe_subscription_id;
   const planSummary = billing ? getPlanSummary(billing) : '';
+  // The backend keeps stripe_current_period_end after a subscription is canceled, so the
+  // date is a billing date only while a live subscription exists.
+  const hasLiveSubscription = Boolean(
+    hasSubscription &&
+    billing?.stripe_subscription_status &&
+    LIVE_SUBSCRIPTION_STATUSES.has(billing.stripe_subscription_status)
+  );
+  const endsAtPeriodEnd = Boolean(billing?.stripe_cancel_at_period_end);
 
   return (
     <div className="space-y-6">
@@ -182,11 +193,13 @@ function BillingContent() {
 
               <p className="text-sm text-muted-foreground">{planSummary}</p>
 
-              {hasStripeCustomer && billing.stripe_current_period_end && (
+              {hasStripeCustomer && hasLiveSubscription && billing.stripe_current_period_end && (
                 <div className="bg-muted/50 rounded-lg border p-4">
                   <div className="grid gap-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Next billing date</span>
+                      <span className="text-muted-foreground">
+                        {endsAtPeriodEnd ? 'Ends on' : 'Next billing date'}
+                      </span>
                       <span className="font-medium">
                         {new Date(billing.stripe_current_period_end).toLocaleDateString('en-US', {
                           year: 'numeric',
@@ -196,12 +209,14 @@ function BillingContent() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Renews in</span>
+                      <span className="text-muted-foreground">
+                        {endsAtPeriodEnd ? 'Ends in' : 'Renews in'}
+                      </span>
                       <span className="font-medium">
                         {formatRelativeTime(billing.stripe_current_period_end)}
                       </span>
                     </div>
-                    {billing.stripe_cancel_at_period_end && (
+                    {endsAtPeriodEnd && (
                       <div className="border-status-warning/50 bg-status-warning/10 mt-2 flex items-center gap-2 rounded-md border p-2 text-status-warning-foreground">
                         <AlertCircle className="h-4 w-4 shrink-0" />
                         <span className="text-sm">
