@@ -136,6 +136,17 @@ function JobsListContent() {
   });
   const data = pageData && !uncountable ? withExactTotal(pageData, exactTotal) : pageData;
 
+  // Workers drain jobs while a later page is open: a refetch can return that page empty. Step
+  // back to the last page that can still have rows (one at a time when the total is not
+  // known) instead of showing "No jobs found" with no pager to leave it.
+  const pastTheEnd =
+    page > 1 && !!pageData && !pageData.filtersUnsupported && pageData.data.length === 0;
+  useEffect(() => {
+    if (!pastTheEnd || !data) return;
+    const lastPage = data.totalExact ? Math.max(1, data.total_pages) : page - 1;
+    setPage(Math.max(1, Math.min(page - 1, lastPage)));
+  }, [pastTheEnd, data, page]);
+
   const handleFilterChange = (key: 'status' | 'from' | 'to', value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
     setPage(1);
@@ -269,7 +280,7 @@ function JobsListContent() {
 
       {/* Jobs Table */}
       <DataTableContainer>
-        {isLoading ? (
+        {isLoading || pastTheEnd ? (
           <DataTableLoading rows={5} columns={7} />
         ) : error ? (
           <DataTableError error={error} onRetry={() => refetch()} isRetrying={isFetching} />
