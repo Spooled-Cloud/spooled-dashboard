@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { InlineError } from '@/components/ui/inline-error';
 import { DataTableLoading } from '@/components/ui/data-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { workersAPI } from '@/lib/api/workers';
+import { workersAPI, workerAddsCapacity } from '@/lib/api/workers';
 import { queryKeys } from '@/lib/query-client';
 import { formatNumber, formatRelativeTime } from '@/lib/utils/format';
 import { RefreshCw, Trash2, Server, Activity, Circle, Cpu, Pause } from 'lucide-react';
@@ -104,7 +104,9 @@ function WorkersListContent() {
   // other status cards, so it needs its own card or that total does not add up.
   const drainingWorkers = workers?.filter((w) => w.status === 'draining').length || 0;
   const offlineWorkers = workers?.filter((w) => w.status === 'offline').length || 0;
-  const totalConcurrency = workers?.reduce((acc, w) => acc + w.concurrency, 0) || 0;
+  // Offline and draining workers take no jobs, so their slots are not capacity.
+  const totalConcurrency =
+    workers?.filter(workerAddsCapacity).reduce((acc, w) => acc + w.concurrency, 0) || 0;
 
   return (
     <div className="space-y-6">

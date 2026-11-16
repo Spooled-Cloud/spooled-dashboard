@@ -69,6 +69,14 @@ function mapWorkerStatus(status: string, currentJobs: number): Worker['status'] 
 }
 
 /**
+ * Whether a worker's slots count as capacity. Offline rows stay listed for 7 days after a
+ * restart or deregistration, and a draining worker takes no new jobs: neither has slots to give.
+ */
+export function workerAddsCapacity(worker: Pick<Worker, 'status'>): boolean {
+  return worker.status !== 'offline' && worker.status !== 'draining';
+}
+
+/**
  * Transform backend WorkerSummary to frontend Worker type
  */
 function transformWorkerSummary(backend: BackendWorkerSummary): Worker {

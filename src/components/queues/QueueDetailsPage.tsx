@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queuesAPI, type UpdateQueueRequest } from '@/lib/api/queues';
 import { timeoutMsToSeconds } from '@/lib/api/timeout';
-import { workersAPI } from '@/lib/api/workers';
+import { workersAPI, workerAddsCapacity } from '@/lib/api/workers';
 import { useQueueSSE } from '@/lib/hooks/use-sse';
 import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
@@ -164,7 +164,9 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
   const queueWorkers =
     workers?.filter((w: Worker) => w.queues.includes(queueName) || w.queues.includes('*')) || [];
 
-  const totalCapacity = queueWorkers.reduce((acc: number, w: Worker) => acc + w.concurrency, 0);
+  // Only workers that can take jobs add slots; offline rows linger for days after a restart.
+  const liveWorkers = queueWorkers.filter(workerAddsCapacity);
+  const totalCapacity = liveWorkers.reduce((acc: number, w: Worker) => acc + w.concurrency, 0);
   // GET /workers summaries carry only each worker's primary queue, so multi-queue
   // workers are missing from queueWorkers; the stats endpoint counts them correctly.
   const reportedWorkers = stats?.active_workers ?? 0;
@@ -239,7 +241,7 @@ function CapacityView({ queueName, stats }: CapacityViewProps) {
           </p>
         )}
 
-        {queueWorkers.length === 0 && reportedWorkers === 0 && (
+        {liveWorkers.length === 0 && reportedWorkers === 0 && (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
             <AlertTriangle className="mx-auto h-5 w-5 text-amber-600" />
             <p className="mt-1 text-sm font-medium text-amber-600">No Workers</p>
