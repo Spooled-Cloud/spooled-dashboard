@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useRef, useState } from 'react';
+import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workflowsAPI } from '@/lib/api/workflows';
@@ -35,6 +35,7 @@ import {
   createDefaultJob,
   createWorkflowSchema,
   defaultWorkflowFormValues,
+  toWorkflowRequestJobs,
   type CreateWorkflowFormValues,
 } from './create-workflow-schema';
 
@@ -73,6 +74,10 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
     name: 'jobs',
     keyName: 'fieldId',
   });
+  // `fields` is a snapshot taken when a job is added: it does not follow typing. The
+  // dependency options read the live values, so a renamed key or typed job type shows up.
+  const watchedJobs = useWatch({ control, name: 'jobs' });
+  const tempIdSeq = useRef(0);
 
   const { data: queues } = useQuery({
     queryKey: queryKeys.queues.list(),
@@ -101,22 +106,23 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
 
   const addJob = () => {
     const jobs = getValues('jobs');
-    const previousKey = jobs[jobs.length - 1]?.key;
-    append(createDefaultJob(jobs.length, previousKey, String(Date.now())));
+    const previousTempId = jobs[jobs.length - 1]?.tempId;
+    tempIdSeq.current += 1;
+    append(createDefaultJob(jobs.length, previousTempId, `job-${tempIdSeq.current}`));
   };
 
   const removeJob = (index: number) => {
     const jobs = getValues('jobs');
     if (jobs.length <= 1) return;
 
-    const removedKey = jobs[index]?.key;
+    const removedTempId = jobs[index]?.tempId;
     setValue(
       'jobs',
       jobs
         .filter((_, jobIndex) => jobIndex !== index)
         .map((job: CreateWorkflowFormValues['jobs'][number]) => ({
           ...job,
-          depends_on: job.depends_on.filter((dep) => dep !== removedKey),
+          depends_on: job.depends_on.filter((dep) => dep !== removedTempId),
         }))
     );
   };
@@ -128,12 +134,9 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
       const request: CreateWorkflowRequest = {
         name: values.name.trim(),
         description: values.description?.trim() || undefined,
-        jobs: values.jobs.map((job) => ({
-          key: job.key,
-          queue_name: job.queue_name,
-          job_type: job.job_type,
+        jobs: toWorkflowRequestJobs(values.jobs).map((job) => ({
+          ...job,
           payload: {},
-          depends_on: job.depends_on,
           dependency_type: 'success',
         })),
       };
@@ -378,11 +381,14 @@ export function CreateWorkflowDialog({ trigger, onSuccess }: CreateWorkflowDialo
                                     <SelectItem value="none">
                                       No dependency (run immediately)
                                     </SelectItem>
-                                    {fields.slice(0, index).map((priorJob, priorIndex) => (
-                                      <SelectItem key={priorJob.fieldId} value={priorJob.key}>
-                                        Job {priorIndex + 1}: {priorJob.job_type || priorJob.key}
-                                      </SelectItem>
-                                    ))}
+                                    {(watchedJobs ?? [])
+                                      .slice(0, index)
+                                      .map((priorJob, priorIndex) => (
+                                        <SelectItem key={priorJob.tempId} value={priorJob.tempId}>
+                                          Job {priorIndex + 1}:{' '}
+                                          {priorJob.job_type || priorJob.key || '(no key)'}
+                                        </SelectItem>
+                                      ))}
                                   </SelectContent>
                                 </Select>
                               )}

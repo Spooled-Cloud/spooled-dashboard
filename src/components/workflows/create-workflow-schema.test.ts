@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createWorkflowSchema } from './create-workflow-schema';
+import { createWorkflowSchema, toWorkflowRequestJobs } from './create-workflow-schema';
 
 describe('createWorkflowSchema', () => {
   it('accepts a valid workflow with dependencies', () => {
@@ -18,7 +18,7 @@ describe('createWorkflowSchema', () => {
           key: 'transform',
           queue_name: 'default',
           job_type: 'transform_data',
-          depends_on: ['extract'],
+          depends_on: ['1'],
         },
       ],
     });
@@ -59,7 +59,7 @@ describe('createWorkflowSchema', () => {
           key: 'first',
           queue_name: 'default',
           job_type: 'a',
-          depends_on: ['second'],
+          depends_on: ['2'],
         },
         {
           tempId: '2',
@@ -72,5 +72,29 @@ describe('createWorkflowSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it('rejects a dependency on a job that is not in the form', () => {
+    const result = createWorkflowSchema.safeParse({
+      name: 'Pipeline',
+      jobs: [
+        { tempId: '1', key: 'a', queue_name: 'default', job_type: 'a', depends_on: [] },
+        { tempId: '2', key: 'b', queue_name: 'default', job_type: 'b', depends_on: ['gone'] },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('toWorkflowRequestJobs', () => {
+  it('sends the current key of each dependency, whatever it was when it was picked', () => {
+    const jobs = toWorkflowRequestJobs([
+      { tempId: '1', key: 'extract', queue_name: 'default', job_type: 'a', depends_on: [] },
+      { tempId: 'job-1', key: 'load', queue_name: 'default', job_type: 'b', depends_on: ['1'] },
+    ]);
+
+    expect(jobs.map((job) => job.depends_on)).toEqual([[], ['extract']]);
+    expect(jobs[1]).not.toHaveProperty('tempId');
   });
 });
