@@ -636,3 +636,40 @@ export const jobsAPI = {
     return apiClient.post<PurgeDlqResponse>(API_ENDPOINTS.JOBS.DLQ_PURGE, data);
   },
 };
+
+/** Requests in flight at once when jobs are retried one by one. */
+const RETRY_EACH_CONCURRENCY = 5;
+
+export interface RetryEachResult {
+  retried: string[];
+  failed: Array<{ id: string; message: string }>;
+}
+
+/**
+ * Retry the given jobs one request each (`POST /jobs/{id}/retry`).
+ *
+ * A queue-scoped key gets 403 from `POST /jobs/dlq/retry` when it sends `job_ids`, because
+ * that route could span queues. The per-job route checks the job's own queue against the key,
+ * so this is how such a key retries the jobs it selected. Every id is tried; the ones the
+ * backend refused are returned with its message instead of stopping the rest.
+ */
+export async function retryJobsEach(ids: string[]): Promise<RetryEachResult> {
+  const result: RetryEachResult = { retried: [], failed: [] };
+  for (let i = 0; i < ids.length; i += RETRY_EACH_CONCURRENCY) {
+    const chunk = ids.slice(i, i + RETRY_EACH_CONCURRENCY);
+    const settled = await Promise.allSettled(chunk.map((id) => jobsAPI.retry(id)));
+    settled.forEach((outcome, index) => {
+      const id = chunk[index];
+      if (outcome.status === 'fulfilled') {
+        result.retried.push(id);
+      } else {
+        const reason = outcome.reason;
+        result.failed.push({
+          id,
+          message: reason instanceof Error ? reason.message : 'Retry failed',
+        });
+      }
+    });
+  }
+  return result;
+}

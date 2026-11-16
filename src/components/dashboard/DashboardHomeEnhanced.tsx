@@ -32,6 +32,8 @@ import {
 } from '@/lib/dashboard/operations';
 import { DangerConfirmDialog } from '@/components/ui/danger-confirm-dialog';
 import { queryKeys } from '@/lib/query-client';
+import { useAuthStore } from '@/stores/auth';
+import { isQueueScopedKey } from '@/lib/utils/key-scope';
 import { toast } from 'sonner';
 import {
   Briefcase,
@@ -409,6 +411,9 @@ export function DeadLetterActionBar() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useDashboard();
   const deadletterCount = data?.jobs?.deadletter ?? 0;
+  // Retry all and Purge name no queue, which the backend refuses (403) to a queue-scoped key.
+  // Such a key retries and purges per queue on the DLQ page.
+  const queueScoped = isQueueScopedKey(useAuthStore((s) => s.user?.queues));
 
   // The counts the user confirmed in the dialogs: each request is capped to its count, so
   // jobs that dead-letter while a dialog is open are not retried or purged unseen.
@@ -496,7 +501,7 @@ export function DeadLetterActionBar() {
           View <ChevronRight className="ml-0.5 h-3 w-3" />
         </a>
       </div>
-      {deadletterCount > 0 && (
+      {deadletterCount > 0 && !queueScoped && (
         <div className="flex gap-2">
           <Button
             variant="outline"

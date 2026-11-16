@@ -20,13 +20,17 @@ import {
   CopyButton,
 } from '@/components/ui/data-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { jobsAPI, DLQ_PURGE_MAX_LIMIT } from '@/lib/api/jobs';
+import { jobsAPI, retryJobsEach, DLQ_PURGE_MAX_LIMIT } from '@/lib/api/jobs';
+import { useAuthStore } from '@/stores/auth';
+import { isQueueScopedKey } from '@/lib/utils/key-scope';
 import { formatRelativeTime, formatJobId } from '@/lib/utils/format';
 import { RefreshCw, Trash2, AlertTriangle, RotateCcw, CheckCircle } from 'lucide-react';
 import type { Job } from '@/lib/types';
 import { useDebouncedValue } from './useDebouncedValue';
 
 import { toast } from 'sonner';
+
+const SCOPED_PURGE_NEEDS_QUEUE = 'Filter by one of your queues to purge';
 
 function DeadLetterQueueContent() {
   const queryClient = useQueryClient();
@@ -47,6 +51,10 @@ function DeadLetterQueueContent() {
   const [showRetryDialog, setShowRetryDialog] = useState(false);
   const [showPurgeDialog, setShowPurgeDialog] = useState(false);
   const [singleRetryJobId, setSingleRetryJobId] = useState<string | null>(null);
+
+  // A queue-scoped key gets 403 from the bulk DLQ routes unless it names one of its queues:
+  // `job_ids` and an all-queue purge could reach other queues.
+  const queueScoped = isQueueScopedKey(useAuthStore((s) => s.user?.queues));
 
   const {
     data: jobs,
@@ -73,11 +81,28 @@ function DeadLetterQueueContent() {
   const isRefreshing = isFetching || isFetchingCount;
 
   const retryMutation = useMutation({
-    mutationFn: (jobIds: string[]) => jobsAPI.retryDeadLetter({ job_ids: jobIds }),
+    mutationFn: async (jobIds: string[]) => {
+      if (!queueScoped) {
+        const data = await jobsAPI.retryDeadLetter({ job_ids: jobIds });
+        return { retried: data.retried_count, failed: [] as Array<{ message: string }> };
+      }
+      // Scoped key: one POST /jobs/{id}/retry per job, which checks that job's queue.
+      const outcome = await retryJobsEach(jobIds);
+      if (outcome.retried.length === 0 && outcome.failed.length > 0) {
+        throw new Error(outcome.failed[0].message);
+      }
+      return { retried: outcome.retried.length, failed: outcome.failed };
+    },
     onSuccess: (data) => {
-      toast.success('Jobs retried successfully', {
-        description: `${data.retried_count} job(s) moved back to queue`,
-      });
+      if (data.failed.length > 0) {
+        toast.warning(`${data.retried} of ${data.retried + data.failed.length} job(s) retried`, {
+          description: data.failed[0].message,
+        });
+      } else {
+        toast.success('Jobs retried successfully', {
+          description: `${data.retried} job(s) moved back to queue`,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['dlq'] });
       setSelectedJobs(new Set());
       setShowRetryDialog(false);
@@ -95,6 +120,9 @@ function DeadLetterQueueContent() {
       // The backend rejects a limit below 1: never send a request that cannot succeed.
       if (!Number.isInteger(count) || count < 1) {
         return Promise.reject(new Error('There are no dead-lettered jobs to purge'));
+      }
+      if (queueScoped && !queue) {
+        return Promise.reject(new Error(SCOPED_PURGE_NEEDS_QUEUE));
       }
       return jobsAPI.purgeDeadLetter({ queue_name: queue, limit: count, confirm: true });
     },
@@ -225,7 +253,12 @@ function DeadLetterQueueContent() {
                     {selectedJobs.size > 0 ? `${selectedJobs.size} selected` : 'Select all'}
                   </span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  {queueScoped && !queueFilter && (
+                    <span className="text-xs text-muted-foreground">
+                      {SCOPED_PURGE_NEEDS_QUEUE}
+                    </span>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -246,7 +279,11 @@ function DeadLetterQueueContent() {
                       });
                       setShowPurgeDialog(true);
                     }}
-                    disabled={purgeMutation.isPending || totalDeadLettered < 1}
+                    disabled={
+                      purgeMutation.isPending ||
+                      totalDeadLettered < 1 ||
+                      (queueScoped && !queueFilter)
+                    }
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Purge All
