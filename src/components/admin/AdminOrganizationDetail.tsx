@@ -146,13 +146,13 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     setStripeLinkSuccess(false);
     setError('');
     try {
-      const updated = await adminAPI.updateOrganization(orgId, {
+      await adminAPI.updateOrganization(orgId, {
         stripe_customer_id: stripeCustomerId.trim() ? stripeCustomerId.trim() : null,
         stripe_subscription_id: stripeSubscriptionId.trim() ? stripeSubscriptionId.trim() : null,
       });
-      // Reload full org detail (includes usage + billing fields)
+      // Reload full org detail (usage, limits, billing fields). Merging the pre-save `org` over
+      // it put the stale values back.
       await loadOrganization();
-      setOrg({ ...org, ...updated });
       setStripeLinkSuccess(true);
       setTimeout(() => setStripeLinkSuccess(false), 3000);
       setTimeout(() => setStripeLinkOpen(false), 400);
@@ -178,7 +178,8 @@ export function AdminOrganizationDetail({ orgId }: Props) {
     setSaveSuccess(false);
     try {
       await adminAPI.updateOrganization(orgId, { plan_tier: selectedPlan });
-      setOrg({ ...org, plan_tier: selectedPlan });
+      // The plan decides the limits and usage meters: reload them instead of patching the tier.
+      await loadOrganization();
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
