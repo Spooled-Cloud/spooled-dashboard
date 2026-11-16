@@ -11,6 +11,7 @@ import { InlineError } from '@/components/ui/inline-error';
 import { DataTableLoading } from '@/components/ui/data-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workersAPI, workerAddsCapacity } from '@/lib/api/workers';
+import { DEREGISTER_EFFECT_WARNINGS, DEREGISTERED_TOAST } from './deregister-text';
 import { queryKeys } from '@/lib/query-client';
 import { formatNumber, formatRelativeTime } from '@/lib/utils/format';
 import { RefreshCw, Trash2, Server, Activity, Circle, Cpu, Pause } from 'lucide-react';
@@ -72,9 +73,7 @@ function WorkersListContent() {
   const deregisterMutation = useMutation({
     mutationFn: (id: string) => workersAPI.deregister(id),
     onSuccess: () => {
-      toast.success('Worker deregistered', {
-        description: 'Worker has been removed from the pool',
-      });
+      toast.success(DEREGISTERED_TOAST.title, { description: DEREGISTERED_TOAST.description });
       queryClient.invalidateQueries({ queryKey: queryKeys.workers.list() });
       setDeregisterDialogOpen(false);
       setWorkerToDeregister(null);
@@ -270,6 +269,7 @@ function WorkersListContent() {
                         size="icon"
                         onClick={() => handleOpenDeregisterDialog(worker)}
                         disabled={deregisterMutation.isPending}
+                        aria-label={`Deregister ${worker.hostname}`}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -303,14 +303,15 @@ function WorkersListContent() {
         }
         confirmLabel="Deregister"
         isLoading={deregisterMutation.isPending}
-        warnings={
-          workerToDeregister?.current_jobs && workerToDeregister.current_jobs > 0
+        warnings={[
+          ...(workerToDeregister?.current_jobs && workerToDeregister.current_jobs > 0
             ? [
                 `Worker has ${workerToDeregister.current_jobs} job(s) currently processing`,
                 'Jobs return to the queue when their lease expires, not right away',
               ]
-            : ['Worker will stop receiving new jobs', 'Worker can re-register by reconnecting']
-        }
+            : []),
+          ...DEREGISTER_EFFECT_WARNINGS,
+        ]}
       />
     </div>
   );

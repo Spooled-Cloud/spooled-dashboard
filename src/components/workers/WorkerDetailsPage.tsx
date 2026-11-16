@@ -10,6 +10,7 @@ import { formatNumber, formatPercentage, formatRelativeTime } from '@/lib/utils/
 import { ArrowLeft, RefreshCw, Trash2, Activity, Circle, AlertCircle } from 'lucide-react';
 import type { WorkerStatus } from '@/lib/types';
 import { toast } from 'sonner';
+import { DEREGISTER_CONFIRM_TEXT, DEREGISTERED_TOAST } from './deregister-text';
 
 const statusColors: Record<WorkerStatus, { badge: string; dot: string }> = {
   active: { badge: 'bg-green-500/10 text-green-700 border-green-500', dot: 'bg-green-500' },
@@ -48,7 +49,7 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
   const deregisterMutation = useMutation({
     mutationFn: () => workersAPI.deregister(workerId),
     onSuccess: () => {
-      toast.success('Worker deregistered', { description: 'The worker has been removed' });
+      toast.success(DEREGISTERED_TOAST.title, { description: DEREGISTERED_TOAST.description });
       window.location.href = '/workers';
     },
     onError: (error) => {
@@ -59,11 +60,7 @@ function WorkerDetailsContent({ workerId }: WorkerDetailsContentProps) {
   });
 
   const handleDeregister = () => {
-    if (
-      confirm(
-        `Are you sure you want to deregister this worker? This will stop it from processing jobs.`
-      )
-    ) {
+    if (confirm(DEREGISTER_CONFIRM_TEXT)) {
       deregisterMutation.mutate();
     }
   };

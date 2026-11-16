@@ -14,6 +14,7 @@ import { queryKeys } from '@/lib/query-client';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { RefreshCw, Pause, Play, Trash2, Settings, Layers } from 'lucide-react';
 import { toast } from 'sonner';
+import { queueDeleteWarnings, queueDeletedToast } from './queue-delete-text';
 import { CreateQueueDialog } from './CreateQueueDialog';
 import type { Queue } from '@/lib/types';
 
@@ -64,8 +65,9 @@ function QueuesListContent() {
   const deleteMutation = useMutation({
     mutationFn: ({ name, deleteJobs: del }: { name: string; deleteJobs: boolean }) =>
       queuesAPI.delete(name, del),
-    onSuccess: (_, { name }) => {
-      toast.success('Queue deleted', { description: `Queue "${name}" has been removed` });
+    onSuccess: (_, { name, deleteJobs: deletedJobs }) => {
+      const message = queueDeletedToast(name, deletedJobs);
+      toast.success(message.title, { description: message.description });
       queryClient.invalidateQueries({ queryKey: queryKeys.queues.list() });
       setDeleteDialogOpen(false);
       setQueueToDelete(null);
@@ -257,18 +259,7 @@ function QueuesListContent() {
         confirmText={queueToDelete || ''}
         confirmLabel="Delete Queue"
         isLoading={deleteMutation.isPending}
-        warnings={
-          deleteJobs
-            ? [
-                'Queue configuration will be deleted',
-                'All jobs in this queue will be permanently deleted',
-                'This includes pending, processing, and completed jobs',
-              ]
-            : [
-                'Queue configuration will be deleted',
-                'Existing jobs must be moved or completed first',
-              ]
-        }
+        warnings={queueDeleteWarnings(deleteJobs)}
       />
     </div>
   );

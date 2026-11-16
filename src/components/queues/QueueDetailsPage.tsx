@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import type { Queue, Worker, QueueStats } from '@/lib/types';
 import { toast } from 'sonner';
+import { queueDeleteWarnings, queueDeletedToast } from './queue-delete-text';
 
 interface QueueDetailsContentProps {
   queueName: string;
@@ -339,12 +340,16 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
   const deleteMutation = useMutation({
     mutationFn: () => queuesAPI.delete(queueName, deleteJobs),
     onSuccess: () => {
-      toast.success('Queue deleted');
+      const message = queueDeletedToast(queueName, deleteJobs);
+      toast.success(message.title, { description: message.description });
       window.location.href = '/queues';
     },
     onError: (error) => {
       toast.error('Failed to delete queue', {
-        description: error instanceof Error ? error.message : 'Queue may not be empty',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'The queue may still have pending, scheduled or processing jobs',
       });
     },
   });
@@ -637,18 +642,7 @@ function QueueDetailsContent({ queueName }: QueueDetailsContentProps) {
         confirmText={queueName}
         confirmLabel="Delete Queue"
         isLoading={deleteMutation.isPending}
-        warnings={
-          deleteJobs
-            ? [
-                'Queue configuration will be deleted',
-                'All jobs in this queue will be permanently deleted',
-                'This includes pending, processing, and completed jobs',
-              ]
-            : [
-                'Queue configuration will be deleted',
-                'Queue must be empty to delete without deleting jobs',
-              ]
-        }
+        warnings={queueDeleteWarnings(deleteJobs)}
       />
     </div>
   );
